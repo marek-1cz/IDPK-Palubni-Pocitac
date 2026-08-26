@@ -7,6 +7,7 @@ const { exec } = require('child_process');
 const { autoUpdater } = require('electron-updater');
 const log = require('electron-log');
 const { createClient } = require('@supabase/supabase-js');
+const WebSocket = require('ws');
 
 // Nastavení logování pro updater
 autoUpdater.logger = log;
@@ -15,7 +16,10 @@ log.info('App starting...');
 
 const SUPABASE_URL = 'https://tdonrppusbwhoftdontz.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRkb25ycHB1c2J3aG9mdGRvbnR6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI4MDI1NDIsImV4cCI6MjA4ODM3ODU0Mn0.4RLDe65aE5aW1HtWkfgS0QL6JY1MNzGrA7yfnehBFzo';
-const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
+const supabase = createClient(SUPABASE_URL, SUPABASE_KEY, {
+    auth: { persistSession: false },
+    global: { WebSocket }
+});
 
 process.on('uncaughtException', (error) => {
     console.error('Kritická chyba (Aplikace nespadne):', error);
