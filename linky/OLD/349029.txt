@@ -1,0 +1,11 @@
+Linka: 349
+Směr:  MĚLNÍK. AUT. NÁDR.
+Zastávky:
+ph_ladvi | Display: PRAHA, Ládví | Přestup: DODELAT | Tarifní zona: 0 | Další znaky: ZZ,metroC
+ph_trebenicka | Display: Třebenická | Přestup:  | Tarifní zona: 0 | Další znaky: ZZ
+ner_bys | Display: Neratovice, Byškovice | Přestup:  | Tarifní zona: 2 | Další znaky: ZZ
+mel_cukrovar | Display: Mělník,cukrovar | Přestup:  | Tarifní zona: 4 | Další znaky: ZZ
+mel_hriste | Display: Mělník, U Hřiště | Přestup:  | Tarifní zona: 4 | Další znaky: ZZ
+k_mel_aut_nadr | Display: Mělník,aut.nádr. | Přestup:  | Tarifní zona: 4 | Další znaky: ZZ
+
+Následující turnus: MANIPULAČNÍ JÍZDA

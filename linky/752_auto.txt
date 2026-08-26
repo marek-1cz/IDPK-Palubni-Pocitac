@@ -1,0 +1,24 @@
+GTSF-DATA
+Linka: 490752
+
+Zastávky:
+Tachov, u Rybeny = tach_u_ryb | Display:  | Tarifní zona:  | Čas:  | Další znaky: 
+Tachov, aut.nádr = Tc_aut_nadr | Display:  | Tarifní zona:  | Čas:  | Další znaky: 
+Tachov, poliklinika = Tc_Pol | Display:  | Tarifní zona:  | Čas:  | Další znaky: 
+Tachov, Prokopa Velikého = Tc_Prokop | Display:  | Tarifní zona:  | Čas:  | Další znaky: ZZ
+Tachov, Světce, lesní správa = Tc_Sv_les | Display:  | Tarifní zona:  | Čas:  | Další znaky: ZZ
+Tachov, Světce = Tc_Sv | Display:  | Tarifní zona:  | Čas:  | Další znaky: 
+Halže, Svobodka, úpravna vody = Halz_Svo_upr | Display:  | Tarifní zona:  | Čas:  | Další znaky: ZZ
+Halže, Svobodka = Halz_Svobodka | Display:  | Tarifní zona:  | Čas:  | Další znaky: 
+Obora, Dolní Výšina, v.n.Lučina = Obor_D_V_Luc | Display:  | Tarifní zona:  | Čas:  | Další znaky: ZZ
+Obora, samoty = Obor_samoty | Display:  | Tarifní zona:  | Čas:  | Další znaky: ZZ
+Obora = Obora | Display:  | Tarifní zona:  | Čas:  | Další znaky: 
+Obora, škola = Obor_skola | Display:  | Tarifní zona:  | Čas:  | Další znaky:
+Obora, mlýn = Obor_Mlyn | Display:  | Tarifní zona:  | Čas:  | Další znaky: ZZ
+Milíře = Milire | Display:  | Tarifní zona:  | Čas:  | Další znaky:
+Milíře, háj = Milir_haj | Display:  | Tarifní zona:  | Čas:  | Další znaky: ZZ
+Milíře, Zadní Milíře = Milir_Z_M | Display:  | Tarifní zona:  | Čas:  | Další znaky: 
+Tachov, BHS = Tc_BHS | Display: Tachov, BHS  | Tarifní zona:  | Čas:  | Další znaky: ZZ
+Ctiboř = Ctibor | Display:  | Tarifní zona:  | Čas:  | Další znaky: 
+Halže, u školy = Halz_skol | Display:  | Tarifní zona:  | Čas:  | Další znaky: 
+Halže = Halze | Display:  | Tarifní zona:  | Čas:  | Další znaky: 

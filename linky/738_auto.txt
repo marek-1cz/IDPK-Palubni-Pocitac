@@ -1,0 +1,19 @@
+GTSF-DATA
+Linka: 490738
+
+Zastávky:
+Stříbro,aut.st. = str_aut_st | Display:  | Tarifní zona:  | Čas:  | Další znaky: 
+Stříbro,, hotel Branka = str_hot_bra | Display:  | Tarifní zona:  | Čas:  | Další znaky: 
+Stříbro, rest. Plzeňka = str_res_plz | Display:  | Tarifní zona:  | Čas:  | Další znaky: 
+Stříbro,zel.st. = str_zel_st | Display:  | Tarifní zona:  | Čas:  | Další znaky: 
+Kladruby,Vrbice,rozc. = kla_vrb_rozc | Display:  | Tarifní zona:  | Čas:  | Další znaky: ZZ
+Kladruby,mlýn = kla_mlyn | Display:  | Tarifní zona:  | Čas:  | Další znaky: ZZ
+Kladruby,Zadní = kla_zad | Display:  | Tarifní zona:  | Čas:  | Další znaky: 
+Kladruby,Milevo,lom = kla_mile_lom | Display:  | Tarifní zona:  | Čas:  | Další znaky: ZZ
+Kladruby,Milevo = kla_mile | Display:  | Tarifní zona:  | Čas:  | Další znaky: 
+Kladruby,Milevo,lesní školka = kla_mil_les_skol | Display:  | Tarifní zona:  | Čas:  | Další znaky: ZZ
+Prostiboř,Telice = prost_tel | Display:  | Tarifní zona:  | Čas:  | Další znaky: 
+Zhoř = zhor | Display:  | Tarifní zona:  | Čas:  | Další znaky: 
+Velký Malahov = vel_mal | Display:  | Tarifní zona:  | Čas:  | Další znaky: 
+
+

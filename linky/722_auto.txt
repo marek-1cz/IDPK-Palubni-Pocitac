@@ -1,0 +1,52 @@
+GTSF-DATA
+Linka: 490722
+
+Zastávky:
+Tachov, poliklinika = Tc_pol | Display:  | Tarifní zona:  | Čas:  | Další znaky:
+Tachov, u Rybeny = tach_u_ryb | Display:  | Tarifní zona:  | Čas:  | Další znaky: 
+Tachov, aut.nádr = Tc_aut_nadr | Display:  | Tarifní zona:  | Čas:  | Další znaky:
+Tachov, mlékárna = Tc_mlek | Display:  | Tarifní zona:  | Čas:  | Další znaky: ZZ
+Tachov, Malý Rapotín = Tc_M_Rapo | Display:  | Tarifní zona:  | Čas:  | Další znaky:
+Tisová, Trnová = Tis_Trn | Display:  | Tarifní zona:  | Čas:  | Další znaky:
+Tisová = Tisova | Display:  | Tarifní zona:  | Čas:  | Další znaky:
+Tisová, Hlinné = Tis_Hlinn | Display:  | Tarifní zona:  | Čas:  | Další znaky: ZZ
+Bor, Ostrov = Bor_Ostrov | Display:  | Tarifní zona:  | Čas:  | Další znaky: ZZ
+Bor, Nová Hospoda, rozc.I = Bor_N_H_rozc_1 | Display:  | Tarifní zona:  | Čas:  | Další znaky:
+Bor, Nová Hospoda, rozc.II = Bor_N_H_rozc_2 | Display:  | Tarifní zona:  | Čas:  | Další znaky:
+Bor, Nová Hospoda, B4 = Bor_N_H_B4 | Display:  | Tarifní zona:  | Čas:  | Další znaky:
+Bor, Nová Hospoda, B6 = Bor_N_H_B6 | Display:  | Tarifní zona:  | Čas:  | Další znaky:
+Bor, Nová Hospoda, B12 = Bor_N_H_B12 | Display:  | Tarifní zona:  | Čas:  | Další znaky:
+Bor, Nová Hospoda, restaurace = Bor_N_H_rest | Display:  | Tarifní zona:  | Čas:  | Další znaky:
+Bor, Čečkovice = Bor_Ceckovice | Display:  | Tarifní zona:  | Čas:  | Další znaky: 
+Bor, Agroservis = Bor_agro | Display:  | Tarifní zona:  | Čas:  | Další znaky: ZZ
+Bor, aut. st. = Bor_aut_st | Display:  | Tarifní zona:  | Čas:  | Další znaky:
+Bor, statek = Bor_statek | Display:  | Tarifní zona:  | Čas:  | Další znaky:
+Bor, Skviřín = Bor_Skvi | Display:  | Tarifní zona:  | Čas:  | Další znaky: 
+Bor, Holostřevy, rest. Kadrnožka = Bor_Holo_rest_Kadr | Display:  | Tarifní zona:  | Čas:  | Další znaky: ZZ
+Bor, Holostřevy | Display:  | Tarifní zona:  | Čas:  | Další znaky:
+Benešovice = Benesovice | Display:  | Tarifní zona:  | Čas:  | Další znaky: 
+Stříbro, Milíkov, rozc. = Str_Mil_rozc | Display:  | Tarifní zona:  | Čas:  | Další znaky: ZZ
+Stříbro, Západní předměstí = Str_zap_pred | Display:  | Tarifní zona:  | Čas:  | Další znaky:
+Stříbro, aut. st. = Str_aut_st | Display:  | Tarifní zona:  | Čas:  | Další znaky: 
+Stříbro, rozc. k nádraží = Str_rozc_nadr | Display:  | Tarifní zona:  | Čas:  | Další znaky: ZZ
+Stříbro, žel. st. = Str_zel_st | Display:  | Tarifní zona:  | Čas:  | Další znaky: 
+Vranov, Svinná, rozc. = Vran_Svinn_rozc | Display:  | Tarifní zona:  | Čas:  | Další znaky: ZZ
+Stříbro, Siemens = Str_Siemens | Display:  | Tarifní zona:  | Čas:  | Další znaky: ZZ
+Sytno = Sytno | Display:  | Tarifní zona:  | Čas:  | Další znaky:
+Sulislav = Sulislav | Display:  | Tarifní zona:  | Čas:  | Další znaky: 
+Pňovany, Chotěšovičky, rozc. = Pno_Chot_rozc | Display:  | Tarifní zona:  | Čas:  | Další znaky: ZZ
+Pňovany, rozc. 2.0 = Pno_rozc_2,0 | Display:  | Tarifní zona:  | Čas:  | Další znaky: ZZ
+Pňovany = Pnovany | Display:  | Tarifní zona:  | Čas:  | Další znaky:
+Úlice = Ulice | Display:  | Tarifní zona:  | Čas:  | Další znaky: 
+Úlice, Kníje, rozc. = Uli_Kni_rozc | Display:  | Tarifní zona:  | Čas:  | Další znaky: ZZ
+Plešnice, rozc. 1.0 = Ples_rozc_1,0 | Display:  | Tarifní zona:  | Čas:  | Další znaky: ZZ
+Bdeněves, háj = Bdene_haj | Display:  | Tarifní zona:  | Čas:  | Další znaky: ZZ
+Bdeněves = Bdeneves | Display:  | Tarifní zona:  | Čas:  | Další znaky:
+Kozolupy = Kozolupy | Display:  | Tarifní zona:  | Čas:  | Další znaky:
+Kozolupy, u Jána = Kozo_u_Jana | Display:  | Tarifní zona:  | Čas:  | Další znaky: 
+Vochov, rozc. = Voch_rozc | Display:  | Tarifní zona:  | Čas:  | Další znaky: ZZ
+Plzeň, Chebská = Plz_Cheb | Display:  | Tarifní zona:  | Čas:  | Další znaky: 
+Plzeň, Pošta logistika = Plz_posta_logi | Display:  | Tarifní zona:  | Čas:  | Další znaky: ZZ
+Plzeň, U Apolla = Plz_U_Apolla | Display:  | Tarifní zona:  | Čas:  | Další znaky:
+Plzeň, CAN Tylova = Plz_CAN_Tylova | Display:  | Tarifní zona:  | Čas:  | Další znaky:
+Plzeň, Terminál Hlavní Nádraží = Plz_terminal | Display:  | Tarifní zona:  | Čas:  | Další znaky:

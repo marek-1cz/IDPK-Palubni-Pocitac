@@ -1,0 +1,42 @@
+GTSF-DATA
+Linka: 490737
+
+Zastávky:
+Stříbro,aut.st. = str_aut_st | Display:  | Tarifní zona:  | Čas:  | Další znaky: 
+Stříbro, rest. Plzeňka = str_res_plz | Display:  | Tarifní zona:  | Čas:  | Další znaky: 
+Stříbro,zel.st. = str_zel_st | Display:  | Tarifní zona:  | Čas:  | Další znaky: 
+Kladruby,Vrbice,rozc. = kla_vrb_rozc | Display:  | Tarifní zona:  | Čas:  | Další znaky: ZZ
+Kladruby,mlýn = kla_mlyn | Display:  | Tarifní zona:  | Čas:  | Další znaky: ZZ
+Kladruby,Zadní = kla_zad | Display:  | Tarifní zona:  | Čas:  | Další znaky: 
+Kladruby,u školy = kla_u_skoly | Display:  | Tarifní zona:  | Čas:  | Další znaky: 
+Kladruby,Žďár = kla_zda | Display:  | Tarifní zona:  | Čas:  | Další znaky: ZZ
+Kostelec,Ostrov,prům.zóna I = kos_ost_prum_zon_1 | Display:  | Tarifní zona:  | Čas:  | Další znaky: ZZ
+Kostelec,Popov,rozc. = kos_pop_rozc | Display:  | Tarifní zona:  | Čas:  | Další znaky: ZZ
+Heřmanova Huť,Horní Sekyřany = her_h_h_sek | Display:  | Tarifní zona:  | Čas:  | Další znaky: ZZ
+Heřmanova Huť,Dolní Sekyřany = her_h_d_sek | Display:  | Tarifní zona:  | Čas:  | Další znaky: 
+Přehýšov = prehysov | Display:  | Tarifní zona:  | Čas:  | Další znaky: 
+Heřmanova Huť = her_h | Display:  | Tarifní zona:  | Čas:  | Další znaky: 
+Heřmanova Huť,Vlkýš = her_h_vlk | Display:  | Tarifní zona:  | Čas:  | Další znaky: ZZ
+Hněvnice = hnev | Display:  | Tarifní zona:  | Čas:  | Další znaky: 
+Kbelany,,rozc.0.3 = kbe_rozc_0.3 | Display:  | Tarifní zona:  | Čas:  | Další znaky: ZZ
+Rochlov,,rozc. = roch_rozc | Display:  | Tarifní zona:  | Čas:  | Další znaky: ZZ
+Blatnice = blatn | Display:  | Tarifní zona:  | Čas:  | Další znaky: 
+Blatnice,,rozc. = blatn_rozc | Display:  | Tarifní zona:  | Čas:  | Další znaky: ZZ
+Nýřany,,DIOSS rozc. = nyr_dioss_rozc | Display:  | Tarifní zona:  | Čas:  | Další znaky: ZZ
+Nýřany,Kamenný Újezd,rozc. = nyr_kam_uj_rozc | Display:  | Tarifní zona:  | Čas:  | Další znaky: ZZ
+Nýřany,,sídliště = nyr_sidl | Display:  | Tarifní zona:  | Čas:  | Další znaky: 
+Nýřany,,nádraží = nyr_nadr | Display:  | Tarifní zona:  | Čas:  | Další znaky: 
+Tlučná,,kolonie = tluc_kolo | Display:  | Tarifní zona:  | Čas:  | Další znaky: ZZ
+Tlučná,,ZŠ = tluc_zs | Display:  | Tarifní zona:  | Čas:  | Další znaky: 
+Tlučná,,U zahradníka = tluc_u_zahr | Display:  | Tarifní zona:  | Čas:  | Další znaky: 
+Vejprnice,,Pod farou = vejp_p_far | Display:  | Tarifní zona:  | Čas:  | Další znaky: 
+Vejprnice,,bytovky = vejp_byt | Display:  | Tarifní zona:  | Čas:  | Další znaky: 
+Vejprnice,,Brůdek = vejp_bru | Display:  | Tarifní zona:  | Čas:  | Další znaky: ZZ
+Plzeň, nad zátiším = plz_u_via | Display: Plzeň, U Viaduktu  | Tarifní zona:  | Čas:  | Další znaky: ZZ
+Plzeň,Obchodní Rondel rondel = plz_reg_ron | Display: Plzeň, Regensburská rondel  | Tarifní zona:  | Čas:  | Další znaky: ZZ
+Plzeň, Folmavská rondel = plz_fol_rond | Display:  | Tarifní zona:  | Čas:  | Další znaky: ZZ
+Plzeň, U Nové Hospody = plz_u_n_hosp | Display:  | Tarifní zona:  | Čas:  | Další znaky: ZZ
+Plzeň, U Panasoniku = plz_u_pana | Display:  | Tarifní zona:  | Čas:  | Další znaky: ZZ
+Plzeň, NC Borská pole = plz_nc_bor_pol | Display: Plzeň, NC Borská pole | Tarifní zona:  | Čas:  | Další znaky: 
+Plzeň, Univerzita = plz_uni | Display:  | Tarifní zona:  | Čas:  | Další znaky: 
+Plzeň, Bory = plz_bory | Display:  | Tarifní zona:  | Čas:  | Další znaky: 

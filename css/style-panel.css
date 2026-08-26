@@ -1,0 +1,208 @@
+@font-face {
+    font-family: 'Bahnschrift';
+    src: local('Bahnschrift'), local('Bahnschrift Light');
+}
+
+body {
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+    background-color: black;
+    font-family: 'Bahnschrift', sans-serif;
+    user-select: none;
+    width: 100vw;
+    height: 100vh;
+}
+
+.background-img {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: fill; 
+    z-index: 1;
+}
+
+.content-layer {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 100; 
+}
+
+.text-element {
+    position: absolute;
+    white-space: nowrap;
+    z-index: 1000;
+    text-shadow: 1px 1px 2px rgba(0,0,0,0.5);
+}
+
+/* --- HORNÍ LIŠTA --- */
+
+.line-number { 
+    left: 1vw; 
+    top: 1.2vh; 
+    font-size: 11vh; 
+    font-weight: 900; 
+    color: white; 
+    line-height: 1.2;
+}
+
+.arrow-icon { 
+    position: absolute; 
+    left: 14vw; 
+    top: 1.5vh; 
+    font-size: 11vh; 
+    color: white; 
+    font-weight: bold; 
+    line-height: 1.2;
+}
+
+.destination-text { 
+    left: 20vw; 
+    top: 1.2vh; 
+    font-size: 10vh; 
+    font-weight: bold; 
+    color: white; 
+    text-transform: uppercase; 
+    width: 65vw;
+    height: 15vh; 
+    line-height: 1.4; 
+    overflow: hidden;
+    text-overflow: ellipsis;
+    display: flex;
+    align-items: center; 
+}
+
+.clock-text { 
+    right: 1.5vw; 
+    top: 15.5vh; 
+    font-size: 8vh; 
+    font-weight: bold; 
+    color: #035689; 
+    text-shadow: none; 
+    line-height: 1;
+}
+
+/* --- SEZNAM ZASTÁVEK --- */
+
+/* 1. Zastávka (Dole - Aktuální) */
+.stop-1 { 
+    left: 32.6vw; 
+    top: 83vh; 
+    font-size: 7.5vh; 
+    color: black; 
+    font-weight: 900; 
+    line-height: 1;
+}
+.zone-1 { 
+    left: -0.8vw; 
+    top: 83vh; 
+    font-size: 7.5vh; 
+    font-weight: bold; 
+    color: white; 
+    width: 8vw; 
+    text-align: right; 
+    line-height: 1;
+}
+.time-1 {
+    left: 8.5vw; 
+    top: 83vh;   
+    font-size: 7.5vh;
+    font-weight: bold;
+    color: white;
+    line-height: 1;
+}
+
+/* 2. Zastávka (Střed) */
+.stop-2 { 
+    left: 37.2vw; 
+    top: 56vh; 
+    font-size: 6vh; 
+    color: black; 
+    font-weight: bold; 
+    line-height: 1;
+}
+.zone-2 { 
+    left: 4.2vw; 
+    top: 56vh; 
+    font-size: 6vh; 
+    font-weight: bold; 
+    color: white; 
+    width: 6.5vw; 
+    text-align: right; 
+    line-height: 1;
+}
+.time-2 {
+    left: 12vw; 
+    top: 56vh;
+    font-size: 6vh;
+    font-weight: bold;
+    color: white;
+    line-height: 1;
+}
+
+/* 3. Zastávka (Nahoře) */
+/* POSUNUTO VÝRAZNĚ NAHORU (Bylo 29.8vh -> Teď 28.5vh) */
+.stop-3 { 
+    left: 42.3vw; 
+    top: 28.5vh; 
+    font-size: 6vh; 
+    color: black; 
+    font-weight: bold; 
+    line-height: 1;
+}
+.zone-3 { 
+    left: 7.7vw; 
+    top: 28.5vh; 
+    font-size: 6vh; 
+    font-weight: bold; 
+    color: white; 
+    width: 6.5vw; 
+    text-align: right; 
+    line-height: 1;
+}
+.time-3 {
+    left: 15.5vw; 
+    top: 28.5vh;  
+    font-size: 6vh;
+    font-weight: bold;
+    color: white;
+    line-height: 1;
+}
+
+/* --- VELKÁ ZASTÁVKA (HLÁŠENÍ) --- */
+
+.single-stop-name {
+    left: 18vw; /* POSUNUTO DOPRAVA (Bylo 16vw -> 18vw) = Větší mezera od zóny */
+    width: 81vw; 
+    top: 55vh; 
+    transform: translateY(-50%); 
+    
+    font-size: 16vh; 
+    font-weight: 900;
+    color: black; 
+    white-space: nowrap;
+    
+    text-align: center; 
+    line-height: 1;
+}
+
+.single-zone-style {
+    position: absolute;
+    left: 0.2vw; /* POSUNUTO BRUTÁLNĚ DOLEVA (Bylo 1vw -> 0.2vw) */
+    top: 55vh; 
+    transform: translateY(-50%); 
+    
+    font-size: 12vh; 
+    font-weight: 900;
+    color: white; 
+    
+    width: 15vw; 
+    text-align: left; /* Zarovnáno doleva */
+    line-height: 1;
+    z-index: 10;
+}

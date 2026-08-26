@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Informační Panel V1.4</title>
+    <style>
+        img[src=""], img:not([src]) { display: none !important; }
+        @font-face { font-family: 'Bahnschrift'; src: local('Bahnschrift'), local('Bahnschrift Light'); }
+        body { margin: 0; padding: 0; overflow: hidden; background-color: black; font-family: 'Bahnschrift', sans-serif; user-select: none; width: 100vw; height: 100vh; cursor: none; }
+        
+        /* Zde byla odebrána animace, přepnutí je nyní okamžité */
+        .background-img { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: fill; }
+        .bg-hidden { opacity: 0; z-index: 0; visibility: hidden; }
+        .bg-visible { opacity: 1; z-index: 1; visibility: visible; }
+
+        .content-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 100; }
+        .text-element { position: absolute; white-space: nowrap; z-index: 1000; text-shadow: 1px 1px 2px rgba(0,0,0,0.5); }
+
+        .line-number { left: 2.2vw; top: 1.1vh; font-size: 11vh; font-weight: 900; color: white; line-height: 1.2; }
+        .arrow-icon { position: absolute; left: 13.5vw; top: 0.4vh; font-size: 11vh; color: white; font-weight: bold; line-height: 1.2; font-family: Arial, sans-serif; }
+        .destination-text { left: 18.5vw; top: 0.6vh; font-size: 10vh; font-weight: bold; color: white; text-transform: uppercase; width: 65vw; height: 15vh; line-height: 1.4; overflow: hidden; text-overflow: ellipsis; display: flex; align-items: center; }
+        
+        .clock-text { left: 89.5vw; top: 15.5vh; font-size: 8vh; font-weight: bold; color: #035689; text-shadow: none; line-height: 1; font-family: 'Bahnschrift', sans-serif; display: none; }
+
+        .time-container { position: absolute; display: flex; flex-direction: column; justify-content: center; align-items: flex-start; transform: translateY(-50%); line-height: 0.9; font-family: 'Bahnschrift', sans-serif; }
+        .time-sched { font-weight: bold; color: black; font-family: 'Bahnschrift', sans-serif;}
+        .time-delay { font-weight: bold; color: #ff0000; margin-top: 0.5vh; font-family: 'Bahnschrift', sans-serif; text-shadow: 1px 1px 2px rgba(0,0,0,0.2); } 
+
+        .stop-3 { left: 42.2vw; top: 26.5vh; font-size: 6vh; color: black; font-weight: bold; line-height: 1.3; width: 56vw; overflow: hidden; padding-top: 0.5vh; }
+        .zone-3 { left: 9.4vw; top: 26.9vh; font-size: 6vh; font-weight: bold; color: white; width: 6.5vw; text-align: right; line-height: 1; }
+        .time-c-3 { left: 23.4vw; top: 29.5vh; font-size: 6vh; }
+
+        .stop-2 { left: 37.3vw; top: 53.6vh; font-size: 6vh; color: black; font-weight: bold; line-height: 1.3; width: 61vw; overflow: hidden; padding-top: 0.5vh; }
+        .zone-2 { left: 4.7vw; top: 54vh; font-size: 6vh; font-weight: bold; color: white; width: 6.5vw; text-align: right; line-height: 1; }
+        .time-c-2 { left: 18.7vw; top: 56.5vh; font-size: 6vh; }
+
+        .stop-1 { left: 32.6vw; top: 79.5vh; font-size: 7.5vh; color: black; font-weight: 900; line-height: 1.3; width: 66vw; overflow: hidden; padding-top: 0.5vh; }
+        .zone-1 { left: -1.1vw; top: 80.4vh; font-size: 7.5vh; font-weight: bold; color: white; width: 8vw; text-align: right; line-height: 1; } 
+        .time-c-1 { left: 13.3vw; top: 83vh; font-size: 7.5vh; }
+
+        .single-stop-name { left: 18vw; width: 81vw; top: 55vh; transform: translateY(-50%); font-size: 16vh; font-weight: 900; color: black; white-space: nowrap; text-align: center; line-height: 1.3; padding-top: 1vh; }
+        .single-zone-style { position: absolute; left: 2.0vw; top: 55vh; transform: translateY(-50%); font-size: 12vh; font-weight: 900; color: white; width: 15vw; text-align: left; line-height: 1; z-index: 10; }
+        
+        .watermark-text { position: absolute; bottom: 1vh; right: 1vw; font-size: 1.5vh; font-weight: bold; color: #777777; z-index: 9999; text-shadow: 1px 1px 2px rgba(0,0,0,0.8); }
+
+        #boot-screen { position: absolute; top:0; left:0; width:100%; height:100%; background:black; color: #ccc; font-family: 'Consolas', monospace; font-size: 1.8vh; padding: 20px; box-sizing: border-box; z-index:99999; display: block; overflow: hidden; text-align: left; line-height: 1.2; }
+        .boot-line { margin: 0; white-space: pre-wrap; }
+        .cursor { display: inline-block; width: 10px; height: 1.8vh; background-color: #ccc; animation: blink 0.8s infinite; vertical-align: bottom; }
+        @keyframes blink { 0% { opacity: 1; } 50% { opacity: 0; } 100% { opacity: 1; } }
+    </style>
+</head>
+<body>
+    <div id="boot-screen"><div id="boot-content"></div><div class="cursor"></div></div>
+    
+    <img id="bg-layer-1" class="background-img bg-visible" alt="">
+    <img id="bg-layer-2" class="background-img bg-hidden" alt="">
+    
+    <div class="content-layer" id="main-content" style="display:none;">
+        <div id="line-num" class="text-element line-number"></div>
+        <div class="arrow-icon" id="arrow-icon" style="display:none;">»</div>
+        <div id="destination" class="text-element destination-text"></div>
+        <div id="clock" class="text-element clock-text"></div>
+        
+        <div id="watermark" class="watermark-text">Neoficiální software IDPK</div>
+
+        <div id="list-view">
+            <div id="zone-3" class="text-element zone-3"></div><div id="time-c-3" class="time-container time-c-3"></div><div id="stop-3" class="text-element stop-3"></div>
+            <div id="zone-2" class="text-element zone-2"></div><div id="time-c-2" class="time-container time-c-2"></div><div id="stop-2" class="text-element stop-2"></div>
+            <div id="zone-1" class="text-element zone-1"></div><div id="time-c-1" class="time-container time-c-1"></div><div id="stop-1" class="text-element stop-1"></div>
+        </div>
+        
+        <div id="single-stop-view" style="display: none;">
+            <div id="single-zone" class="text-element single-zone-style"></div> 
+            <div id="single-name" class="text-element single-stop-name"></div>
+        </div>
+    </div>
+
+    <script src="js/logic-panel.js"></script>
+</body>
+</html>

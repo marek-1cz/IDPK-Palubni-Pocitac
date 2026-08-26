@@ -1,0 +1,15 @@
+Linka: 722
+Směr: PLZEŇ TERMINÁL HLAVNÍ NÁDRAŽÍ
+Zastávky:
+cernosin | Display: ČERNOŠÍN | Přestup: 741,761 | Tarifní zona: 124 | Další znaky:ZZ MC
+stribro_as | Display: STŘÍBRO AUT. ST. | Přestup: 722,731,732,733,734,736,737,738,739,760 | Tarifní zona: 123 | Další znaky:MC
+k_stribro_zel | Display: PLZEŇ TERMINÁL HLAVNÍ NÁDRAŽÍ | Přestup: IDK HODNĚ TOHO ASI| Tarifní zona: 010 | Další znaky: ZZ, MC
+Následující turnus: IDPK-735
+
+
+
+
+
+
+
+

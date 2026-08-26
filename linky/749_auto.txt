@@ -1,0 +1,9 @@
+GTSF-DATA
+Linka: 490749
+
+Zastávky:
+Tachov, u letiště = Tc_letiste | Display:  | Tarifní zona:  | Čas:  | Další znaky: ZZ
+Dlouhý Újezd = Dlou_U | Display:  | Tarifní zona:  | Čas:  | Další znaky:
+Tachov, u Rybeny = tach_u_ryb | Display:  | Tarifní zona:  | Čas:  | Další znaky: 
+Tachov, poliklinika = Tc_pol | Display:  | Tarifní zona:  | Čas:  | Další znaky: 
+Tachov, aut.nádr = Tc_aut_nadr | Display:  | Tarifní zona:  | Čas:  | Další znaky: 

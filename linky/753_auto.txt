@@ -1,0 +1,40 @@
+GTSF-DATA
+Linka: 490753
+
+Zastávky:
+Tachov, poliklinika = Tc_pol | Display:  | Tarifní zona:  | Čas:  | Další znaky:
+Tachov, u Rybeny = tach_u_ryb | Display:  | Tarifní zona:  | Čas:  | Další znaky: 
+Tachov, aut.nádr = Tc_aut_nadr | Display:  | Tarifní zona:  | Čas:  | Další znaky:
+Tachov, mlékárna = Tc_mlek | Display:  | Tarifní zona:  | Čas:  | Další znaky: ZZ
+Tachov, Malý Rapotín = Tc_M_Rapo | Display:  | Tarifní zona:  | Čas:  | Další znaky:
+Tachov, Chodská Agroservis = tach_chod_agr | Display:  | Tarifní zona:  | Čas:  | Další znaky: ZZ
+Tachov, Rapotínská = tach_rap | Display:  | Tarifní zona:  | Čas:  | Další znaky:
+Tachov, SSRV = tach_ssrv | Display:  | Tarifní zona:  | Čas:  | Další znaky: ZZ
+Částkov,Pernolec = cast_per | Display:  | Tarifní zona:  | Čas:  | Další znaky:
+Tachov,Velký Rapotín = tach_v_rap | Display:  | Tarifní zona:  | Čas:  | Další znaky:
+Částkov,Maršovy Chody = cast_mar_ch | Display:  | Tarifní zona:  | Čas:  | Další znaky:
+Částkov, obec = cast_ob | Display:  | Tarifní zona:  | Čas:  | Další znaky:
+Staré Sedliště,Úšava = st_sed_us | Display:  | Tarifní zona:  | Čas:  | Další znaky:
+Staré Sedliště = st_sed | Display:  | Tarifní zona:  | Čas:  | Další znaky:
+Tisová, u kostela = tis_u_kost | Display:  | Tarifní zona:  | Čas:  | Další znaky:
+Staré Sedliště,Mchov = st_sed_mch | Display:  | Tarifní zona:  | Čas:  | Další znaky:
+Staré Sedliště,Nové Sedliště = st_sed_no_sed | Display:  | Tarifní zona:  | Čas:  | Další znaky:
+Staré Sedliště,Labuť = sta_sed_lab | Display:  | Tarifní zona:  | Čas:  | Další znaky:
+Staré Sedliště,Labuť,rozc. = st_sed_lab_rozc | Display:  | Tarifní zona:  | Čas:  | Další znaky: ZZ
+Přimda,Mlýnec = pri_mly | Display:  | Tarifní zona:  | Čas:  | Další znaky:
+Přimda,Újezd p.Přimdou = pri_uj_p_pri | Display:  | Tarifní zona:  | Čas:  | Další znaky:
+Přimda = pri | Display:  | Tarifní zona:  | Čas:  | Další znaky:
+Přimda,Velké Dvorce = pri_ve_dv | Display:  | Tarifní zona:  | Čas:  | Další znaky:
+Přimda,Kundratice = pri_kun | Display:  | Tarifní zona:  | Čas:  | Další znaky:
+Přimda,Malé Dvorce = pri_m_d | Display:  | Tarifní zona:  | Čas:  | Další znaky:
+Přimda,Třískolupy = pri_trs | Display:  | Tarifní zona:  | Čas:  | Další znaky:
+Třemešné,Dubec = tre_dub | Display:  | Tarifní zona:  | Čas:  | Další znaky:
+Přimda,Orlov = pri_or | Display:  | Tarifní zona:  | Čas:  | Další znaky: ZZ
+Přimda,Rájov = pri_ra | Display:  | Tarifní zona:  | Čas:  | Další znaky: ZZ
+Přimda,Málkov = pri_mal | Display:  | Tarifní zona:  | Čas:  | Další znaky: ZZ
+Třemešné,Nová Ves = tre_n_v | Display:  | Tarifní zona:  | Čas:  | Další znaky:
+Třemešné = tre | Display:  | Tarifní zona:  | Čas:  | Další znaky:
+Třemešné,Pavlíkov = tre_pav | Display:  | Tarifní zona:  | Čas:  | Další znaky:
+
+
+

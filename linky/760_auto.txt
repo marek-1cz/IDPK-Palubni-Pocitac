@@ -1,0 +1,34 @@
+GTSF-DATA
+Linka: 490760
+
+Zastávky:
+Stříbro,aut.st. = str_aut_st | Display:  | Tarifní zona:  | Čas:  | Další znaky: 
+Stříbro, rest. Plzeňka = str_res_plz | Display:  | Tarifní zona:  | Čas:  | Další znaky: 
+Stříbro, rozc. k nádraží = Str_rozc_nadr | Display:  | Tarifní zona:  | Čas:  | Další znaky: ZZ
+Vranov, Svinná, rozc. = Vran_Svinn_rozc | Display:  | Tarifní zona:  | Čas:  | Další znaky: ZZ
+Stříbro, Siemens = Str_Siemens | Display:  | Tarifní zona:  | Čas:  | Další znaky: ZZ
+Sytno = Sytno | Display:  | Tarifní zona:  | Čas:  | Další znaky:
+Sulislav, U parčíku = sul_u_par | Display:  | Tarifní zona:  | Čas:  | Další znaky:
+Hněvnice = hnev | Display:  | Tarifní zona:  | Čas:  | Další znaky: 
+Heřmanova Huť,Vlkýš = her_h_vlk | Display:  | Tarifní zona:  | Čas:  | Další znaky: ZZ
+Stříbro,zel.st. = str_zel_st | Display:  | Tarifní zona:  | Čas:  | Další znaky: 
+Kladruby,Vrbice,rozc. = kla_vrb_rozc | Display:  | Tarifní zona:  | Čas:  | Další znaky: ZZ
+Kladruby,mlýn = kla_mlyn | Display:  | Tarifní zona:  | Čas:  | Další znaky: ZZ
+Kladruby,Zadní = kla_zad | Display:  | Tarifní zona:  | Čas:  | Další znaky: 
+Kladruby,u školy = kla_u_skoly | Display:  | Tarifní zona:  | Čas:  | Další znaky: 
+Kladruby,Žďár = kla_zda | Display:  | Tarifní zona:  | Čas:  | Další znaky: ZZ
+Kostelec,Ostrov,prům.zóna II = kos_ost_prum_zon_2 | Display:  | Tarifní zona:  | Čas:  | Další znaky: ZZ
+Kostelec,Popov,rozc. = kos_pop_rozc | Display:  | Tarifní zona:  | Čas:  | Další znaky: ZZ
+Heřmanova Huť,Horní Sekyřany = her_h_h_sek | Display:  | Tarifní zona:  | Čas:  | Další znaky: ZZ
+Heřmanova Huť,Dolní Sekyřany = her_h_d_sek | Display:  | Tarifní zona:  | Čas:  | Další znaky: 
+Přehýšov = prehysov | Display:  | Tarifní zona:  | Čas:  | Další znaky: 
+Heřmanova Huť = her_h | Display:  | Tarifní zona:  | Čas:  | Další znaky: 
+Kotovice,Nový = koto_novy | Display:  | Tarifní zona:  | Čas:  | Další znaky: ZZ
+Kotovice = koto | Display:  | Tarifní zona:  | Čas:  | Další znaky: 
+Stod, u hliniště = stod__hlin | Display:  | Tarifní zona:  | Čas:  | Další znaky: ZZ
+Stod, Kotovická = stod_koto | Display:  | Tarifní zona:  | Čas:  | Další znaky: ZZ
+Stod, žel.st. = stod_zel_st | Display:  | Tarifní zona:  | Čas:  | Další znaky: 
+Stod, Nádražní = stod_nadr | Display:  | Tarifní zona:  | Čas:  | Další znaky:  
+Stod, u nem. = stod_u_nem | Display:  | Tarifní zona:  | Čas:  | Další znaky: 
+
+

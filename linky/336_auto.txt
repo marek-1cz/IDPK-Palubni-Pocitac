@@ -1,0 +1,46 @@
+GTSF-DATA
+MADE BY: _Runtik_🦖💗
+Linka: 440336
+
+Zastávky:
+Plzeň, Terminál Hlavní nádraží = Plz_terminal | Display: | Tarifní zona: | Čas: | Další znaky:
+Plzeň, Železniční = plz_zel | Display: | Tarifní zona: | Čas: | Další znaky: ZZ
+Plzeň, Nádraží Slovany = plz_nadr_slov | Display: | Tarifní zona: | Čas: | Další znaky: 
+Plzeň, Petřínská = plz_petr | Display: | Tarifní zona: | Čas: | Další znaky:
+Plzeň, Božkov = plz_boz | Display: | Tarifní zona: | Čas: | Další znaky:
+Plzeň, K Bukové = plz_kbuk | Display: | Tarifní zona: | Čas: | Další znaky: ZZ
+Letkov = letk | Display: | Tarifní zona: | Čas: | Další znaky:
+Letkov, u zrcadla = letk_zrc | Display: | Tarifní zona: | Čas: | Další znaky: ZZ
+Tymákov, na vršku = tym_vrs | Display: | Tarifní zona: | Čas: | Další znaky: ZZ
+Tymákov, rozc. = tym_rozc | Display: | Tarifní zona: | Čas: | Další znaky: ZZ
+Tymákov, ObÚ = tym_obu | Display: Tymákov, ObÚ | Tarifní zona: | Čas: | Další znaky:
+Tymákov, garáž ČSAD konečná = tym_csad | Display: Tymákov, garáž ČSAD konečná | Tarifní zona: 071 | Čas: | Další znaky:
+Mokrouše, garáž ČSAD = mok_csad | Display: Mokrouše, garáž ČSAD | Tarifní zona: | Čas: | Další znaky:
+Mokrouše = mok | Display: | Tarifní zona: | Čas: | Další znaky:
+Mokrouše, háj. = mok_haj | Display: Mokrouše, hájovna | Tarifní zona: | Čas: | Další znaky: ZZ
+Lhůta = lhu | Display: | Tarifní zona: | Čas: | Další znaky:
+Šťáhlavy = stahl | Display: | Tarifní zona: | Čas: | Další znaky:
+Tymákov, háj. = tym_haj | Display: Tymákov, hájovna | Tarifní zona: | Čas: | Další znaky: ZZ
+Starý Plzenec, Sedlec, kolonie = stplz_sedl_kol | Display: | Tarifní zona: | Čas: | Další znaky: ZZ
+Starý Plzenec, Sedlec = stplz_sedl | Display: | Tarifní zona: | Čas: | Další znaky:
+Starý Plzenec, Sedlec, Školní = stplz_sedl_sko | Display: | Tarifní zona: | Čas: | Další znaky:
+Starý Plzenec, zdrav.stř. = stplz_zdrav | Display: | Tarifní zona: | Čas: | Další znaky:
+Starý Plzenec, nádraží = stplz_nadr | Display: | Tarifní zona: | Čas: | Další znaky:
+Starý Plzenec = stplz | Display: | Tarifní zona: | Čas: | Další znaky:
+Starý Plzenec, u školy = stplz_sko | Display: | Tarifní zona: | Čas: | Další znaky:
+
+
+
+
+
+
+
+
+ 
+
+
+
+
+
+ 
+ 

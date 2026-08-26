@@ -1,0 +1,8 @@
+GTSF-DATA
+Linka: 490759
+
+Zastávky:
+Planá,,aut.st. = plana_aut_st | Display:  | Tarifní zona:  | Čas:  | Další znaky: 
+Planá,Otín = plana_ot | Display:  | Tarifní zona:  | Čas:  | Další znaky: 
+Planá,Křínov = plana_kr | Display:  | Tarifní zona:  | Čas:  | Další znaky: 
+

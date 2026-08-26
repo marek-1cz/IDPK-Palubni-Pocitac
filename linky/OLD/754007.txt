@@ -1,0 +1,9 @@
+Linka: 754
+Směr:  HALŽE
+Zastávky:
+k_tach_aut_nadr | Display: Tachov,,aut. nádr. | Přestup:  "ZATÍM NENÍ VYUŽITO" | Tarifní zona: 126 | Čas: 07:06
+Tc_BHS | Display: Tachov,,BHS | Přestup:  "ZATÍM NENÍ VYUŽITO" | Tarifní zona: 126 | Čas: 07:07 | Další znaky: ZZ
+Ctibor | Display: Ctiboř | Přestup:  "ZATÍM NENÍ VYUŽITO" | Tarifní zona: 126 | Čas: 07:12
+Halz_skol | Display: Halže,,u školy | Přestup:  "ZATÍM NENÍ VYUŽITO" | Tarifní zona: 126 | Čas: 07:18
+Halze | Display: Halže | Přestup:  "ZATÍM NENÍ VYUŽITO" | Tarifní zona: 126 | Čas: 07:20
+Následující linkospoj 754010

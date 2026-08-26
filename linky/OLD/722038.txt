@@ -1,0 +1,38 @@
+Linka: 722
+Směr:  BOR,NOVÁ HOSPODA,ROZC.II
+Zastávky:
+plzen_ter | Display: PLZEŇ TERMINÁL HLAVNÍ NÁDRAŽÍ | Přestup: NÁDRAŽÍ,TRAM-1-2-4X,11,15,16,17,N3,N6,621,432,253,321,322,226,424,439,450,462,649,421,422,560,561,331,361,362,371,521,221,222,224,231,523 | Tarifní zona: 001 | Další znaky:
+can_hus | Display: Plzeň,,CAN Husova | Přestup: MEZINÁRODNÍ AUTOBUSY,11,12,18,41,56,321,322,334,531,532,534,362,368,371 | Tarifní zona: 001 | Další znaky: 
+plzen_apo | Display: Plzeň,,U Apolla | Přestup: 41,56,532,534,368,371| Tarifní zona: 001 | Další znaky: 
+post_log | Display: Plzeň,,Pošta logistika | Přestup: 41,56,532,534,368,371 | Tarifní zona: 001 | Další znaky: ZZ
+plzen_chebs | Display: Plzeň,,Chebská | Přestup: 24,25,41,56,N5,532,534,368,370,371 | Tarifní zona: 01,121,101| Další znaky: 
+vochov_roz | Display: Vochov,,rozc. | Přestup: 56,532,368,370,371 | Tarifní zona: 121| Další znaky: ZZ
+kozolupy_jan | Display: Kozolup,,u Jána | Přestup: 56,532,368,370,371 | Tarifní zona: 121| Další znaky: 
+kozolupy | Display: Kozolupy | Přestup: 532,369,533 | Tarifní zona: 121 | Další znaky: 
+bdeneves | Display: Bdeněves | Přestup: 369 | Tarifní zona: 121 | Další znaky: 
+bdeneves_haj | Display: Bdenves,,háj. | Přestup: 369 | Tarifní zona: 121 | Další znaky: ZZ
+plesnice_roz | Display: Plešnice,,rozc.1.0 | Přestup: 369 | Tarifní zona: 121,122 | Další znaky: ZZ
+ulice_knije | Display: Úlice,Kníje,rozc. | Přestup: | Tarifní zona: 122 | Další znaky: ZZ
+ulice | Display: Úlice | Přestup: | Tarifní zona: 122 | Další znaky: 
+pnovany_roz | Display: Pňovany,,rozc.2.0 | Přestup: | Tarifní zona: 122 | Další znaky: ZZ
+pnovany_chotesovicky | Display: Pnovany,Chotěšovičky,rozc. | Přestup: | Tarifní zona: 122 | Další znaky: ZZ
+sulislav | Display: Sulislav | Přestup: | Tarifní zona: 123,122 | Další znaky: 
+sytno | Display: Sytno | Přestup: 760 | Tarifní zona: 123 | Další znaky: 
+stribro_si | Display: Stříbro,,Siemens | Přestup: 760 | Tarifní zona: 123 | Další znaky: ZZ
+stribro_roz_nadr | Display: Stříro,,rozc.k nádr. | Přestup: 760,732 | Tarifní zona: 123 | Další znaky: ZZ
+stribro_as | Display: Stříbro,,aut.st. | Přestup: 735,731,732,733,734,736,737,738,739,760 | Tarifní zona: 123 | Další znaky: 
+sribro_zapad | Display: Stříbro,,Západní předm. | Přestup: 732,MHD-711| Tarifní zona: 123 | Další znaky: 
+stribro_milikov_roz | Display: Stříbro,Milíkov,rozc. | Přestup: 732 | Tarifní zona: 123 | Další znaky: ZZ
+benesovice | Display: Benešovice | Přestup: 736 | Tarifní zona: 141,123 | Další znaky: 
+bor_holostrevy | Display: Bor,Holostřevy | Přestup: 736 | Tarifní zona: 141 | Další znaky: 
+bor_holostrevy_kadr | Display: Bor,Holostřevy,rest.Kadrnožka | Přestup: | Tarifní zona: 141 | Další znaky: ZZ
+k_nova_hospoda_roz_2 | Display: Bor,Nová Hospoda,rozc.II | Přestup: | Tarifní zona: 141 | Další znaky: 
+Následující turnus: NEBYL PŘIDÁN
+
+
+
+
+
+
+
+

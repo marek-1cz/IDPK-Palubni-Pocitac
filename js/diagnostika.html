@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+    <meta charset="UTF-8">
+    <title>Diagnostický Log V1.3</title>
+    <style>
+        body { background: #0a0a0a; color: #00ff00; font-family: 'Consolas', monospace; font-size: 14px; padding: 15px; margin: 0; overflow-y: auto; }
+        h3 { color: #f1c40f; border-bottom: 1px solid #f1c40f; padding-bottom: 5px; margin-top: 0; }
+        #log-container { white-space: pre-wrap; line-height: 1.5; }
+        .error-text { color: #ff4d4d; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <h3>=== SYSTÉMOVÝ LOG V1.3 ===</h3>
+    <div id="log-container">Systém spuštěn... Čekám na data.\n</div>
+
+    <script>
+        const { ipcRenderer } = require('electron');
+        const container = document.getElementById('log-container');
+        
+        ipcRenderer.on('new-log', (event, msg) => {
+            const time = new Date().toLocaleTimeString('cs-CZ');
+            let span = document.createElement('span');
+            if (msg.includes('ERROR') || msg.includes('CHYBA')) span.className = 'error-text';
+            span.textContent = `[${time}] ${msg}\n`;
+            container.appendChild(span);
+            window.scrollTo(0, document.body.scrollHeight);
+        });
+    </script>
+</body>
+</html>

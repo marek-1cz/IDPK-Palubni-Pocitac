@@ -1,0 +1,29 @@
+GTSF-DATA
+Linka: 739
+
+Zastávky:
+Stříbro,aut.st. = str_aut_st | Display:  | Tarifní zona:  | Čas:  | Další znaky: 
+Stříbro,nám. = str_nam | Display:  | Tarifní zona:  | Čas:  | Další znaky: 
+Stříbro, rest. Plzeňka = str_res_plz | Display:  | Tarifní zona:  | Čas:  | Další znaky: 
+Stříbro,zel.st. = str_zel_st | Display:  | Tarifní zona:  | Čas:  | Další znaky: 
+Kladruby,Vrbice,rozc. = kla_vrb_rozc | Display:  | Tarifní zona:  | Čas:  | Další znaky: ZZ
+Kladruby,mlýn = kla_mlyn | Display:  | Tarifní zona:  | Čas:  | Další znaky: ZZ
+Kladruby,Zadní = kla_zad | Display:  | Tarifní zona:  | Čas:  | Další znaky: 
+Kladruby,u školy = kla_u_skoly | Display:  | Tarifní zona:  | Čas:  | Další znaky: 
+Kladruby,Žďár = kla_zda | Display:  | Tarifní zona:  | Čas:  | Další znaky: ZZ
+Kostelec,Ostrov,prům.zóna I = kos_ost_prum_zon_1 | Display:  | Tarifní zona:  | Čas:  | Další znaky: ZZ
+Kostelec,Ostrov = kos_ost | Display:  | Tarifní zona:  | Čas:  | Další znaky: 
+Kostelec,Beraní Dvůr = kos_ber_dv | Display:  | Tarifní zona:  | Čas:  | Další znaky: ZZ
+Kostelec,Alfrédov = kos_alf | Display:  | Tarifní zona:  | Čas:  | Další znaky: ZZ
+Kostelec,Sever = kos_sev | Display:  | Tarifní zona:  | Čas:  | Další znaky: 
+Kostelec = kos | Display:  | Tarifní zona:  | Čas:  | Další znaky: 
+Kostelec,Nedražice = kos_nedra | Display:  | Tarifní zona:  | Čas:  | Další znaky: ZZ
+Kostelec,Lšelín = kos_lse | Display:  | Tarifní zona:  | Čas:  | Další znaky: 
+Skapce,Krtín = skap_krt | Display:  | Tarifní zona:  | Čas:  | Další znaky: 
+Skapce,Zálezly = skap_zale | Display:  | Tarifní zona:  | Čas:  | Další znaky: 
+Skapce = skap | Display:  | Tarifní zona:  | Čas:  | Další znaky: 
+Skapce,rozc. = skap_rozc | Display:  | Tarifní zona:  | Čas:  | Další znaky: ZZ
+Zhoř = zhor | Display:  | Tarifní zona:  | Čas:  | Další znaky: 
+Stříbro, rozc.k nádr. = str_rozc_nadr | Display:  | Tarifní zona:  | Čas:  | Další znaky: 
+
+

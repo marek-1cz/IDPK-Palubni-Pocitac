@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Znamení STOP</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: black;
+            overflow: hidden;
+            user-select: none;
+            position: relative;
+            height: 100vh;
+            width: 100vw;
+            /* Odstraněno schovávání myši - myš bude nyní vidět všude! */
+        }
+
+        /* Viditelný šedý panel nahoře */
+        #controls {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 60px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 50px;
+            z-index: 10;
+        }
+        
+        .ctrl-btn {
+            background: transparent;
+            color: #444444; /* Šedé, trvale viditelné */
+            border: none;
+            font-size: 30px;
+            cursor: pointer;
+            padding: 10px;
+            transition: color 0.2s;
+        }
+        
+        .ctrl-btn:hover { 
+            color: #ffffff; /* Při přejetí myší se rozsvítí bíle */
+        }
+
+        /* Zpomalená plynulá animace */
+        #stop-text {
+            font-family: 'Arial Black', Arial, sans-serif;
+            font-weight: 900;
+            font-size: 20vw; 
+            letter-spacing: 5px;
+            color: #222222; 
+            position: absolute;
+            top: 50%;
+            transform: translate(-50%, -50%); 
+            /* Zpomaleno na 1.5s s hladkým dojezdem */
+            transition: left 1.5s cubic-bezier(0.25, 1, 0.5, 1), color 0.3s ease-in-out, text-shadow 0.3s ease-in-out;
+        }
+
+        #stop-text.active {
+            color: #ff0000; 
+            text-shadow: 0 0 30px rgba(255, 0, 0, 0.7), 0 0 60px rgba(255, 0, 0, 0.4);
+        }
+
+        /* Bezpečné pozice, které nezajedou mimo obrazovku */
+        .pos-left { left: 35%; }
+        .pos-center { left: 50%; }
+        .pos-right { left: 65%; }
+
+    </style>
+</head>
+<body>
+
+    <div id="controls">
+        <button class="ctrl-btn" onclick="setPos('pos-left')" title="Posunout doleva">◀</button>
+        <button class="ctrl-btn" onclick="setPos('pos-center')" title="Zarovnat na střed">●</button>
+        <button class="ctrl-btn" onclick="setPos('pos-right')" title="Posunout doprava">▶</button>
+    </div>
+
+    <div id="stop-text" class="pos-center">STOP</div>
+
+    <script>
+        const { ipcRenderer } = require('electron');
+
+        let currentPos = localStorage.getItem('stopPosition') || 'pos-center';
+        setPos(currentPos);
+
+        function setPos(posClass) {
+            const el = document.getElementById('stop-text');
+            el.classList.remove('pos-left', 'pos-center', 'pos-right');
+            el.classList.add(posClass);
+            localStorage.setItem('stopPosition', posClass);
+        }
+
+        ipcRenderer.send('request-stop-state');
+
+        ipcRenderer.on('update-stop-state', (event, isStopPressed) => {
+            const textElement = document.getElementById('stop-text');
+            if (isStopPressed) {
+                textElement.classList.add('active');
+            } else {
+                textElement.classList.remove('active');
+            }
+        });
+    </script>
+</body>
+</html>

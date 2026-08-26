@@ -1,0 +1,37 @@
+GTSF-DATA
+Linka: 400621
+
+Zastávky:
+Domažlice, Vlakové nádraží = dom_vla | Display:  | Tarifní zona:  | Čas:  | Další znaky: 
+Domažlice, U Svatých = dom_u_svat | Display:  | Tarifní zona:  | Čas:  | Další znaky: ZZ
+Domažlice, Poděbradova = dom_pode | Display:  | Tarifní zona:  | Čas:  | Další znaky: 
+Domažlice, Prokopa Velikého = dom_pro_vel | Display:  | Tarifní zona:  | Čas:  | Další znaky: 
+Meclov,Třebnice,rozc.0.6 = mec_tre_rozc | Display:  | Tarifní zona:  | Čas:  | Další znaky: ZZ
+Meclov,Jeníkovice,rozc.0.5 = mec_jen_rozc | Display:  | Tarifní zona:  | Čas:  | Další znaky: ZZ
+Horšovský Týn = hor_tyn | Display:  | Tarifní zona:  | Čas:  | Další znaky: 
+Horšovský Týn,Semošice = hor_tyn_sem | Display:  | Tarifní zona:  | Čas:  | Další znaky: 
+Křenovy = kre | Display:  | Tarifní zona:  | Čas:  | Další znaky: ZZ
+Staňkov,Vránov = sta_vra | Display:  | Tarifní zona:  | Čas:  | Další znaky: ZZ
+Staňkov, nám. = sta_nam | Display:  | Tarifní zona:  | Čas:  | Další znaky: 
+Staňkov,Ohučov = sta_ohu | Display:  | Tarifní zona:  | Čas:  | Další znaky: ZZ
+Holýšov, u Obuvi = hol_u_obu | Display:  | Tarifní zona:  | Čas:  | Další znaky: 
+Stod, žel.st. = stod_zel_st | Display:  | Tarifní zona:  | Čas:  | Další znaky: 
+Stod, Nádražní = stod_nadr | Display:  | Tarifní zona:  | Čas:  | Další znaky: 
+Stod = stod | Display:  | Tarifní zona:  | Čas:  | Další znaky: 
+Chotěšov, žel.st. = chot_zel_st | Display:  | Tarifní zona:  | Čas:  | Další znaky: 
+Zbůch,,Starý důl rozc. = zbu_star_dul_rozc | Display:  | Tarifní zona:  | Čas:  | Další znaky: ZZ
+Zbůch, náměstí = zbu_nam | Display:  | Tarifní zona:  | Čas:  | Další znaky: 
+Zbůch = zbu | Display:  | Tarifní zona:  | Čas:  | Další znaky: 
+Líně, sídliště = line_sidl | Display:  | Tarifní zona:  | Čas:  | Další znaky: 
+Líně = line | Display:  | Tarifní zona:  | Čas:  | Další znaky: 
+Líně,Sulkov = line_sul | Display:  | Tarifní zona:  | Čas:  | Další znaky: 
+Plzeň, Nová Hospoda = plz_no_hosp | Display:  | Tarifní zona:  | Čas:  | Další znaky: ZZ
+Plzeň, Folmavská rondel = plz_fol_rond | Display:  | Tarifní zona:  | Čas:  | Další znaky: ZZ
+Plzeň, U Nové Hospody = plz_u_n_hosp | Display:  | Tarifní zona:  | Čas:  | Další znaky: ZZ
+Plzeň, U Panasoniku = plz_u_pana | Display:  | Tarifní zona:  | Čas:  | Další znaky: ZZ
+Plzeň, NC Borská pole = plz_nc_bor_pol | Display: Plzeň, NC Borská pole | Tarifní zona:  | Čas:  | Další znaky: 
+Plzeň, Univerzita = plz_uni | Display:  | Tarifní zona:  | Čas:  | Další znaky: 
+Plzeň, Bory = plz_bory | Display:  | Tarifní zona:  | Čas:  | Další znaky: 
+Plzeň, Belánka = plz_bel | Display:  | Tarifní zona:  | Čas:  | Další znaky: ZZ
+Plzeň, Radobyčická = plz_rado | Display:  | Tarifní zona:  | Čas:  | Další znaky: ZZ
+Plzeň, Terminál Hlavní nádraž = Plz_terminal | Display:  | Tarifní zona:  | Čas:  | Další znaky: 

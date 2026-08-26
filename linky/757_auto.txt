@@ -1,0 +1,20 @@
+GTSF-DATA
+Linka: 490757
+
+Zastávky:
+Tachov, u Rybeny = Tc_u_ryb | Display:  | Tarifní zona:  | Čas:  | Další znaky: 
+Tachov, aut.nádr = Tc_aut_nadr | Display:  | Tarifní zona:  | Čas:  | Další znaky: 
+Tachov, BHS hlavní brána = Tc_BHS_hl_b | Display: Tachov, BHS  | Tarifní zona:  | Čas:  | Další znaky: ZZ
+Ctiboř, Březí = Ctibor_brezi | Display:  | Tarifní zona:  | Čas:  | Další znaky: 
+Chodský Újezd, Štokov = Chod_U_stokov | Display:  | Tarifní zona:  | Čas:  | Další znaky: 
+Chodský Újezd, Štokov, rozc. = CHod_U_Stok_rozc | Display:  | Tarifní zona:  | Čas:  | Další znaky: ZZ
+Chodský Újezd = Chod_U | Display:  | Tarifní zona:  | Čas:  | Další znaky:
+Tachov, poliklinika = Tc_Pol | Display:  | Tarifní zona:  | Čas:  | Další znaky:
+Chodský Újezd, Horní Jadruž = Chod_U_H_J | Display:  | Tarifní zona:  | Čas:  | Další znaky:
+Chodský Újezd, Dolní Jadruž = Chod_U_D_J | Display:  | Tarifní zona:  | Čas:  | Další znaky:
+Chodský Újezd, Dolní Jadruž, rozc = Chod_U_D_J_rozc | Display:  | Tarifní zona:  | Čas:  | Další znaky:
+Planá, Červený mlýn = Plan_Cer_mlyn | Display:  | Tarifní zona:  | Čas:  | Další znaky: ZZ
+Planá, rozc.k nádr. = Plan_rozc_nadr | Display:  | Tarifní zona:  | Čas:  | Další znaky: ZZ
+Planá, žel.st. = Plan_Zel_st | Display:  | Tarifní zona:  | Čas:  | Další znaky:
+Planá, Sadová = Plan_Sad | Display:  | Tarifní zona:  | Čas:  | Další znaky: ZZ
+Planá, aut.st. = Plan_aut_st | Display:  | Tarifní zona:  | Čas:  | Další znaky:

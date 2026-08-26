@@ -1,0 +1,36 @@
+GTSF-DATA
+Linka: 490731
+
+Zastávky:
+Stříbro,žel.st. = str_zel_st | Display:  | Tarifní zona:  | Čas:  | Další znaky: 
+Stříbro,aut.st. = str_aut_st | Display:  | Tarifní zona:  | Čas:  | Další znaky:
+Stříbro,záv. = str_zav | Display:  | Tarifní zona:  | Čas:  | Další znaky: ZZ
+Stříbro, Těchlovice = str_tech | Display:  | Tarifní zona:  | Čas:  | Další znaky:
+Záchlumí, rozc = zachlum_rozc | Display:  | Tarifní zona:  | Čas:  | Další znaky: ZZ
+Záchlumí, Ústřední dílny = zach_ust_dil | Display:  | Tarifní zona:  | Čas:  | Další znaky: ZZ
+Záchlumí = zach | Display:  | Tarifní zona:  | Čas:  | Další znaky: 
+Cebiv = cebiv | Display:  | Tarifní zona:  | Čas:  | Další znaky: 
+Horní Kozolupy,,rozc. = hk_rozc | Display:  | Tarifní zona:  | Čas:  | Další znaky: ZZ
+Horní Kozolupy,Slavice = hk_slav | Display:  | Tarifní zona:  | Čas:  | Další znaky: 
+Horní Kozolupy = hk | Display:  | Tarifní zona:  | Čas:  | Další znaky: 
+Horní Kozolupy,Očín = hk_ocin | Display:  | Tarifní zona:  | Čas:  | Další znaky: ZZ
+Horní Kozolupy,Strahov = hk_str | Display:  | Tarifní zona:  | Čas:  | Další znaky: 
+Kokašice, u samoobsluhy = koka_u_samo | Display:  | Tarifní zona:  | Čas:  | Další znaky: 
+Kokašice,,u rybníka = koka_u_ryb | Display:  | Tarifní zona:  | Čas:  | Další znaky: 
+Konstantinovy Lázně,Břetislav,rozc. = kon_la_bre_rozc | Display:  | Tarifní zona:  | Čas:  | Další znaky: ZZ
+Cebiv,Bezemín,rozc. = ceb_bez_rozc | Display:  | Tarifní zona:  | Čas:  | Další znaky: ZZ
+Konstantinovy Lázně,Daňkov,rozc. = kon_la_dan_rozc | Display:  | Tarifní zona:  | Čas:  | Další znaky: ZZ
+Konstantinovy Lázně,Okrouhlé Hrad. = kon_la_ok_hr | Display:  | Tarifní zona:  | Čas:  | Další znaky: 
+Konstantinovy Lázně, kamenolom = kon_la_kam | Display:  | Tarifní zona:  | Čas:  | Další znaky: ZZ
+Konstantinovy Lázně,Okrouhlé Hrad.,r. = kon_la_ok_hr_rozc | Display:  | Tarifní zona:  | Čas:  | Další znaky: ZZ
+Konstantinovy Lázně,Poloučany = kon_la_polo | Display:  | Tarifní zona:  | Čas:  | Další znaky: 
+Konstantinovy Lázně, aut.st. = kon_la_aut_st | Display:  | Tarifní zona:  | Čas:  | Další znaky: 
+Kokašice,Čeliv = koka_cel | Display:  | Tarifní zona:  | Čas:  | Další znaky: ZZ
+Bezdružice,Dolní Polžice = bez_d_p | Display:  | Tarifní zona:  | Čas:  | Další znaky: ZZ
+Konstantinovy Lázně,Nová Ves = kon_la_n_v | Display:  | Tarifní zona:  | Čas:  | Další znaky: ZZ
+Bezdružice,,žel.st. = bez_zel_st | Display:  | Tarifní zona:  | Čas:  | Další znaky: ZZ
+Bezdružice,,aut.st. = bez_aut_st | Display:  | Tarifní zona:  | Čas:  | Další znaky: 
+Bezdružice,Křivce,rozc. = bez_kr_rozc | Display:  | Tarifní zona:  | Čas:  | Další znaky: ZZ
+Úterý, sídliště = ute_sidl | Display:  | Tarifní zona:  | Čas:  | Další znaky: 
+Úterý,,Na točně = ute_na_toc | Display:  | Tarifní zona:  | Čas:  | Další znaky: 
+Úterý,Vidžín = ute_vid | Display:  | Tarifní zona:  | Čas:  | Další znaky: 

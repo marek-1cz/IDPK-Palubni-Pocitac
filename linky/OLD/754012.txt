@@ -1,0 +1,13 @@
+Linka: 754
+Směr:  TACHOV,, URBANITY CAMPUS
+Zastávky:
+Halze | Display: Halže | Přestup:  "ZATÍM NENÍ VYUŽITO" | Tarifní zona: 126 | Čas: 13:30
+Halz_skol | Display: Halže,,u školy | Přestup:  "ZATÍM NENÍ VYUŽITO" | Tarifní zona: 126 | Čas: 13:32
+Ctibor | Display: Ctiboř | Přestup:  "ZATÍM NENÍ VYUŽITO" | Tarifní zona: 126 | Čas: 13:36
+Tc_BHS | Display: Tachov,,BHS | Přestup:  "ZATÍM NENÍ VYUŽITO" | Tarifní zona: 126 | Čas: 13:40 | Další znaky: ZZ
+k_tach_aut_nadr | Display: Tachov,,aut. nádr. | Přestup:  "ZATÍM NENÍ VYUŽITO" | Tarifní zona: 126 | Čas: 13:42
+tach_u_ryb | Display: Tahchov,,u Rybeny | Přestup:  "ZATÍM NENÍ VYUŽITO" | Tarifní zona: 126 | Čas: 13:45
+tach_mlek | Display: Tachov,,mlékárna | Přestup:  "ZATÍM NENÍ VYUŽITO" | Tarifní zona: 126 | Čas: 13:48 | Další znaky: ZZ
+Tc_CSAD | Display: Tachov,,ČSAD | Přestup:  "ZATÍM NENÍ VYUŽITO" | Tarifní zona: 126 | Čas: 13:49 | Další znaky: ZZ
+Tc_Urb_Cam | Display: Tachov,,Urbanity Campus | Přestup:  "ZATÍM NENÍ VYUŽITO" | Tarifní zona: 126 | Čas: 13:51 | Další znaky: KZ
+Následující linkospoj 754011

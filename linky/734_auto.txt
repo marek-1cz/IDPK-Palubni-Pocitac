@@ -1,0 +1,12 @@
+GTSF-DATA
+Linka: 490734
+
+Zastávky:
+Stříbro,,Gymnázium = str_gym | Display:  | Tarifní zona:  | Čas:  | Další znaky: 
+Stříbro,,pošta = str_pos | Display:  | Tarifní zona:  | Čas:  | Další znaky: 
+Stříbro,žel.st. = str_zel_st | Display:  | Tarifní zona:  | Čas:  | Další znaky: 
+Stříbro,aut.st. = str_aut_st | Display:  | Tarifní zona:  | Čas:  | Další znaky:
+Stříbro,záv. = str_zav | Display:  | Tarifní zona:  | Čas:  | Další znaky: ZZ
+Stříbro, Těchlovice = str_tech | Display:  | Tarifní zona:  | Čas:  | Další znaky:
+Stříbro,Otročín = str_otr | Display:  | Tarifní zona:  | Čas:  | Další znaky:
+Svojšín = svoj | Display:  | Tarifní zona:  | Čas:  | Další znaky: 

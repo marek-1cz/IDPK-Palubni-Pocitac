@@ -1,0 +1,12 @@
+GTSF-DATA
+Linka "číslo linky např. 749754"
+
+Zastávky
+Tachov, u Rybeny = Tc_u_ryb  Display   Tarifní zona   Čas   Další znaky 
+Tachov, aut.nádr = Tc_aut_nadr  Display   Tarifní zona   Čas   Další znaky 
+Tachov, BHS hlavní brána = Tc_BHS_hl_b  Display   Tarifní zona   Čas   Další znaky ZZ
+Ctiboř, Březí = Ctibor_brezi  Display   Tarifní zona   Čas   Další znaky 
+Chodský Újezd, Štokov = Chod_U_stokov  Display   Tarifní zona   Čas   Další znaky 
+Chodský Újezd, Štokov, rozc. = CHod_U_Stok_rozc  Display   Tarifní zona   Čas   Další znaky ZZ
+Chodský Újezd = Chod_U  Display   Tarifní zona   Čas   Další znaky
+Zadní Chodov = Zad_Chod  Display   Tarifní zona   Čas   Další znaky

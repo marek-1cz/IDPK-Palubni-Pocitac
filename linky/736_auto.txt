@@ -1,0 +1,20 @@
+GTSF-DATA
+Linka: 490736
+
+Zastávky:
+Stříbro,aut.st. = str_aut_st | Display:  | Tarifní zona:  | Čas:  | Další znaky: 
+Stříbro, rest. Plzeňka = str_res_plz | Display:  | Tarifní zona:  | Čas:  | Další znaky: 
+Stříbro,zel.st. = str_zel_st | Display:  | Tarifní zona:  | Čas:  | Další znaky: 
+Kladruby,Vrbice,rozc. = kla_vrb_rozc | Display:  | Tarifní zona:  | Čas:  | Další znaky: ZZ
+Kladruby,mlýn = kla_mlyn | Display:  | Tarifní zona:  | Čas:  | Další znaky: ZZ
+Kladruby,Zadní = kla_zad | Display:  | Tarifní zona:  | Čas:  | Další znaky: 
+Kladruby,Láz = kla_laz | Display:  | Tarifní zona:  | Čas:  | Další znaky: 
+Kladruby,Vrbice = kla_vrb | Display:  | Tarifní zona:  | Čas:  | Další znaky: 
+Bdeněves = Bdeneves | Display:  | Tarifní zona:  | Čas:  | Další znaky:
+Bor, aut. st. = Bor_aut_st | Display:  | Tarifní zona:  | Čas:  | Další znaky:
+Bor, statek = Bor_statek | Display:  | Tarifní zona:  | Čas:  | Další znaky:
+Bor, Skviřín = Bor_Skvi | Display:  | Tarifní zona:  | Čas:  | Další znaky: 
+Bor, Holostřevy, rest. Kadrnožka = Bor_Holo_rest_Kadr | Display:  | Tarifní zona:  | Čas:  | Další znaky: ZZ
+Bor, Holostřevy | Display:  | Tarifní zona:  | Čas:  | Další znaky:
+
+

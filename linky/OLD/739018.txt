@@ -1,0 +1,6 @@
+Linka: 739
+Směr:  STŘÍBRO AUT.ST.
+Zastávky:
+kostelec_prum_1 | Display: Kostelec, Ostrov, prům.zóna I | Přestup:  760| Tarifní zona: 123 | Další znaky: 123,102
+k_stribro_as | Display: Stříbro,,aut.st. | Přestup: 722,735,731,732,733,734,736,737,738,760 | Tarifní zona: 123 | Další znaky: 
+Následující turnus: NEBYL PŘIDÁN

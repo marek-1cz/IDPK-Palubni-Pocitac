@@ -1,0 +1,8 @@
+Linka: 550
+Směr:  STOD,,ŽEL.ST.
+Zastávky:
+hol_obuv | Display: Holýšov,,u Obuvi | Přestup:  621,631,822,841,82,84,649,822,841,843 | Tarifní zona: 104 
+stod | Display: Stod | Přestup:  551,553,554,555,564,552,621,649,760| Tarifní zona: 103,104 
+stod_nadr | Display: Stod,,Nádražní | Přestup: 551,553,554,555,564,552,621,760 | Tarifní zona: 103 | 
+stod_zel_st | Display: Stod,,žel.st. | Přestup:  551,553,554,555,564,552,621,760| Tarifní zona: 103 | 
+Následující turnus: NEBYL PŘIDÁN

@@ -1,0 +1,6 @@
+Linka: 735
+Směr: STŘÍBRO AUT. ST.
+Zastávky:
+cernosin | Display: ČERNOŠÍN | Přestup: 741,761 | Tarifní zona: 124
+k_stribro_as | Display: STŘÍBRO AUT. ST. | Přestup: 722,731,732,733,734,736,737,738,739,760 | Tarifní zona: 123
+Následující turnus: X

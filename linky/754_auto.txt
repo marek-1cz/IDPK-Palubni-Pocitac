@@ -1,0 +1,17 @@
+GTSF-DATA
+Linka: 490754
+
+Zastávky:
+Tachov, Urbanity Campus = Tc_Urb_Cam | Display:  | Tarifní zona:  | Čas:  | Další znaky: 
+Tachov, ČSAD = Tc_CSAD | Display:  | Tarifní zona:  | Čas:  | Další znaky: ZZ
+Tachov, mlékárna = tach_mlek | Display:  | Tarifní zona:  | Čas:  | Další znaky: ZZ
+Tachov, u Rybeny = tach_u_ryb | Display:  | Tarifní zona:  | Čas:  | Další znaky: 
+Tachov, aut.nádr = Tc_aut_nadr | Display:  | Tarifní zona:  | Čas:  | Další znaky: 
+Tachov, BHS = Tc_BHS | Display: Tachov, BHS | Tarifní zona:  | Čas:  | Další znaky: ZZ
+Ctiboř = Ctibor | Display:  | Tarifní zona:  | Čas:  | Další znaky: 
+Halže, u školy = Halz_skol | Display:  | Tarifní zona:  | Čas:  | Další znaky: 
+Halže = Halze | Display:  | Tarifní zona:  | Čas:  | Další znaky: 
+Halže, Horní Výšina = Halz_H_Vys | Display:  | Tarifní zona:  | Čas:  | Další znaky: 
+Obora, Dolní Výšina, rozc. = Halz_D_V_rozc | Display:  | Tarifní zona:  | Čas:  | Další znaky: ZZ
+Halže, Branka = Hal_Branka | Display:  | Tarifní zona:  | Čas:  | Další znaky: 
+Tachov, poliklinika = Tc_pol | Display:  | Tarifní zona:  | Čas:  | Další znaky: 

@@ -1,0 +1,19 @@
+GTSF-DATA
+Linka: 496711
+
+Zastávky:
+Stříbro,, žel.st.. = str_zel_st | Display:  | Tarifní zona:  | Čas:  | Další znaky: 
+Stříbro,, rest.Plzeňka = str_res_plz | Display:  | Tarifní zona:  | Čas:  | Další znaky: 
+Stříbro,, hotel Branka = str_hot_bra | Display:  | Tarifní zona:  | Čas:  | Další znaky: 
+Stříbro,, nám. = str_nam | Display:  | Tarifní zona:  | Čas:  | Další znaky: 
+Stříbro,,pošta = str_pos | Display:  | Tarifní zona:  | Čas:  | Další znaky: 
+Stříbro,,stadion = str_sta | Display:  | Tarifní zona:  | Čas:  | Další znaky: 
+Stříbro,,Brožíkova = str_broz | Display:  | Tarifní zona:  | Čas:  | Další znaky: 
+Stříbro,,Gymnázium = str_gym | Display:  | Tarifní zona:  | Čas:  | Další znaky: 
+Stříbro,,kino = str_kino | Display:  | Tarifní zona:  | Čas:  | Další znaky: 
+Stříbro,,Západní předm. = str_zapad | Display:  | Tarifní zona:  | Čas:  | Další znaky: 
+Stříbro,,Průmyslová = str_prum | Display:  | Tarifní zona:  | Čas:  | Další znaky: 
+Stříbro,aut.st. = str_aut_st | Display:  | Tarifní zona:  | Čas:  | Další znaky:
+
+
+

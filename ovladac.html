@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+    <title>Palubní počítač V1.6 RC-EDITION</title>
+    <style>
+        :root {
+            --idpk-blue: #035689; --idpk-dark-blue: #023e63; --idpk-yellow: #F4CC17;
+            --idpk-green: #048E56; --idpk-red: #e74c3c; --text-white: #ffffff;
+            --btn-bg: #e0e0e0; --btn-shadow: #999;
+        }
+        ::-webkit-scrollbar { display: none; }
+        * { box-sizing: border-box; }
+        body { background-color: var(--idpk-blue); display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; user-select: none; overflow: hidden; }
+        .main-container { width: 100%; max-width: 340px; height: 100vh; display: flex; flex-direction: column; padding: 15px; position: relative; }
+
+        .loading-overlay { position: fixed !important; top: 0 !important; left: 0 !important; right: 0 !important; bottom: 0 !important; background: var(--idpk-blue) !important; z-index: 50000 !important; display: none; justify-content: center; align-items: center; flex-direction: column; color: white; font-weight: bold; }
+        .startup-screen { position: fixed !important; top: 0 !important; left: 0 !important; right: 0 !important; bottom: 0 !important; background: var(--idpk-blue) !important; z-index: 60000 !important; display: flex; justify-content: center; align-items: center; flex-direction: column; }
+        .spinner { width: 40px; height: 40px; border: 4px solid rgba(255,255,255,0.3); border-top: 4px solid var(--idpk-yellow); border-radius: 50%; animation: spin 1s linear infinite; margin-bottom: 10px;}
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        .startup-title { font-size: 24px; font-weight: 900; color: white; margin-top: 10px; }
+
+        .settings-btn { position: absolute; top: 5px; right: 5px; width: 35px; height: 35px; color: rgba(255, 255, 255, 0.5); font-size: 24px; display: flex; justify-content: center; align-items: center; cursor: pointer; z-index: 999999; transition: color 0.2s;}
+        .settings-btn:hover { color: var(--idpk-yellow); }
+        .star-btn { position: absolute; top: 5px; right: 45px; width: 35px; height: 35px; color: #F4CC17; font-size: 20px; display: flex; justify-content: center; align-items: center; cursor: pointer; z-index: 999999; animation: starGlow 2s infinite alternate; }
+        @keyframes starGlow { from { text-shadow: 0 0 5px rgba(244, 204, 23, 0.5); transform: scale(1); } to { text-shadow: 0 0 15px rgba(244, 204, 23, 1); transform: scale(1.1); } }
+        @keyframes pulseExtreme { from { box-shadow: 0 0 15px rgba(255, 51, 51, 0.6); transform: scale(1); } to { box-shadow: 0 0 40px rgba(255, 51, 51, 1); transform: scale(1.03); } }
+
+        .settings-modal, .funk-modal { position: absolute; top: 0; left: 0; right: 0; bottom: 0; background-color: var(--idpk-dark-blue); z-index: 10000; display: none; flex-direction: column; padding: 15px; align-items: center; justify-content: flex-start; overflow-y: auto; }
+        .settings-title, .funk-title { color: var(--idpk-yellow); font-size: 18px; font-weight: bold; margin-bottom: 15px; text-transform: uppercase; letter-spacing: 2px; border-bottom: 2px solid white; padding-bottom: 5px; width: 100%; text-align: center; }
+        .settings-action-btn, .funk-btn-close { width: 100%; height: 45px; margin-bottom: 8px; font-weight: bold; font-size: 13px; border: none; border-radius: 6px; cursor: pointer; text-transform: uppercase; box-shadow: 0 3px 0 rgba(0,0,0,0.3); transition: background 0.2s, color 0.2s;}
+        .settings-action-btn:active { transform: translateY(2px); box-shadow: 0 1px 0 rgba(0,0,0,0.3); }
+
+        #debug-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.95); z-index: 999999; flex-direction: column; padding: 20px; color: #0f0; font-family: monospace; box-sizing: border-box; }
+
+        .error-modal { position: absolute; top: 0; left: 0; right: 0; bottom: 0; background-color: var(--idpk-blue); z-index: 80000; display: none; flex-direction: column; align-items: center; justify-content: center; padding: 20px; text-align: center; }
+        .error-inner-box { width: 100%; background: #011f32; border: 2px solid #e74c3c; border-radius: 8px; padding: 20px; box-shadow: 0 0 25px rgba(231, 76, 60, 0.8); }
+        .error-icon-triangle { font-size: 60px; color: #e74c3c; margin-bottom: 10px; font-weight: bold; text-shadow: 0 0 15px rgba(231, 76, 60, 0.8); }
+        .error-msg-box { color: white; font-size: 15px; margin-bottom: 25px; text-align: center; line-height: 1.4; }
+        .error-back-btn { background: #c0392b; color: white; border: none; border-radius: 6px; width: 100%; padding: 15px; font-weight: bold; font-size: 14px; cursor: pointer; box-shadow: 0 4px 0 #922b21; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 10px; }
+        .error-back-btn:active { transform: translateY(2px); box-shadow: 0 2px 0 #922b21; }
+
+        .announcement-modal { position: absolute; top: 0; left: 0; right: 0; bottom: 0; background-color: rgba(3, 86, 137, 0.95); z-index: 95000; display: none; flex-direction: column; align-items: center; justify-content: center; padding: 20px; text-align: center; backdrop-filter: blur(5px); }
+        .announcement-inner-box { width: 100%; background: #012a45; border: 2px solid var(--idpk-yellow); border-radius: 8px; padding: 25px 20px; box-shadow: 0 0 30px rgba(244, 204, 23, 0.4); display: flex; flex-direction: column; align-items: center; max-height: 90vh; }
+        .announcement-logo { max-width: 120px; margin-bottom: 15px; filter: drop-shadow(0 0 10px rgba(0,0,0,0.5)); }
+        .announcement-title { color: var(--idpk-yellow); font-size: 18px; font-weight: 900; margin-bottom: 15px; text-transform: uppercase; letter-spacing: 1px; text-shadow: 0 2px 4px rgba(0,0,0,0.5); }
+        .announcement-content { color: white; font-size: 14px; line-height: 1.5; margin-bottom: 25px; width: 100%; overflow-y: auto; max-height: 250px; text-align: center; }
+
+        .screen-area { flex: 1; display: flex; flex-direction: column; overflow: hidden; margin-bottom: 10px; position: relative; z-index: 1; width: 100%; }
+        .system-header { text-align: center; font-size: 14px; margin-bottom: 15px; letter-spacing: 2px; border-bottom: 1px solid rgba(255,255,255,0.3); padding-bottom: 5px; color: white; font-weight: bold; text-shadow: 0 0 5px rgba(0,0,0,0.5); width: 100%; flex-shrink: 0; }
+
+        .login-view { display: none; flex-direction: column; width: 100%; height: 100%; align-items: center; justify-content: center; position: relative; }
+        .auth-input-container { background: #012a45; width: 100%; border-radius: 8px; padding: 15px 15px; border-left: 5px solid var(--idpk-yellow); box-shadow: 0 4px 6px rgba(0,0,0,0.3); margin-bottom: 15px; box-sizing: border-box; }
+        .auth-input-label { color: white; font-size: 10px; font-weight: bold; text-transform: uppercase; margin-bottom: 5px; }
+        .auth-input-field { background: transparent; border: none; color: white; font-size: 20px; font-weight: bold; width: 100%; outline: none; }
+        .auth-input-field::placeholder { color: rgba(255,255,255,0.3); font-weight: normal; }
+        .auth-btn-green { background: var(--idpk-green); color: white; border: none; padding: 15px; width: 100%; border-radius: 6px; font-weight: bold; font-size: 14px; cursor: pointer; box-shadow: 0 4px 0 #025c37; box-sizing: border-box; }
+        .auth-btn-green:active { transform: translateY(2px); box-shadow: 0 2px 0 #025c37; }
+        .auth-btn-dark { background: #012a45; color: white; border: 1px solid var(--idpk-yellow); padding: 15px; width: 100%; border-radius: 6px; font-weight: bold; font-size: 14px; cursor: pointer; margin-bottom: 10px; transition: 0.2s; box-sizing: border-box; }
+        .auth-btn-dark:hover { background: rgba(244, 204, 23, 0.1); }
+        .auth-btn-dark:active { background: var(--idpk-yellow); color: black; }
+        .auth-spinner { width: 50px; height: 50px; border: 5px solid rgba(255,255,255,0.1); border-top: 5px solid var(--idpk-yellow); border-radius: 50%; animation: spin 1s linear infinite; margin-bottom: 20px; }
+        .auth-info-box { background: #012a45; border-left: 4px solid var(--idpk-yellow); border-radius: 6px; padding: 15px; width: 100%; margin-top: 20px; color: white; font-size: 12px; line-height: 1.5; box-sizing: border-box; }
+
+        .pin-container { display: flex; gap: 20px; justify-content: center; margin: 30px 0 40px 0; width: 100%; }
+        .pin-dot { width: 25px; height: 25px; border-radius: 50%; border: 2px solid rgba(255,255,255,0.3); background: transparent; transition: all 0.2s; }
+        .pin-dot.active { background: var(--idpk-yellow); border-color: var(--idpk-yellow); box-shadow: 0 0 15px rgba(244, 204, 23, 0.8); }
+        .hwid-watermark { position: absolute; bottom: 0; width: 100%; text-align: center; color: rgba(255,255,255,0.15); font-size: 10px; pointer-events: none; }
+
+        .input-display { background: #002244; color: #fff; font-family: 'Consolas', monospace; font-size: 28px; padding: 10px; border-bottom: 3px solid var(--idpk-yellow); text-align: right; margin-bottom: 10px; font-weight: bold; width: 100%; }
+        .list-toggle-row { display: flex; align-items: center; padding: 8px; margin-top: 10px; border-radius: 5px; cursor: pointer; font-size: 14px; color: rgba(255,255,255,0.9); border: 1px solid transparent; transition: background 0.2s; width: 100%; }
+        .list-toggle-row.selected { background: rgba(255,255,255,0.1); border: 1px solid var(--idpk-yellow); color: var(--idpk-yellow); }
+        .link-list-container { position: absolute; top: 100px; left: 0; width: 100%; height: 60%; background: rgba(0,0,0,0.95); border: 1px solid var(--idpk-yellow); z-index: 50; display: none; overflow-y: auto; }
+        .link-item { padding: 10px; color: white; border-bottom: 1px solid #333; cursor: pointer; width: 100%; }
+        .link-item.selected { background: var(--idpk-yellow); color: black; }
+        .db-switch-btn { width: 100%; height: 35px; background: rgba(0,0,0,0.3); border: 1px solid #3498db; color: #3498db; font-size: 11px; font-weight: bold; margin-top: auto; cursor: pointer; }
+        .trip-badge { display:inline-block; padding:4px 8px; border-radius:4px; font-weight:bold; color:black; font-size:14px; margin-left:10px; }
+        .badge-green { background-color: #2ecc71; } 
+        .badge-yellow { background-color: var(--idpk-yellow); } 
+
+        .drive-header-box { border-bottom: 1px solid rgba(255,255,255,0.3); padding-bottom: 10px; margin-bottom: 15px; display: flex; flex-direction: column; align-items: center; text-align: center; width: 100%; }
+        .drive-title-row { font-weight: bold; color: var(--text-white); font-size: 18px; }
+        .drive-dest-row { font-size: 14px; color: white; margin-top: 5px; font-weight: bold; text-align: center; width: 100%; }
+        .drive-main-info { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; text-align: center; position: relative; width: 100%; }
+        .drive-label-small { font-size: 10px; color: rgba(255,255,255,0.7); text-transform: uppercase; margin-bottom: 5px; width: 100%; text-align: center;}
+        .drive-next-stop-val { font-size: 16px; color: white; margin-bottom: 15px; font-weight: normal; width: 100%; text-align: center; }
+        #drive-stop-indicator { width: 100%; background-color: var(--idpk-red); color: white; font-weight: bold; font-size: 22px; padding: 12px 0; border-radius: 6px; text-align: center; margin-bottom: 15px; display: none; box-shadow: 0 4px 0 #922b21; letter-spacing: 2px; }
+        .stop-preview-box { width: 100%; margin: 0 auto 10px auto; padding: 12px; background: rgba(0,0,0,0.8); border: 2px solid var(--idpk-yellow); border-radius: 6px; color: white; text-align: center; display: none; }
+        .drive-current-box { width: 100%; margin: 0 auto; padding: 12px; background: rgba(0,0,0,0.35); border: 1px dashed rgba(244, 204, 23, 0.8); border-radius: 6px; color: var(--idpk-yellow); font-size: 19px; font-weight: bold; text-align: center; display: flex; justify-content: center; align-items: center; box-shadow: inset 0 0 15px rgba(0,0,0,0.5); }
+        #drive-controls-area { flex-shrink: 0; margin-bottom: 10px; width: 100%; }
+        #live-clock-display { color: #fff; font-size: 26px; font-weight: 900; text-align: center; margin-bottom: 5px; font-family: monospace; letter-spacing: 2px; text-shadow: 0 2px 4px rgba(0,0,0,0.8); width: 100%; }
+        .big-drive-btn { width: 100%; height: 65px; background-color: var(--idpk-yellow); color: #333; font-weight: 900; font-size: 18px; border: none; border-radius: 8px; box-shadow: 0 4px 0 #cba90f; cursor: pointer; display: flex; flex-direction: column; justify-content: center; align-items: center; margin-bottom: 8px; padding: 0 10px; }
+        .big-drive-btn:active { transform: translateY(2px); box-shadow: 0 2px 0 #cba90f; }
+        .sub-text { font-size: 12px; font-weight: bold; color: rgba(0,0,0,0.6); margin-top: 2px; text-align: center; width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;}
+        .small-action-btn { flex: 1; height: 40px; font-size: 12px; font-weight: bold; border: none; border-radius: 5px; cursor: pointer; background: #ddd; color: black; box-shadow: 0 3px 0 #999; }
+        .small-action-btn:active { transform: translateY(2px); box-shadow: 0 1px 0 #999; }
+
+        .funk-row { width: 100%; background: rgba(0,0,0,0.3); padding: 10px; margin-bottom: 10px; border-radius: 5px; border: 1px solid rgba(255,255,255,0.1); color: white; }
+        .funk-label { font-size: 12px; font-weight: bold; margin-bottom: 5px; display: block; text-transform: uppercase;}
+        .funk-toggle { width: 100%; padding: 10px; border: none; border-radius: 4px; font-weight: bold; cursor: pointer; background: #555; color: #ccc; }
+        .funk-toggle.on { background: var(--idpk-green); color: white; }
+
+        .keypad-area { flex-shrink: 0; display: grid; width: 100%; z-index: 10; grid-template-columns: repeat(4, 1fr); gap: 8px; padding-bottom: 5px; border-top: 1px solid rgba(255,255,255,0.2); padding-top: 5px; grid-template-areas: "k7 k8 k9 kup" "k4 k5 k6 kdot" "k1 k2 k3 kdown" "kaction k0 kent kent"; }
+        .btn { background-color: var(--btn-bg); border: none; border-radius: 6px; height: 45px; font-size: 20px; font-weight: 600; color: #333; cursor: pointer; box-shadow: 0 3px 0 var(--btn-shadow); display: flex; align-items: center; justify-content: center; width: 100%; }
+        .btn:active { box-shadow: 0 1px 0 var(--btn-shadow); transform: translateY(2px); }
+        #btn-up { grid-area: kup; background: #dbe4eb; font-size: 18px;}
+        #btn-down { grid-area: kdown; background: #dbe4eb; font-size: 18px;}
+        #key-del { grid-area: kaction; background-color: #e74c3c; color: white; box-shadow: 0 3px 0 #c0392b; font-size: 16px; font-weight: bold; }
+        #key-funk { grid-area: kaction; background-color: var(--idpk-yellow); color: black; box-shadow: 0 3px 0 #cba90f; display: none; font-size: 16px; font-weight: bold; }
+        #key-ent { grid-area: kent; color: white; transition: background 0.2s; font-size: 20px; font-weight: bold; width: 100%; }
+        .btn-confirm { background-color: var(--idpk-green); box-shadow: 0 3px 0 #025c37; }
+        
+        /* Tlačítko STOP pro enter (zachováno) */
+        .btn-stop { background-color: var(--idpk-red) !important; color: white !important; box-shadow: 0 3px 0 #922b21 !important; font-size: 24px !important; letter-spacing: 2px !important; animation: blinkAnim 0.5s infinite alternate; }
+        @keyframes blinkAnim { from { opacity: 1; } to { opacity: 0.8; } }
+    </style>
+</head>
+<body>
+
+    <div class="star-btn" id="btn-supporters" onclick="window.openSupporters()" title="Podporovatelé">⭐</div>
+    <div class="settings-btn" id="btn-settings-gear" onclick="window.toggleSettings()">⚙</div>
+
+    <div id="loadingScreen" class="loading-overlay"><div class="spinner"></div><div style="margin-top:10px; font-weight:bold;" id="loading-msg">NAČÍTÁM DATA...</div></div>
+    
+    <div id="startupScreen" class="startup-screen" style="display:flex;"><div class="spinner"></div><div class="startup-title">NAČÍTÁNÍ SYSTÉMU...</div></div>
+
+    <div id="hwid-success-screen" class="startup-screen" style="display:none; z-index: 999999; flex-direction: column; padding: 20px;">
+        <div style="font-size: 60px; color: var(--idpk-green); margin-bottom: 10px;">✔</div>
+        <div class="startup-title" style="color:var(--idpk-green); text-align:center;">ŽÁDOST ODESLÁNA</div>
+        <div style="color:white; font-size:15px; text-align:center; margin-top: 15px;">Nyní čekejte na zprávu na vašem Discordu ohledně schválení resetu.</div>
+        <button type="button" class="error-back-btn" style="margin-top:30px; width:100%;" onclick="window.close()">VYPNOUT APLIKACI</button>
+    </div>
+
+    <div id="announcement-modal" class="announcement-modal">
+        <div class="announcement-inner-box">
+            <img src="https://tdonrppusbwhoftdontz.supabase.co/storage/v1/object/public/logo/datacorebot%20n.png" class="announcement-logo" alt="Logo">
+            <div id="announcement-title" class="announcement-title">ZPRÁVA OD VÝVOJÁŘE</div>
+            <div id="announcement-text" class="announcement-content">Tady bude text zprávy z databáze...</div>
+            <button type="button" id="announcement-link-btn" class="settings-action-btn" style="display:none; background:var(--idpk-yellow); color:black; margin-bottom:10px; font-size:14px; box-shadow: 0 3px 0 #cba90f;" onclick="window.openAnnouncementLink()">ZOBRAZIT VÍCE INFO</button>
+            <button type="button" class="error-back-btn" style="margin-bottom:0; background:#555; box-shadow: 0 3px 0 #333;" onclick="window.closeAnnouncement()">ZAVŘÍT</button>
+        </div>
+    </div>
+    
+    <div id="funk-modal" class="funk-modal">
+        <div class="settings-title">FUNKCE V1.6 RC-EDITION</div>
+        <div class="funk-row"><span class="funk-label">NÁHODNÉ POKRAČOVÁNÍ LINKOSPOJŮ</span><button type="button" id="btn-random-continue" class="funk-toggle" onclick="window.toggleRandomContinue()">VYPNUTO</button></div>
+        <div class="funk-row"><span class="funk-label">ZPOŽDĚNÍ (REAL / FIKCE)</span><button type="button" id="btn-delay-mode" class="funk-toggle" onclick="window.toggleDelayMode()">VYPNUTO</button></div>
+        <div class="funk-row"><span class="funk-label">NASTAVIT FIKTIVNÍ ČAS</span><div style="display:flex; gap:10px; margin-top:5px;"><input type="time" id="fictional-time-input" style="width:60px; text-align:center; padding:5px; font-weight:bold; font-size:16px; flex:1;"><button type="button" class="settings-action-btn" style="width:auto; height:auto; padding:5px 15px; margin:0; background:var(--idpk-yellow); color:black;" onclick="window.setFictionalTime()">OK</button></div></div>
+        <div class="funk-row"><span class="funk-label">AUTO HLÁŠENÍ (Klasické)</span><div style="display:flex; align-items:center; gap:10px;"><input type="range" min="1" max="30" value="5" id="delay-slider" style="flex:1;" oninput="window.updateDelayDisplay()"><span id="delay-val" style="color:var(--idpk-yellow); font-weight:bold;">5s</span></div><button type="button" id="btn-auto-announce" class="funk-toggle" onclick="window.toggleAutoAnnounce()">VYPNUTO</button></div>
+        <div class="funk-row"><span class="funk-label">AUTO HLÁŠENÍ PODLE ČASU ZASTÁVEK</span><button type="button" id="btn-auto-time" class="funk-toggle" onclick="window.toggleTimeAuto()">VYPNUTO</button></div>
+        <div class="funk-row"><span class="funk-label">AUTO HLÁŠ. SE ZPOŽDĚNÍM A PRODLENÍM</span><button type="button" id="btn-delay-auto" class="funk-toggle" onclick="window.toggleDelayAuto()">VYPNUTO</button></div>
+        <button type="button" class="settings-action-btn" style="background:#555; margin-top:auto;" onclick="window.closeFunkMenu()">ZAVŘÍT MENU</button>
+    </div>
+
+    <div id="supporters-modal" class="settings-modal">
+        <div class="settings-title">PODPOROVATELÉ</div>
+        <div style="color:white; font-size:12px; text-align:center; margin-bottom:15px;">Děkujeme všem, kteří podpořili vývoj<br>na Buy Me a Coffee! ☕</div>
+        <button type="button" class="settings-action-btn" style="background:var(--idpk-yellow); color:black; box-shadow: 0 0 15px rgba(244,204,23,0.5); font-size:14px; margin-bottom:20px; border:2px solid #fff;" onclick="require('electron').shell.openExternal('https://www.buymeacoffee.com/marekk_czz')">☕ Chci také podpořit</button>
+        <div id="supporters-list" style="width:100%; flex:1; overflow-y:auto; padding:5px; margin-bottom:15px;"><div style="color:#aaa; text-align:center;">Načítám data z databáze...</div></div>
+        <button type="button" class="settings-action-btn" style="background:#555; margin-top:auto;" onclick="window.closeSupporters()">ZAVŘÍT</button>
+    </div>
+    
+    <div id="feedback-modal" class="settings-modal" style="z-index: 90000; background-color: var(--idpk-dark-blue); padding-top: 60px;">
+        <div class="settings-title">ODESLAT ZPRÁVU / ŽÁDOST</div>
+        <div style="width:100%; margin-bottom:10px; color:white; font-size:12px; background: rgba(0,0,0,0.3); padding: 10px; border-radius: 5px;">
+            <div><b>Nick:</b> <span id="fb-nick">---</span></div>
+            <div style="margin-top:5px;"><b>Discord ID:</b> <span id="fb-id">---</span></div>
+        </div>
+        <input type="hidden" id="fb-type" value="GENERAL">
+        <textarea id="fb-text" style="width:100%; height:150px; background:rgba(0,0,0,0.5); color:white; border:1px solid var(--idpk-yellow); padding:10px; border-radius:5px; font-family:sans-serif; resize:none; margin-bottom:15px; user-select: text;" placeholder="Napište svou zprávu, návrh na zlepšení nebo žádost zde..."></textarea>
+        <button type="button" class="settings-action-btn" style="background:var(--idpk-green); color:white; margin-bottom: 10px;" onclick="window.submitFeedback()">ODESLAT VÝVOJÁŘŮM</button>
+        <button type="button" class="settings-action-btn" style="background:#555; color:white;" onclick="document.getElementById('feedback-modal').style.display='none';">ZRUŠIT</button>
+    </div>
+
+    <div class="main-container">
+        <div id="settings-modal" class="settings-modal">
+            <div class="settings-title">DIAGNOSTIKA V1.6 RC-EDITION</div>
+            <button type="button" class="settings-action-btn" style="background:#a855f7; color:white; border: 1px solid #d8b4fe; box-shadow: 0 0 15px rgba(168, 85, 247, 0.6); margin-bottom: 15px; font-size: 14px;" onclick="window.openFeedback('GENERAL')"><i class="fas fa-comments"></i> NAPSAT VÝVOJÁŘŮM / NÁPADY</button>
+            <div id="auth-only-settings" style="width: 100%; display: flex; flex-direction: column; align-items: center;">
+                <button type="button" class="settings-action-btn" style="background:#e74c3c; color:white; margin-bottom:15px;" onclick="window.openStopWindow()">OTEVŘÍT STOP (DISPLEJ)</button>
+                <button type="button" class="settings-action-btn" style="background:#f39c12; color:white; border: 2px solid white; box-shadow: 0 0 15px rgba(243, 156, 18, 0.6); margin-bottom:15px;" onclick="window.openBusePanel()">ZOBRAZIT VENKOVNÍ BUSE PANEL</button>
+                <button type="button" class="settings-action-btn" style="background:#27ae60; color:white; margin-bottom:15px;" onclick="window.softReset()">OBNOVIT CHOD (SOFT RESET)</button>
+                <button type="button" class="settings-action-btn" style="background:var(--idpk-yellow); color:black;" onclick="window.refreshPanel()">OBNOVIT DISPLEJ ZASTÁVEK</button>
+                <button type="button" class="settings-action-btn" style="background:#c0392b; color:white;" onclick="window.manualResetStop()">RESET STOPKY</button>
+                <button type="button" class="settings-action-btn" style="background:#e67e22; color:white;" onclick="window.fullReset()">TVRDÝ RESTART APP</button>
+                <div style="margin:10px 0; width:100%; border-top:1px solid #555;"></div>
+                <button type="button" id="btn-logout" class="settings-action-btn" style="background:#3498db; color:white;" onclick="window.backToLogin()">ODHLÁSIT SE</button>
+            </div>
+            <button type="button" class="settings-action-btn" style="background:#8e44ad; color:white; margin-top: 15px;" onclick="window.toggleSettings(); document.getElementById('debug-overlay').style.display='flex';">ZOBRAZIT LOG</button>
+            <button type="button" class="settings-action-btn" style="background:#555; margin-top:auto;" onclick="window.toggleSettings()">ZAVŘÍT</button>
+        </div>
+
+        <div id="debug-overlay"><h3 style="color:var(--idpk-yellow); text-align:center; border-bottom:1px solid var(--idpk-yellow);">DIAGNOSTICKÝ LOG</h3><div id="debug-text" style="flex:1; overflow-y:auto; border:1px solid #333; padding:10px; margin-bottom:10px; white-space:pre-wrap; font-size:12px;"></div><button type="button" onclick="document.getElementById('debug-overlay').style.display='none';" style="background:#c0392b; color:white; border:none; padding:15px; font-weight:bold; cursor:pointer; border-radius:5px; margin-top:10px; width:100%;">ZAVŘÍT LOG</button></div>
+
+        <div id="error-modal" class="error-modal">
+            <div class="error-inner-box">
+                <div class="error-icon-triangle">❗</div>
+                <div class="error-msg-box" id="error-msg-text">CHYBA DATABÁZE</div>
+                <button type="button" id="error-hwid-btn" class="settings-action-btn" style="display:none; background:#3498db; color:white; border: 2px solid white; margin-bottom:15px; box-shadow: 0 0 10px rgba(52,152,219,0.8);" onclick="window.openFeedback('HWID')">ŽÁDOST O RESET HWID</button>
+                <button type="button" class="error-back-btn" onclick="window.closeErrorModal()">ZPĚT</button>
+            </div>
+        </div>
+
+        <div class="screen-area">
+            
+            <div id="login-discord-view" class="login-view">
+                <div class="system-header" style="width: 100%;">PALUBNÍ SYSTÉM v1.6 RC-EDITION</div>
+                <div style="flex:1; display:flex; flex-direction:column; justify-content:center; width:100%;">
+                    <div class="auth-input-container"><div class="auth-input-label">APP ID NEBO NICK</div><input type="text" id="login-identifier-input" class="auth-input-field" placeholder="Zadejte jméno..." autocomplete="off"></div>
+                    <button type="button" class="auth-btn-green" onclick="window.submitAction()">POKRAČOVAT K OVĚŘENÍ</button>
+                </div>
+            </div>
+
+            <div id="login-waiting-view" class="login-view">
+                <div class="system-header" style="width: 100%;">BEZPEČNOSTNÍ KONTROLA</div>
+                <div style="flex:1; display:flex; flex-direction:column; justify-content:center; align-items:center; width:100%;">
+                    <div class="auth-spinner"></div><div style="color:white; font-weight:bold; font-size:16px; text-align:center;">Čekám na schválení...</div>
+                    <div class="auth-info-box"><strong style="font-size:13px; color:var(--idpk-yellow); display:block; margin-bottom:5px;">Nepřišla Vám zpráva?</strong>1. Jděte na náš Discord.<br>2. Otevřete kanál <b>#bot-příkazy</b>.<br>3. Napište příkaz: <span style="color:var(--idpk-yellow); font-weight:bold;">!auth</span><br>4. Klikněte na tlačítko ve zprávě.</div>
+                </div>
+                <button type="button" class="auth-btn-dark" onclick="window.resetLoginFlow()">ZRUŠIT</button>
+            </div>
+
+            <div id="login-setup-view" class="login-view">
+                <div class="system-header" style="width: 100%;">NASTAVENÍ PŘIHLÁŠENÍ</div>
+                <div style="flex:1; display:flex; flex-direction:column; justify-content:center; width:100%;"><button type="button" class="auth-btn-dark" onclick="window.selectLoginMethod('PIN')">VYTVOŘIT 4-MÍSTNÝ PIN</button><button type="button" class="auth-btn-green" onclick="window.selectLoginMethod('AUTO')">AUTOMATICKÉ PŘIHLÁŠENÍ</button></div>
+            </div>
+
+            <div id="login-pin-view" class="login-view">
+                <div class="system-header" id="pin-header-text" style="width: 100%;">ZADEJTE PIN</div>
+                <div style="flex:1; display:flex; flex-direction:column; justify-content:center; align-items:center; width:100%;"><div class="pin-container"><div class="pin-dot" id="pin-1"></div><div class="pin-dot" id="pin-2"></div><div class="pin-dot" id="pin-3"></div><div class="pin-dot" id="pin-4"></div></div><button type="button" class="auth-btn-dark" id="pin-cancel-btn" onclick="window.resetLoginFlow()">ZRUŠIT / ZPĚT</button></div>
+                <div id="hwid-display-pin" class="hwid-watermark">HWID: ---</div>
+            </div>
+
+            <div id="login-auto-view" class="login-view">
+                <div class="system-header" style="width: 100%;">VÍTEJTE ZPĚT</div>
+                <div style="flex:1; display:flex; flex-direction:column; justify-content:center; align-items:center; width:100%;"><div style="color:var(--idpk-green); font-size:50px; margin-bottom:10px;">✔</div><div style="color:white; font-size:16px;">Přihlášen uživatel:</div><div id="auto-login-name" style="color:var(--idpk-yellow); font-size:24px; font-weight:bold; margin-top:5px; text-transform:uppercase; text-align:center; margin-bottom: 20px;">Jméno</div><button type="button" class="auth-btn-green" onclick="window.finalizeLogin()">POKRAČOVAT</button><div style="color:#aaa; font-size:11px; margin-top:10px;">Nebo stiskněte ENTER</div></div>
+                <div id="hwid-display-auto" class="hwid-watermark">HWID: ---</div>
+            </div>
+
+            <div id="linkospoj-wrapper" style="display:none; flex-direction:column; height:100%;">
+                <div class="system-header">PALUBNÍ SYSTÉM v1.6 RC-EDITION</div><div style="text-align:center;"><h3 style="margin:0; color:var(--idpk-yellow); font-size:14px;">VÝBĚR SPOJE</h3><div id="display-linkospoj" class="input-display"></div></div><div id="list-toggle" class="list-toggle-row" onclick="window.toggleListMouse()">SEZNAM <span id="checkbox-icon">[ ]</span></div><div id="link-list" class="link-list-container"></div><button type="button" class="db-switch-btn" onclick="window.switchToIdpkMode()">CELÁ DATABÁZE (IDPK)</button>
+            </div>
+
+            <div id="idpk-db-wrapper" style="display:none; flex-direction:column; height:100%;">
+                <div class="system-header">IDPK DATABÁZE v1.6 RC-EDITION</div><div style="text-align:center;"><h3 style="margin:0; color:#3498db; font-size:14px;">LINKA</h3><div id="display-idpk" class="input-display" style="border-color:#3498db;"></div></div><div id="idpk-list-toggle" class="list-toggle-row" onclick="window.toggleListMouse()">SEZNAM <span id="idpk-checkbox">[ ]</span></div><button type="button" class="db-switch-btn" onclick="window.backToManual()">ZPĚT NA MANUÁLNÍ</button>
+            </div>
+            
+            <div id="idpk-direction-wrapper" style="display:none; flex-direction:column; height:100%;">
+                <div class="system-header" id="selection-header">VÝBĚR</div><div id="idpk-selected-line" style="text-align:center; font-weight:bold; margin-bottom:5px; color:white;">Linka: ---</div><div id="direction-list" style="flex:1; overflow-y:auto; border:1px solid #3498db; background:rgba(0,0,0,0.5); margin-bottom: 10px; width:100%;"></div><button type="button" class="db-switch-btn" onclick="window.backToIdpkList()">ZPĚT NA LINKU</button>
+            </div>
+
+            <div id="drive-ui-wrapper" style="display:none; flex-direction:column; height:100%; position:relative;">
+                <div id="ah-indicator" style="position:absolute; top:5px; left:5px; background:var(--idpk-yellow); color:black; font-weight:900; padding:4px 8px; border-radius:4px; font-size:14px; display:none; z-index:100; border: 2px solid black; box-shadow: 0 2px 4px rgba(0,0,0,0.5);">AH</div>
+                <div class="drive-header-box"><div class="drive-title-row"><span id="drive-header-code" style="font-weight:bold;"></span></div><div class="drive-dest-row" id="drive-header-dest"></div></div>
+                <div class="drive-main-info">
+                    <div id="drive-preview-box" class="stop-preview-box"><div id="drive-preview-text"></div></div>
+                    <div class="drive-label-small">PŘÍŠTÍ ZASTÁVKA</div><div id="drive-next-stop" class="drive-next-stop-val">Načítání...</div>
+                    <div id="drive-stop-indicator">STOP</div>
+                    <div class="drive-label-small">AKTUÁLNÍ ZASTÁVKA</div><div class="drive-current-box" id="drive-real-stop-container"><span id="drive-real-stop">Načítání...</span></div>
+                </div>
+            </div>
+        </div>
+
+        <div id="drive-controls-area" style="display:none;">
+            <div id="live-clock-display">--:--:--</div>
+            <button type="button" class="big-drive-btn" id="btn-announce" onclick="window.smartButtonAction()"><span id="smart-btn-main">VYHLÁSIT ZASTÁVKU</span><span id="smart-btn-sub" class="sub-text"></span></button>
+            <button type="button" class="big-drive-btn" id="btn-manual-continue" style="display:none; background:var(--idpk-green); color:white; font-size:16px;" onclick="window.manualContinueTrip()">POKRAČOVAT (STEJNÁ LINKA)</button>
+            <button type="button" class="big-drive-btn" id="btn-random-continue-trigger" style="display:none; background:var(--idpk-yellow); color:black; height:45px; font-size:14px; margin-bottom:8px;" onclick="window.autoStartRandomTrip()">NÁHODNÁ LINKA (Z PC)</button>
+            <div style="display:flex; gap:10px;" id="drive-bottom-buttons"><button type="button" class="small-action-btn" id="btn-repeat" onclick="window.handleLeftButton()">OPAKOVAT</button><button type="button" class="small-action-btn" id="btn-terminate" style="background:#c0392b; color:white; box-shadow:0 3px 0 #922b21;" onclick="window.handleTerminate()">UKONČIT</button></div>
+        </div>
+
+        <div class="keypad-area" id="main-keypad" style="display:none;">
+            <button type="button" class="btn" style="grid-area:k7;" onclick="window.pressKey('7')">7</button><button type="button" class="btn" style="grid-area:k8;" onclick="window.pressKey('8')">8</button><button type="button" class="btn" style="grid-area:k9;" onclick="window.pressKey('9')">9</button><button type="button" class="btn btn-arrow" id="btn-up" onclick="window.moveArrow('up')">▲</button>
+            <button type="button" class="btn" style="grid-area:k4;" onclick="window.pressKey('4')">4</button><button type="button" class="btn" style="grid-area:k5;" onclick="window.pressKey('5')">5</button><button type="button" class="btn" style="grid-area:k6;" onclick="window.pressKey('6')">6</button><button type="button" class="btn btn-dot" id="btn-dot" onclick="window.confirmSelection()">●</button>
+            <button type="button" class="btn" style="grid-area:k1;" onclick="window.pressKey('1')">1</button><button type="button" class="btn" style="grid-area:k2;" onclick="window.pressKey('2')">2</button><button type="button" class="btn" style="grid-area:k3;" onclick="window.pressKey('3')">3</button><button type="button" class="btn btn-arrow" id="btn-down" onclick="window.moveArrow('down')">▼</button>
+            <button type="button" class="btn btn-del" id="key-del" onclick="window.deleteChar()">DEL</button><button type="button" class="btn btn-funk" id="key-funk" onclick="window.openFunkMenu()" style="display:none;">FUNK.</button>
+            <button type="button" class="btn" id="key-0" style="grid-area:k0;" onclick="window.pressKey('0')">0</button><button type="button" class="btn btn-confirm" id="key-ent" onclick="window.handleEnterOrStop()">ENT</button>
+        </div>
+    </div>
+    <script src="js/logic-ovladac.js"></script>
+</body>
+</html>

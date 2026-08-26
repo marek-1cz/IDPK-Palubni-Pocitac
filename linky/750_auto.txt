@@ -1,0 +1,16 @@
+GTSF-DATA
+Linka: 490750
+
+Zastávky:
+Tachov, u Rybeny = tach_u_ryb | Display:  | Tarifní zona:  | Čas:  | Další znaky: 
+Tachov, poliklinika = Tc_pol | Display:  | Tarifní zona:  | Čas:  | Další znaky: 
+Tachov, aut.nádr = Tc_aut_nadr | Display:  | Tarifní zona:  | Čas:  | Další znaky: 
+Tachov, Americká = Tc_americka | Display:  | Tarifní zona:  | Čas:  | Další znaky: ZZ
+Studánka = Studanka | Display:  | Tarifní zona:  | Čas:  | Další znaky: 
+Studánka, náves = Studanka_naves | Display:  | Tarifní zona:  | Čas:  | Další znaky: 
+Lesná, rozc. Mýto = Les_rozc_Myto | Display:  | Tarifní zona:  | Čas:  | Další znaky: ZZ
+Lesná, Písařova Vesce = Les_pisar | Display:  | Tarifní zona:  | Čas:  | Další znaky: ZZ
+Lesná = Lesna | Display:  | Tarifní zona:  | Čas:  | Další znaky: 
+Lesná, Jedlina, háj = Les_jed_haj | Display:  | Tarifní zona:  | Čas:  | Další znaky: ZZ
+Lesná, Stará Knížecí Huť = Les_S_K_Hut | Display:  | Tarifní zona:  | Čas:  | Další znaky: 
+Tachov, Mýto = Tc_Myto | Display:  | Tarifní zona:  | Čas:  | Další znaky:

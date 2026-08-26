@@ -1,0 +1,630 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+<meta charset="UTF-8">
+<title>BUSE BS-310 v13</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#0e0e0e;display:flex;flex-direction:column;align-items:center;
+  min-height:100vh;font-family:monospace;gap:14px;padding:14px 10px 30px}
+.housing{width:100%;max-width:1160px;
+  background:linear-gradient(180deg,#222 0%,#111 40%,#111 60%,#222 100%);
+  border:2.5px solid #2a2a2a;border-radius:5px;padding:10px 14px;
+  box-shadow:0 6px 28px rgba(0,0,0,.9),inset 0 1px 0 rgba(255,255,255,.04)}
+.panel-inner{background:#0a0a0a;border:3px solid #222;border-radius:6px;
+  width:100%;display:block;padding:4px;margin-top:0;overflow:hidden}
+canvas#cv{display:block;width:100%;height:auto;image-rendering:pixelated;background:#030303}
+.ctrl{width:100%;max-width:1160px;background:#181818;border:1px solid #242424;
+  border-radius:6px;padding:12px 16px;display:flex;flex-direction:column;gap:10px}
+.ctrl h3{color:#ff8800;font-size:10px;letter-spacing:2px;text-transform:uppercase;opacity:.6}
+.row{display:flex;gap:7px;align-items:center;flex-wrap:wrap}
+label{color:#777;font-size:11px;white-space:nowrap;min-width:50px;text-align:right}
+input[type=text]{background:#0a0a0a;border:1px solid #2e2e2e;border-radius:3px;
+  color:#ff9900;font-family:monospace;font-size:13px;padding:5px 8px;outline:none;
+  transition:border-color .15s}
+input[type=text]:focus{border-color:#ff6600}
+input[type=range]{accent-color:#ff8800}
+#iLine{width:68px}#iRow1,#iRow2{flex:1;min-width:140px}
+button{background:#1e1e1e;border:1px solid #383838;border-radius:3px;color:#aaa;
+  cursor:pointer;font-family:monospace;font-size:11px;padding:5px 9px;
+  transition:all .1s;white-space:nowrap}
+button:hover{background:#282828;border-color:#ff8800;color:#ff8800}
+button.on{background:#2a1400;border-color:#ff6600;color:#ff8800}
+.dr{display:flex;gap:5px;flex-wrap:wrap}
+#viaBlock{display:none;flex-direction:column;gap:6px}
+#viaBlock.vis{display:flex}
+.vg{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:5px}
+.vr{display:flex;align-items:center;gap:5px}
+.vn{color:#555;font-size:10px;width:16px;text-align:right;flex-shrink:0}
+.vr input{width:100%;min-width:0}
+#splitBlock{display:none;flex-direction:column;gap:7px}
+#splitBlock.vis{display:flex}
+.spr{font-size:12px;color:#ff8800;background:#0a0a0a;border:1px solid #2e2e2e;
+  border-radius:3px;padding:4px 10px;flex:1;min-width:140px}
+.hint{color:#444;font-size:10px}
+.sep{color:#333;padding:0 2px}
+details{background:#141414;border:1px solid #252525;border-radius:4px;padding:8px 10px}
+summary{color:#666;font-size:11px;cursor:pointer;list-style:none}
+summary::before{content:"▶ ";color:#444}
+details[open] summary::before{content:"▼ "}
+.dc{display:flex;flex-direction:column;gap:6px;margin-top:8px}
+.drow{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.drow select,.drow input{background:#0a0a0a;border:1px solid #2e2e2e;color:#ff9900;
+  border-radius:3px;padding:4px 7px;font-family:monospace;font-size:12px;outline:none}
+.drow input{flex:1;min-width:80px}
+</style>
+</head>
+<body>
+<div class="housing"><div class="panel-inner">
+  <canvas id="cv"></canvas>
+</div></div>
+<div class="ctrl">
+  <h3>BUSE BS-310 v13</h3>
+  <div class="row">
+    <label>Panel</label>
+    <button id="btnF" class="on" onclick="setPM('front')">⬛ Přední</button>
+    <button id="btnS"            onclick="setPM('side')">▪▪ Boční</button>
+    <span class="sep">|</span>
+    <button id="btnVia" onclick="toggleVia()">VIA: OFF</button>
+    <span class="sep">|</span>
+    <button onclick="setKonecna()">🔴 KONEČNÁ</button>
+    <button id="btnManip" onclick="setManip()">🔧 Manipulační</button>
+    <button id="btnSluz"  onclick="setSluz()">🔑 Služební</button>
+  </div>
+  <div class="row">
+    <label>Linka</label>
+    <input id="iLine" type="text" value="735" maxlength="6">
+    <label>1. řádek</label>
+    <input id="iRow1" type="text" value="KONEČNÁ">
+    <button onclick="ins(1,'§')">🚌</button>
+  </div>
+  <div class="row" id="row2area" style="display:none">
+    <label>2. řádek</label>
+    <input id="iRow2" type="text" value="NENASTUPOVAT">
+    <button onclick="ins(2,'§')">🚌</button>
+  </div>
+  <div class="row">
+    <label>Pokr.</label>
+    <button id="btnAdv" onclick="toggleAdv()">OFF</button>
+    <span class="sep">|</span>
+    <label style="min-width:auto">Scroll</label>
+    <input type="range" id="spdR" min="1" max="20" value="10"
+           style="width:100px" oninput="onSpd(this.value)">
+    <span id="spdV" style="color:#888;font-size:11px;width:48px">×1.0</span>
+    <span class="sep">|</span>
+    <button onclick="apply()">▶</button>
+  </div>
+  <div id="splitBlock">
+    <div class="row">
+      <label style="min-width:90px">Rozdělit text</label>
+      <input type="range" id="splitR" min="0" max="10" value="0"
+             style="width:140px" oninput="onSplit(this.value)">
+      <div class="spr" id="splitPv">—</div>
+    </div>
+    <div class="hint">Přesouvá slova z 1. řádku na středový řádek (zarovnaný na střed)</div>
+  </div>
+  <div id="viaBlock">
+    <div class="hint">5 s „Přes zastávky:" → každá zastávka min. 2 s — scrolluje pokud delší</div>
+    <div class="vg" id="viaGrid"></div>
+  </div>
+  <div class="row">
+    <label>Demo</label>
+    <div class="dr">
+      <button onclick="demo('front','735','KONEČNÁ','NENASTUPOVAT')">735 Konečná</button>
+      <button onclick="demo('front','722','TACHOV, AUT. NÁDR.','')">722 Tachov</button>
+      <button onclick="demo('side','723','TACHOV, U RYBENY','via','Stříbro','Olbramov','Přimda','Tachov')">723 VIA</button>
+      <button onclick="demo('front','706','Olomouc, aut. nádr.','')">706 Olomouc</button>
+      <button onclick="demo('side','7482','Bauska-Emburga-Riga','')">7482 Riga</button>
+      <button onclick="demo('front','400','Praha, Střížkov','')">400 Praha</button>
+    </div>
+  </div>
+  <details>
+    <summary>Vlastní demo linky</summary>
+    <div class="dc" id="customDemos"></div>
+    <div class="row" style="margin-top:6px">
+      <button onclick="addCustomDemo()">+ Přidat</button>
+      <div class="hint" style="margin-left:6px">2. řádek: text nebo zastávky oddělené ; pro VIA</div>
+    </div>
+  </details>
+  <div class="hint">A–Z a–z 0–9 Á Č Ď Ě É Í Ň Ř Š Ť Ů Ú Ý Ž + malá, mezera - . , : ! / ( ) §=🚌</div>
+</div>
+<script>
+const FONT={" ":["000","000","000","000","000","000","000","000","000","000","000","000","000"],
+"!":["11","11","11","11","11","11","11","11","11","00","11","11","00"],
+"(":["001","011","110","110","110","110","110","110","110","110","110","011","001"],
+")":["100","110","011","011","011","011","011","011","011","011","011","110","100"],
+",":["000","000","000","000","000","000","000","000","000","000","000","011","011","110"],
+"-":["00000","00000","00000","00000","00000","00000","00000","00000","11111","11111","00000","00000","00000","00000"],
+".":["00","00","00","00","00","00","00","00","00","00","00","00","11","11"],
+"/":["00001","00001","00011","00011","00110","00110","01100","01100","11000","11000","10000","10000","10000"],
+"0":["00111100","01111110","11111111","11100111","11100111","11100111","11100111","11100111","11100111","11100111","11100111","11100111","11100111","11100111","11100111","11100111","11111111","01111110","00111100"],
+"1":["000111","001111","011111","111111","111111","110111","100111","000111","000111","000111","000111","000111","000111","000111","000111","000111","000111","000111","000111"],
+"2":["00111100","01111110","11111111","11100111","00000111","00000111","00000111","00000111","00001111","00011110","00111100","01111000","11110000","11100000","11100000","11100000","11111111","11111111","11111111"],
+"3":["00111100","01111110","11111111","11100111","00000111","00000111","00000111","00000111","00011110","00111100","00011110","00000111","00000111","00000111","00000111","11100111","11111111","01111110","00111100"],
+"4":["000000110","000001110","000011110","000111100","001111000","011110000","111100000","111000000","111000000","111001110","111001110","111111111","111111111","111111111","000001110","000001110","000001110","000001110","000001110"],
+"5":["11111111","11111111","11111111","11100000","11100000","11100000","11100000","11100000","11111100","11111110","11111111","00000111","00000111","00000111","00000111","11100111","11111111","01111110","00111100"],
+"6":["00111100","01111110","11111111","11100111","11100000","11100000","11100000","11100000","11111100","11111110","11111111","11100111","11100111","11100111","11100111","11100111","11111111","01111110","00111100"],
+"7":["11111111","11111111","11111111","11100111","11100111","00000111","00000111","00000111","00001111","00011110","00111100","01111000","01110000","01110000","01110000","01110000","01110000","01110000","01110000"],
+"8":["00111100","01111110","11111111","11100111","11100111","11100111","11100111","11100111","01111110","00111100","01111110","11100111","11100111","11100111","11100111","11100111","11111111","01111110","00111100"],
+"9":["00111100","01111110","11111111","11100111","11100111","11100111","11100111","11100111","11111111","01111111","00111111","00000111","00000111","00000111","00000111","11100111","11111111","01111110","00111100"],
+":":["00","00","00","00","11","11","00","00","11","11","00","00","00"],
+"A":["011110","111111","110011","110011","110011","111111","111111","110011","110011","110011","110011","110011","110011"],
+"B":["111110","111111","110011","110011","110011","111110","111110","110011","110011","110011","110011","111111","111110"],
+"C":["011110","111111","110011","110000","110000","110000","110000","110000","110000","110000","110011","111111","011110"],
+"D":["111110","111111","110011","110011","110011","110011","110011","110011","110011","110011","110011","111111","111110"],
+"E":["111111","111111","110000","110000","110000","111110","111110","110000","110000","110000","110000","111111","111111"],
+"F":["111111","111111","110000","110000","110000","111110","111110","110000","110000","110000","110000","110000","110000"],
+"G":["011110","111111","110011","110000","110000","110000","110111","110111","110011","110011","110011","111111","011110"],
+"H":["110011","110011","110011","110011","110011","111111","111111","110011","110011","110011","110011","110011","110011"],
+"I":["11","11","11","11","11","11","11","11","11","11","11","11","11"],
+"J":["111111","111111","000011","000011","000011","000011","000011","000011","000011","110011","110011","111111","011110"],
+"K":["110011","110011","110011","110011","110111","111110","111100","111110","110111","110011","110011","110011","110011"],
+"L":["11000","11000","11000","11000","11000","11000","11000","11000","11000","11000","11000","11111","11111"],
+"M":["1100011","1110111","1111111","1111111","1101011","1100011","1100011","1100011","1100011","1100011","1100011","1100011","1100011"],
+"N":["110011","110011","111011","111111","111111","110111","110011","110011","110011","110011","110011","110011","110011"],
+"O":["011110","111111","110011","110011","110011","110011","110011","110011","110011","110011","110011","111111","011110"],
+"P":["111110","111111","110011","110011","110011","111111","111110","110000","110000","110000","110000","110000","110000"],
+"Q":["011110","111111","110011","110011","110011","110011","110011","110011","110011","110101","110110","111011","011101"],
+"R":["111110","111111","110011","110011","110011","111111","111110","111100","111110","110111","110011","110011","110011"],
+"S":["011110","111111","110011","110000","110000","111110","011111","000011","000011","110011","110011","111111","011110"],
+"T":["111111","111111","001100","001100","001100","001100","001100","001100","001100","001100","001100","001100","001100"],
+"U":["110011","110011","110011","110011","110011","110011","110011","110011","110011","110011","110011","111111","011110"],
+"V":["1100011","1100011","1100011","1100011","1100011","1100011","1100011","1100011","1100011","1110111","0111110","0011100","0001000"],
+"W":["1100011","1100011","1100011","1100011","1100011","1100011","1100011","1100011","1101011","1111111","1111111","1110111","1100011"],
+"X":["1100011","1100011","1100011","1100011","1110111","0111110","0011100","0111110","1110111","1100011","1100011","1100011","1100011"],
+"Y":["110011","110011","110011","110011","110011","110011","111111","011110","001100","001100","001100","001100","001100"],
+"Z":["1111111","1111111","0000011","0000011","0000111","0001110","0011100","0111000","1110000","1100000","1100000","1111111","1111111"],
+"a":["00000","00000","00000","00000","00000","01111","11111","11011","11011","11011","11011","11111","01111"],
+"b":["11000","11000","11000","11000","11000","11110","11111","11011","11011","11011","11011","11111","11110"],
+"c":["00000","00000","00000","00000","00000","01110","11111","11011","11000","11000","11011","11111","01110"],
+"d":["00011","00011","00011","00011","00011","01111","11111","11011","11011","11011","11011","11111","01111"],
+"e":["00000","00000","00000","00000","00000","01110","11111","11011","11111","11111","11000","11111","01111"],
+"f":["0011","0110","0110","0110","0110","1111","1111","0110","0110","0110","0110","0110","0110"],
+"g":["00000","00000","00000","00000","00000","01111","11111","11011","11111","01111","00011","11111","11110"],
+"h":["11000","11000","11000","11000","11000","11110","11111","11011","11011","11011","11011","11011","11011"],
+"i":["00","11","11","00","00","11","11","11","11","11","11","11","11"],
+"j":["000","011","011","000","000","011","011","011","011","011","011","011","110"],
+"k":["11000","11000","11000","11000","11000","11011","11011","11011","11110","11110","11011","11011","11011"],
+"l":["110","110","110","110","110","110","110","110","110","110","110","110","011"],
+"m":["0000000","0000000","0000000","0000000","0000000","1110110","1111111","1101011","1101011","1101011","1101011","1101011","1101011"],
+"n":["00000","00000","00000","00000","00000","11110","11111","11011","11011","11011","11011","11011","11011"],
+"o":["00000","00000","00000","00000","00000","01110","11111","11011","11011","11011","11011","11111","01110"],
+"p":["00000","00000","00000","00000","00000","11110","11111","11011","11011","11111","11110","11000","11000"],
+"q":["00000","00000","00000","00000","00000","01111","11111","11011","11011","11111","01111","00011","00011"],
+"r":["00000","00000","00000","00000","00000","11011","11111","11100","11000","11000","11000","11000","11000"],
+"s":["00000","00000","00000","00000","00000","01110","11111","11000","11110","01111","00011","11111","01110"],
+"t":["0110","0110","0110","0110","0110","1111","1111","0110","0110","0110","0110","0110","0011"],
+"u":["00000","00000","00000","00000","00000","11011","11011","11011","11011","11011","11011","11111","01110"],
+"v":["00000","00000","00000","00000","00000","11011","11011","11011","11011","11011","11111","01110","00100"],
+"w":["0000000","0000000","0000000","0000000","0000000","1100011","1100011","1100011","1100011","1101011","1111111","1110111","1100011"],
+"x":["000000","000000","000000","000000","000000","110011","110011","011110","001100","011110","110011","110011","110011"],
+"y":["00000","00000","00000","00000","00000","11011","11011","11011","11111","01111","00011","11111","11110"],
+"z":["00000","00000","00000","00000","00000","11111","11111","00011","00110","01100","11000","11111","11111"],
+"§":["011111111110","111111111111","110000000011","100000000001","100000000001","100000000001","100000000001","100000000001","110000000011","111111111111","111100001111","111111111111","011110011110","001100001100"],
+"Á":["000110","001100","000000","011110","111111","110011","110011","110011","111111","111111","110011","110011","110011","110011","110011","110011"],
+"É":["000110","001100","000000","111111","111111","110000","110000","110000","111110","111110","110000","110000","110000","110000","111111","111111"],
+"Í":["011","110","000","110","110","110","110","110","110","110","110","110","110","110","110","110"],
+"Ú":["000100","001010","000100","110011","110011","110011","110011","110011","110011","110011","110011","110011","110011","110011","111111","011110"],
+"Ý":["000110","001100","000000","110011","110011","110011","110011","110011","110011","111111","011110","001100","001100","001100","001100","001100"],
+"á":["00000","00000","00011","00110","00000","00000","01111","11111","11011","11011","11011","11011","11111","01111"],
+"é":["00000","00000","00011","00110","00000","00000","01110","11111","11011","11111","11111","11000","11111","01111"],
+"í":["000","000","011","110","000","000","110","110","110","110","110","110","110","110"],
+"ú":["00000","00000","00011","00110","00000","00000","11011","11011","11011","11011","11011","11011","11111","01110"],
+"ý":["00000","00000","00011","00110","00000","00000","11011","11011","11011","11111","01111","00011","11111","11110"],
+"Č":["011011","001110","000000","011110","111111","110011","110000","110000","110000","110000","110000","110000","110000","110011","111111","011110"],
+"č":["00000","00000","11011","01110","00000","00000","01110","11111","11011","11000","11000","11011","11111","01110"],
+"Ď":["100010","011100","111110","111111","110011","110011","110011","110011","110011","110011","110011","110011","110011","111111","111110"],
+"Ě":["011011","001110","000000","111111","111111","110000","110000","110000","111110","111110","110000","110000","110000","110000","111111","111111"],
+"ě":["00000","00000","11011","01110","00000","00000","01110","11111","11011","11111","11111","11000","11111","01111"],
+"Ň":["100010","011100","110011","110011","111011","111111","111111","110111","110011","110011","110011","110011","110011","110011","110011"],
+"Ř":["011011","001110","000000","111110","111111","110011","110011","110011","111111","111110","111100","111110","110111","110011","110011","110011"],
+"ř":["00000","00000","11011","01110","00000","00000","11011","11111","11100","11000","11000","11000","11000","11000"],
+"Š":["011011","001110","000000","011110","111111","110011","110000","110000","111110","011111","000011","000011","110011","110011","111111","011110"],
+"š":["00000","00000","11011","01110","00000","00000","01110","11111","11000","11110","01111","00011","11111","01110"],
+"Ť":["100010","011100","111111","111111","001100","001100","001100","001100","001100","001100","001100","001100","001100","001100","001100"],
+"Ů":["000110","001100","000000","110011","110011","110011","110011","110011","110011","110011","110011","110011","110011","110011","111111","011110"],
+"ů":["00000","00000","00100","01010","00100","00000","11011","11011","11011","11011","11011","11011","11111","01110"],
+"Ž":["0110110","0011100","0000000","1111111","1111111","0000011","0000011","0000111","0001110","0011100","0111000","1110000","1100000","1100000","1111111","1111111"],
+"ž":["00000","00000","11011","01110","00000","00000","11111","11111","00011","00110","01100","11000","11111","11111"]};
+
+// ══════════════════════════════════════════════════
+//  KEY: Bottom-alignment
+//  All glyphs share the same BOTTOM baseline.
+//  Letters without háček (h=13) sit at the bottom
+//  of the zone. Letters WITH háček (h=16) also sit
+//  at the bottom — the háček extends UPWARD naturally.
+//  Zone height = max glyph height in text (so háčeks
+//  never get clipped).
+// ══════════════════════════════════════════════════
+
+const COLS = 140, CELL = 10;
+// Zone heights (LED rows):
+const H_ROW1 = 19; // front panel row 1 (digits=19, UC bottom-aligned)
+const H_ROW2 = 16; // side panel row 2 (Czech LC max = 14, UC=13 bottom-aligned)
+const ROW_GAP = 1;
+
+const S = {
+  pm:'front', lineNum:'735', row1:'KONEČNÁ', row2:'NENASTUPOVAT',
+  via:false, viaStops:Array(10).fill(''),
+  adv:false, splitIdx:0, scrollSpeedRaw:10, busInstead:false,
+  customDemos:[],
+};
+
+let LY = {};
+function computeLayout(){
+  const adv = S.adv && S.splitIdx > 0;
+  if(S.pm==='front'){
+    LY = adv
+      ?{numH:H_ROW1,row1Y:0,row1H:H_ROW1,midY:H_ROW1+ROW_GAP,midH:H_ROW2,row2Y:-1,row2H:0,totalH:H_ROW1+ROW_GAP+H_ROW2}
+      :{numH:H_ROW1,row1Y:0,row1H:H_ROW1,midY:-1,midH:0,row2Y:-1,row2H:0,totalH:H_ROW1};
+  } else {
+    const numH=H_ROW1+ROW_GAP+H_ROW2;
+    LY = adv
+      ?{numH:H_ROW1+ROW_GAP+H_ROW2+ROW_GAP+H_ROW2,row1Y:0,row1H:H_ROW1,midY:H_ROW1+ROW_GAP,midH:H_ROW2,row2Y:H_ROW1+ROW_GAP+H_ROW2+ROW_GAP,row2H:H_ROW2,totalH:H_ROW1+ROW_GAP+H_ROW2+ROW_GAP+H_ROW2}
+      :{numH,row1Y:0,row1H:H_ROW1,midY:-1,midH:0,row2Y:H_ROW1+ROW_GAP,row2H:H_ROW2,totalH:numH};
+  }
+}
+
+const cv=document.getElementById('cv');
+const ctx=cv.getContext('2d');
+let fb;
+function initCanvas(){cv.width=COLS*CELL;cv.height=LY.totalH*CELL;fb=new Uint8Array(COLS*LY.totalH);}
+function setpx(x,y,v){if(x<0||x>=COLS||y<0||y>=LY.totalH)return;fb[y*COLS+x]=v;}
+function renderFrame(){
+  ctx.fillStyle='#020202';ctx.fillRect(0,0,cv.width,cv.height);
+  for(let y=0;y<LY.totalH;y++)for(let x=0;x<COLS;x++){
+    const on=fb[y*COLS+x],px=x*CELL+CELL*.5,py=y*CELL+CELL*.5;
+    ctx.beginPath();ctx.arc(px,py,CELL*.37,0,Math.PI*2);
+    if(on){ctx.fillStyle='#ff8800';ctx.shadowColor='#ff3300';ctx.shadowBlur=CELL*.85;}
+    else{ctx.fillStyle='#130900';ctx.shadowBlur=0;}
+    ctx.fill();
+  }
+}
+
+// ── Measure & metrics ──────────────────────────
+function measureW(text){
+  let w=0;for(const ch of text){const g=FONT[ch];w+=(g?g[0].length:4)+1;}
+  return w>0?w-1:0;
+}
+function textMaxH(text){
+  let h=0;for(const ch of text){const g=FONT[ch];if(g&&g.length>h)h=g.length;}
+  return h||13;
+}
+
+// ── Bottom-aligned draw ────────────────────────
+// zoneH: available LED rows in zone.
+// All glyphs share the same bottom: glyph bottom = yZone + zoneH - 1
+// glyph top = yZone + zoneH - glyphH
+function drawTextBA(text, xStart, yZone, zoneH, scrollX, center, buf, bufW){
+  const tw=measureW(text);
+  let x=xStart-(scrollX|0);
+  const avail=buf?bufW:COLS-xStart;
+  if(center&&!buf&&tw<avail)x=xStart+Math.floor((avail-tw)/2);
+
+  for(const ch of text){
+    const g=FONT[ch];if(!g){x+=5;continue;}
+    const gw=g[0].length,gh=g.length;
+    // Bottom-align: glyph bottom at yZone+zoneH-1
+    const yOff=zoneH-gh;
+    for(let gy=0;gy<gh;gy++){
+      const row=g[gy];
+      const fbY=yZone+yOff+gy;
+      for(let gx=0;gx<gw;gx++){
+        const fbX=x+gx;
+        if(buf){if(fbX>=0&&fbX<bufW&&(yOff+gy)>=0&&(yOff+gy)<zoneH)buf[(yOff+gy)*bufW+fbX]=row[gx]==='1'?1:0;}
+        else{if(fbX>=0&&fbY>=0&&fbY<yZone+zoneH)setpx(fbX,fbY,row[gx]==='1'?1:0);}
+      }
+    }
+    x+=gw+1;
+  }
+}
+
+function makeWide(text,zoneH){
+  const w=measureW(text)+2;const buf=new Uint8Array(w*zoneH);
+  drawTextBA(text,0,0,zoneH,0,false,buf,w);return{buf,w,h:zoneH};
+}
+function blitSlice(wide,scrollX,fbX,fbY,availW){
+  for(let y=0;y<wide.h;y++)for(let x=0;x<availW;x++){
+    const sx=scrollX+x;setpx(fbX+x,fbY+y,(sx>=0&&sx<wide.w)?wide.buf[y*wide.w+sx]:0);}
+}
+
+// ── Line number ────────────────────────────────
+let lineEndCol=0;
+const MAX_NUM_W=30, LINE_GAP=4;
+
+function drawLineNumber(str,isBus){
+  for(let y=0;y<LY.numH;y++) for(let x=0;x<MAX_NUM_W+LINE_GAP+2;x++)setpx(x,y,0);
+  if(isBus){drawBusIcon();return;}
+  if(!str||!str.trim()){lineEndCol=0;return;}
+
+  const nH=textMaxH(str);
+  const tw=measureW(str);
+  const scaleH=LY.numH/nH;
+  const scaleW=tw>0?MAX_NUM_W/tw:scaleH;
+  const scale=Math.min(scaleH,scaleW);
+
+  if(scale<=1.05){
+    // Native size, bottom-aligned in numH
+    let x=1;const yOff=LY.numH-nH;
+    for(const ch of str){
+      const g=FONT[ch];if(!g){x+=4;continue;}
+      const gw=g[0].length,gh=g.length;
+      const gy0=nH-gh; // bottom-align within nH
+      for(let gy=0;gy<gh;gy++){const row=g[gy];
+        for(let gx=0;gx<gw;gx++)setpx(x+gx,yOff+gy0+gy,row[gx]==='1'?1:0);}
+      x+=gw+1;
+    }
+    lineEndCol=Math.min(COLS-20,x+LINE_GAP);
+  } else {
+    let x=1;
+    for(const ch of str){
+      const g=FONT[ch];if(!g){x+=Math.round(4*scale)+1;continue;}
+      const nW=g[0].length,sW=Math.max(1,Math.round(nW*scale));
+      const sH=Math.max(1,Math.round(g.length*scale));
+      const yOff=LY.numH-sH;
+      for(let dy=0;dy<sH;dy++){
+        const sy0=dy/scale,sy1=(dy+1)/scale;
+        for(let dx=0;dx<sW;dx++)setpx(x+dx,yOff+dy,sampleArea(g,dx/scale,(dx+1)/scale,sy0,sy1));
+      }
+      x+=sW+Math.max(1,Math.round(scale));
+    }
+    lineEndCol=Math.min(COLS-20,x+LINE_GAP);
+  }
+}
+
+function sampleArea(g,sx0,sx1,sy0,sy1){
+  const nW=g[0].length,nH=g.length;
+  sx0=Math.max(0,sx0);sx1=Math.min(nW,sx1);sy0=Math.max(0,sy0);sy1=Math.min(nH,sy1);
+  if(sx0>=sx1||sy0>=sy1)return 0;
+  let sum=0,area=0;
+  for(let iy=Math.floor(sy0);iy<Math.ceil(sy1);iy++){
+    const row=g[Math.min(nH-1,iy)]||'';const wy=Math.min(iy+1,sy1)-Math.max(iy,sy0);
+    for(let ix=Math.floor(sx0);ix<Math.ceil(sx1);ix++){
+      const wx=Math.min(ix+1,sx1)-Math.max(ix,sx0);
+      sum+=(row[ix]==='1'?1:0)*wx*wy;area+=wx*wy;}}
+  return(area>0&&sum/area>=0.30)?1:0;
+}
+
+function drawBusIcon(){
+  // Detailed front-facing bus, 19 rows tall to match numH
+  const BUS=[
+    '00001111110000',
+    '00011111111000',
+    '00111111111100',
+    '01111111111110',
+    '11111111111111',
+    '11000000000011',
+    '10000000000001',
+    '10111111111101',
+    '10111111111101',
+    '10111111111101',
+    '10111111111101',
+    '10000000000001',
+    '11000000000011',
+    '11111111111111',
+    '11111111111111',
+    '11100011000111',
+    '11110011001111',
+    '01100110011010',
+    '00100100100100',
+  ];
+  const bW=BUS[0].length,bH=BUS.length;
+  const yOff=S.pm==='side'?0:Math.max(0,Math.floor((LY.numH-bH)/2));
+  for(let by=0;by<bH&&by+yOff<LY.numH;by++){
+    const row=BUS[by];for(let bx=0;bx<bW;bx++)setpx(1+bx,yOff+by,row[bx]==='1'?1:0);}
+  lineEndCol=Math.min(COLS-20,1+bW+LINE_GAP);
+}
+
+// ── Zone renderer ──────────────────────────────
+let WC={};
+function clearZone(zY,zH){
+  if(zY<0||zH<=0)return;
+  for(let y=zY;y<zY+zH;y++) for(let x=lineEndCol;x<COLS;x++)setpx(x,y,0);
+}
+function renderZone(key,text,zY,zH,scrollX,center){
+  clearZone(zY,zH);
+  if(!text||!text.trim()||zH<=0||zY<0)return 0;
+  const avail=COLS-lineEndCol-1,tw=measureW(text);
+  if(tw<=avail){drawTextBA(text,lineEndCol+1,zY,zH,0,center,null,0);return 0;}
+  const c=WC[key];
+  if(!c||c.text!==text)WC[key]={wide:makeWide(text,zH),text};
+  blitSlice(WC[key].wide,scrollX|0,lineEndCol+1,zY,avail);
+  return Math.max(0,tw-avail);
+}
+
+// ── Animation ──────────────────────────────────
+const PAUSE=500,RESUME=2500,VIA_HDR=5000,VIA_MIN=2000;
+const AN={zones:{},vPhase:'header',vIdx:0,vOff:0,vMax:0,vT:0};
+function pxPerMs(){return(S.scrollSpeedRaw/10)*0.055;}
+function initScroll(key,max){if(max>0)AN.zones[key]={phase:'wait-s',off:0,max,t:0};}
+function tickZ(key,ts){
+  const z=AN.zones[key];if(!z||z.max<=0)return{dirty:false,off:0};
+  if(!z.t)z.t=ts;const el=ts-z.t;
+  if(z.phase==='wait-s'){if(el>=PAUSE){z.phase='scroll';z.t=ts;}return{dirty:false,off:z.off};}
+  if(z.phase==='scroll'){const no=Math.min(z.max,Math.floor(el*pxPerMs()));
+    const d=no!==z.off;z.off=no;if(no>=z.max){z.phase='wait-e';z.t=ts;}return{dirty:d,off:no};}
+  if(z.phase==='wait-e'){if(el>=PAUSE+RESUME){z.phase='wait-s';z.off=0;z.t=ts;return{dirty:true,off:0};}
+    return{dirty:false,off:z.off};}
+  return{dirty:false,off:0};
+}
+
+let animId=null;
+function startAnim(){
+  if(animId)cancelAnimationFrame(animId);
+  function loop(ts){
+    let dirty=false;const[r1t,midt]=getSplit();
+    const r1=tickZ('r1',ts);if(r1.dirty){renderZone('r1',norm(r1t),LY.row1Y,LY.row1H,r1.off,true);dirty=true;}
+    if(LY.midH>0&&midt){const m=tickZ('mid',ts);if(m.dirty){renderZone('mid',norm(midt),LY.midY,LY.midH,m.off,true);dirty=true;}}
+    if(LY.row2H>0&&LY.row2Y>=0){
+      if(!S.via){const r2=tickZ('r2',ts);if(r2.dirty){renderZone('r2',norm(S.row2),LY.row2Y,LY.row2H,r2.off,true);dirty=true;}}
+      else if(tickVIA(ts))dirty=true;}
+    if(dirty)renderFrame();animId=requestAnimationFrame(loop);
+  }
+  animId=requestAnimationFrame(loop);
+}
+
+function validStops(){return S.viaStops.map(norm).filter(s=>s.trim());}
+function viaScrollMax(t){return Math.max(0,measureW(t)-(COLS-lineEndCol-1));}
+function viaShow(idx,sx){clearZone(LY.row2Y,LY.row2H);renderZone('via'+idx,validStops()[idx],LY.row2Y,LY.row2H,sx,false);}
+
+function tickVIA(ts){
+  const stops=validStops();if(!stops.length)return false;
+  if(!AN.vT)AN.vT=ts;const el=ts-AN.vT;
+  if(AN.vPhase==='header'){if(el>=VIA_HDR){AN.vIdx=0;AN.vOff=0;AN.vMax=viaScrollMax(stops[0]);
+    AN.vPhase='stop-s';AN.vT=ts;viaShow(0,0);return true;}return false;}
+  if(AN.vPhase==='stop-s'){if(el>=PAUSE){AN.vPhase=AN.vMax>0?'stop-sc':'stop-e';AN.vT=ts;}return false;}
+  if(AN.vPhase==='stop-sc'){const no=Math.min(AN.vMax,Math.floor(el*pxPerMs()));
+    const d=no!==AN.vOff;AN.vOff=no;viaShow(AN.vIdx,no);
+    if(no>=AN.vMax){AN.vPhase='stop-e';AN.vT=ts;return true;}return d;}
+  if(AN.vPhase==='stop-e'){if(el>=Math.max(VIA_MIN,PAUSE)){AN.vIdx++;
+    if(AN.vIdx>=stops.length){AN.vPhase='header';AN.vT=ts;
+      clearZone(LY.row2Y,LY.row2H);renderZone('via_h',norm('Přes zastávky:'),LY.row2Y,LY.row2H,0,false);return true;}
+    AN.vMax=viaScrollMax(stops[AN.vIdx]);AN.vOff=0;AN.vPhase='stop-s';AN.vT=ts;
+    viaShow(AN.vIdx,0);return true;}return false;}
+  return false;
+}
+
+function norm(t){let o='';for(const ch of(t||''))if(FONT[ch]!==undefined)o+=ch;return o;}
+function getSplit(){
+  if(!S.adv||S.splitIdx<=0)return[S.row1,''];
+  const w=S.row1.trim().split(/\s+/);const si=Math.min(S.splitIdx,w.length);
+  return[w.slice(0,si).join(' '),w.slice(si).join(' ')];
+}
+
+function applyPanel(){
+  computeLayout();initCanvas();fb.fill(0);WC={};AN.zones={};
+  AN.vPhase='header';AN.vIdx=0;AN.vOff=0;AN.vT=0;
+  drawLineNumber(norm((S.lineNum||'').toUpperCase()),S.busInstead);
+  const[r1t,midt]=getSplit().map(norm);
+  initScroll('r1',renderZone('r1',r1t,LY.row1Y,LY.row1H,0,true));
+  if(LY.midH>0&&midt)initScroll('mid',renderZone('mid',midt,LY.midY,LY.midH,0,true));
+  if(LY.row2H>0&&LY.row2Y>=0){
+    if(S.via)renderZone('via_h',norm('Přes zastávky:'),LY.row2Y,LY.row2H,0,false);
+    else initScroll('r2',renderZone('r2',norm(S.row2),LY.row2Y,LY.row2H,0,true));
+  }
+  renderFrame();startAnim();
+}
+
+// ── UI ─────────────────────────────────────────
+function setPM(m){
+  S.pm=m;
+  document.getElementById('btnF').classList.toggle('on',m==='front');
+  document.getElementById('btnS').classList.toggle('on',m==='side');
+  ['btnManip','btnSluz'].forEach(id=>{
+    const el=document.getElementById(id);
+    el.style.opacity=m==='front'?'1':'0.3';
+    el.style.pointerEvents=m==='front'?'':'none';
+  });
+  document.getElementById('row2area').style.display=(m==='side'||S.adv)?'':'none';
+  apply();
+}
+function toggleVia(){
+  S.via=!S.via;
+  document.getElementById('btnVia').textContent='VIA: '+(S.via?'ON':'OFF');
+  document.getElementById('btnVia').classList.toggle('on',S.via);
+  document.getElementById('viaBlock').classList.toggle('vis',S.via);
+  apply();
+}
+function toggleAdv(){
+  S.adv=!S.adv;if(!S.adv)S.splitIdx=0;
+  document.getElementById('btnAdv').textContent=S.adv?'ON':'OFF';
+  document.getElementById('btnAdv').classList.toggle('on',S.adv);
+  document.getElementById('splitBlock').classList.toggle('vis',S.adv);
+  document.getElementById('row2area').style.display=(S.pm==='side'||S.adv)?'':'none';
+  updateSplitUI();apply();
+}
+function onSpd(v){S.scrollSpeedRaw=parseInt(v);document.getElementById('spdV').textContent='×'+(parseInt(v)/10).toFixed(1);}
+function updateSplitUI(){
+  if(!S.adv)return;
+  const words=(S.row1||'').trim().split(/\s+/).filter(w=>w);
+  const sl=document.getElementById('splitR');sl.max=words.length;sl.value=Math.min(S.splitIdx,words.length);
+  const[r1t,midt]=getSplit();
+  document.getElementById('splitPv').innerHTML=`<em style="color:#444">▶</em> ${r1t||'—'} <em style="color:#444">│</em> ${midt||'—'}`;
+}
+function onSplit(v){S.splitIdx=parseInt(v);updateSplitUI();apply();}
+function apply(){
+  S.lineNum=document.getElementById('iLine').value;
+  S.row1=document.getElementById('iRow1').value;
+  S.row2=document.getElementById('iRow2').value;
+  S.viaStops=Array.from(document.querySelectorAll('.vi')).map(el=>el.value);
+  if(S.adv)updateSplitUI();
+  try{localStorage.setItem('buse_data',JSON.stringify(S));}catch(e){}
+  applyPanel();
+}
+function ins(row,ch){
+  const id=row===1?'iRow1':'iRow2';const el=document.getElementById(id);
+  const p=el.selectionStart||0;el.value=el.value.slice(0,p)+ch+el.value.slice(p);
+  el.focus();el.setSelectionRange(p+1,p+1);apply();
+}
+function setKonecna(){S.busInstead=false;document.getElementById('iRow1').value='KONEČNÁ';document.getElementById('iRow2').value='NENASTUPOVAT';if(S.via)toggleVia();apply();}
+function setManip(){if(S.pm!=='front')return;S.busInstead=true;document.getElementById('iLine').value='';document.getElementById('iRow1').value='MANIPULAČNÍ JÍZDA';document.getElementById('iRow2').value='';if(S.via)toggleVia();apply();}
+function setSluz(){if(S.pm!=='front')return;S.busInstead=true;document.getElementById('iLine').value='';document.getElementById('iRow1').value='SLUŽEBNÍ JÍZDA';document.getElementById('iRow2').value='';if(S.via)toggleVia();apply();}
+function demo(pm,line,r1,r2orMode,...stops){
+  S.busInstead=false;if(pm!==S.pm)setPM(pm);
+  document.getElementById('iLine').value=line;document.getElementById('iRow1').value=r1;
+  const isVia=r2orMode==='via';if(isVia!==S.via)toggleVia();
+  if(isVia){document.querySelectorAll('.vi').forEach((el,i)=>{el.value=stops[i]||'';});document.getElementById('iRow2').value='';}
+  else document.getElementById('iRow2').value=r2orMode||'';
+  apply();
+}
+
+// Custom demos
+function renderCustomDemos(){
+  const c=document.getElementById('customDemos');c.innerHTML='';
+  S.customDemos.forEach((d,i)=>{
+    const row=document.createElement('div');row.className='drow';
+    row.innerHTML=`<select><option value="front" ${d.pm==='front'?'selected':''}>Přední</option><option value="side" ${d.pm==='side'?'selected':''}>Boční</option></select>
+      <input placeholder="Linka" value="${d.line||''}" maxlength="6" style="width:60px">
+      <input placeholder="1. řádek" value="${d.row1||''}" style="flex:2">
+      <input placeholder="2. řádek / zastávky (;)" value="${d.row2||''}" style="flex:2">
+      <button onclick="runCD(${i})">▶</button>
+      <button onclick="delCD(${i})" style="color:#555">✕</button>`;
+    c.appendChild(row);
+    const inp=row.querySelectorAll('input,select');
+    inp.forEach(el=>el.addEventListener('input',()=>{
+      const es=row.querySelectorAll('input,select');
+      S.customDemos[i]={pm:es[0].value,line:es[1].value,row1:es[2].value,row2:es[3].value};
+      try{localStorage.setItem('buse_data',JSON.stringify(S));}catch(e){}
+    }));
+  });
+}
+function addCustomDemo(){S.customDemos.push({pm:'front',line:'',row1:'',row2:''});renderCustomDemos();}
+function runCD(i){
+  const d=S.customDemos[i];S.busInstead=false;if(d.pm!==S.pm)setPM(d.pm);
+  document.getElementById('iLine').value=d.line||'';document.getElementById('iRow1').value=d.row1||'';
+  if(d.row2&&d.row2.includes(';')){
+    const stops=d.row2.split(';').map(s=>s.trim());if(!S.via)toggleVia();
+    document.querySelectorAll('.vi').forEach((el,i)=>{el.value=stops[i]||'';});document.getElementById('iRow2').value='';
+  } else {if(S.via)toggleVia();document.getElementById('iRow2').value=d.row2||'';}
+  apply();
+}
+function delCD(i){S.customDemos.splice(i,1);try{localStorage.setItem('buse_data',JSON.stringify(S));}catch(e){}renderCustomDemos();}
+
+(function(){
+  const g=document.getElementById('viaGrid');
+  for(let i=0;i<10;i++){const d=document.createElement('div');d.className='vr';
+    d.innerHTML=`<span class="vn">${i+1}.</span><input type="text" class="vi" placeholder="Zastávka ${i+1}" maxlength="60">`;g.appendChild(d);}
+})();
+['iLine','iRow1','iRow2'].forEach(id=>{const el=document.getElementById(id);el.addEventListener('input',apply);el.addEventListener('keydown',e=>{if(e.key==='Enter')apply();});});
+document.addEventListener('input',e=>{if(e.target.classList.contains('vi'))apply();});
+window.addEventListener('storage',e=>{
+  if(e.key!=='buse_data')return;
+  try{const d=JSON.parse(e.newValue);Object.assign(S,d);
+    document.getElementById('iLine').value=S.lineNum||'';document.getElementById('iRow1').value=S.row1||'';document.getElementById('iRow2').value=S.row2||'';
+    document.querySelectorAll('.vi').forEach((el,i)=>{el.value=(S.viaStops||[])[i]||'';});renderCustomDemos();applyPanel();}catch(e2){}
+});
+(function(){
+  S.viaStops=Array(10).fill('');S.customDemos=[];
+  try{
+    const d=JSON.parse(localStorage.getItem('buse_data')||'{}');
+    if(d.lineNum!==undefined){
+      Object.assign(S,d);S.viaStops=S.viaStops||Array(10).fill('');S.customDemos=S.customDemos||[];
+      document.getElementById('iLine').value=S.lineNum||'';document.getElementById('iRow1').value=S.row1||'';document.getElementById('iRow2').value=S.row2||'';
+      document.getElementById('spdR').value=S.scrollSpeedRaw||10;onSpd(S.scrollSpeedRaw||10);
+      document.querySelectorAll('.vi').forEach((el,i)=>{el.value=(S.viaStops||[])[i]||'';});
+      renderCustomDemos();if(S.via)toggleVia();if(S.adv)toggleAdv();if(S.pm)setPM(S.pm);applyPanel();return;
+    }
+  }catch(e){}
+  S.customDemos=[];renderCustomDemos();setPM('front');applyPanel();
+})();
+</script></body></html>

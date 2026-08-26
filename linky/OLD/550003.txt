@@ -1,0 +1,8 @@
+Linka: 550
+Směr:  HOLÝŠOV,,ŽEL.ST.
+Zastávky:
+stod_zel_st | Display: Stod,,žel.st. | Přestup:  551,553,554,555,564,552,621,760| Tarifní zona: 103 | 
+stod_nadr | Display: Stod,,Nádražní | Přestup: 551,553,554,555,564,552,621,760 | Tarifní zona: 103 | 
+stod | Display: Stod | Přestup:  551,553,554,555,564,552,621,649,760| Tarifní zona: 103,104 
+k_hol_zel_st | Display: Holýšov,,žel.st. | Přestup:  631,822,841,842,843,822,841,843| Tarifní zona: 104 
+Následující turnus: 550004

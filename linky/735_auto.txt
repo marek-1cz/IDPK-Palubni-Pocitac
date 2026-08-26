@@ -1,0 +1,28 @@
+GTSF-DATA
+Linka: 490735
+
+Zastávky:
+Stříbro,žel.st. = str_zel_st | Display:  | Tarifní zona:  | Čas:  | Další znaky: 
+Stříbro,aut.st. = str_aut_st | Display:  | Tarifní zona:  | Čas:  | Další znaky:
+Stříbro,záv. = str_zav | Display:  | Tarifní zona:  | Čas:  | Další znaky: ZZ
+Stříbro, Těchlovice = str_tech | Display:  | Tarifní zona:  | Čas:  | Další znaky:
+Záchlumí, rozc = zachlum_rozc | Display:  | Tarifní zona:  | Čas:  | Další znaky: ZZ
+Černošín, Víchov = cern_vich | Display:  | Tarifní zona:  | Čas:  | Další znaky: 
+Černošín, Pytlov rozc 0.5 = cern_pyt_rozc_05 | Display:  | Tarifní zona:  | Čas:  | Další znaky: ZZ
+Černošín, Pytlov, náves = cern_pyt_naves | Display:  | Tarifní zona:  | Čas:  | Další znaky:
+Černošín, Krásné Údolí = cern_kra_udl | Display:  | Tarifní zona:  | Čas:  | Další znaky: ZZ
+Černošín = cern | Display:  | Tarifní zona:  | Čas:  | Další znaky:
+Černošín, Třebel, rozc. = cern_tre_rozc | Display:  | Tarifní zona:  | Čas:  | Další znaky: ZZ
+Planá, Svahy = plan_svah | Display:  | Tarifní zona:  | Čas:  | Další znaky:
+Planá, Svahy, rozc. = plan_svah_rozc | Display:  | Tarifní zona:  | Čas:  | Další znaky: ZZ
+Planá, Zliv, rozc. = plan_zliv_rozc | Display:  | Tarifní zona:  | Čas:  | Další znaky: ZZ
+Planá, Pavlovice, rozc. = plan_pavl_rozc | Display:  | Tarifní zona:  | Čas:  | Další znaky: ZZ
+Planá, Týnec = plan_tyn | Display:  | Tarifní zona:  | Čas:  | Další znaky:
+Planá, Vysoké Sedliště, rozc. = plan_vys_sedl_rozc | Display:  | Tarifní zona:  | Čas:  | Další znaky: ZZ
+Planá, polesí = plan_poles | Display:  | Tarifní zona:  | Čas:  | Další znaky: ZZ
+Planá, Sadová = plan_Sad | Display:  | Tarifní zona:  | Čas:  | Další znaky: ZZ
+Planá, aut.st. = Plan_aut_st | Display:  | Tarifní zona:  | Čas:  | Další znaky:
+Planá, žel.st.  = Plan_Zel_st | Display:  | Tarifní zona:  | Čas:  | Další znaky:
+Planá, Luční = Plan_Luc | Display:  | Tarifní zona:  | Čas:  | Další znaky: ZZ
+Chodová Planá, Slunečná = Chod_pl_Slun | Display:  | Tarifní zona:  | Čas:  | Další znaky: ZZ
+Chodová Planá, U kostela = Chod_pl_Kost | Display:  | Tarifní zona:  | Čas:  | Další znaky:

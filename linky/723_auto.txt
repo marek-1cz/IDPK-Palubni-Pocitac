@@ -1,0 +1,29 @@
+GTSF-DATA
+Linka: 490723
+
+Zastávky:
+Tachov, u Rybeny = Tc_u_ryb | Display:  | Tarifní zona:  | Čas:  | Další znaky: 
+Tachov, poliklinika = Tc_pol | Display:  | Tarifní zona:  | Čas:  | Další znaky: 
+Tachov, aut.nádr = Tc_aut_nadr | Display:  | Tarifní zona:  | Čas:  | Další znaky: 
+Tachov, kasárna = Tc_kas | Display:  | Tarifní zona:  | Čas:  | Další znaky: 
+Tachov, Vítkov = Tc_Vitkov | Display:  | Tarifní zona:  | Čas:  | Další znaky: 
+Chodský Újezd, Nahý Újezdec, obec = Chod_U_N_U_obec | Display:  | Tarifní zona:  | Čas:  | Další znaky: ZZ
+Chodský Újezd, Nahý Újezdec, rozc.0.3 = Chod_U_N_U_03 | Display:  | Tarifní zona:  | Čas:  | Další znaky: ZZ
+Chodský Újezd, Neblažov, rozc. = Chod_U_Neb_rozc | Display:  | Tarifní zona:  | Čas:  | Další znaky: ZZ
+Chodský Újezd, Dolní Jadruž, rozc. = Chod_U_D_J_rozc | Display:  | Tarifní zona:  | Čas:  | Další znaky: ZZ
+Planá, Červený mlýn = Plan_Cer_mlyn | Display:  | Tarifní zona:  | Čas:  | Další znaky: ZZ
+Planá, rozc.k nádr. = Plan_rozc_nadr | Display:  | Tarifní zona:  | Čas:  | Další znaky: ZZ
+Planá, aut.st. = Plan_aut_st | Display:  | Tarifní zona:  | Čas:  | Další znaky:
+Planá, Sadová = Plan_Sad | Display:  | Tarifní zona:  | Čas:  | Další znaky: ZZ
+Planá, Luční = Plan_Luc | Display:  | Tarifní zona:  | Čas:  | Další znaky: ZZ
+Chodová Planá, Slunečná = Chod_pl_Slun | Display:  | Tarifní zona:  | Čas:  | Další znaky: ZZ
+Chodová Planá, U kostela = Chod_pl_Kost | Display:  | Tarifní zona:  | Čas:  | Další znaky:
+Chodová Planá, Mariánskolázeňská = Chod_pl_Mar | Display:  | Tarifní zona:  | Čas:  | Další znaky: ZZ
+Chodová Planá, Dolní Kramolín, rozc. = Chod_pl_D_Kr_rozc | Display:  | Tarifní zona:  | Čas:  | Další znaky: ZZ
+Chotěnov-Skláře, Skláře = Cho-Skl_Skl | Display:  | Tarifní zona:  | Čas:  | Další znaky: ZZ
+Chotěnov-Skláře, Chotěnov, rozc. = Cho-Skl_Cho_rozc | Display:  | Tarifní zona:  | Čas:  | Další znaky:
+Mariánské Lázně, Úšovice, st.domy = Ml_U_st_d | Display:  | Tarifní zona:  | Čas:  | Další znaky:
+Mariánské Lázně, Úšovice, Kollárova = Ml_U_Kol | Display:  | Tarifní zona:  | Čas:  | Další znaky:
+Mariánské Lázně, aut.st. = Ml_Aut_st | Display:  | Tarifní zona:  | Čas:  | Další znaky:
+Mariánské Lázně, Tržnice = Ml_Trz | Display:  | Tarifní zona:  | Čas:  | Další znaky:
+Mariánské Lázně, City servis = Ml_City | Display:  | Tarifní zona:  | Čas:  | Další znaky:

@@ -1,0 +1,30 @@
+GTSF-DATA
+Linka: 424
+
+Zastávky:
+Plzeň, Terminál Hlavní nádraží = Plz_terminal | Display:  | Tarifní zona:  | Čas:  | Další znaky: 
+Plzeň, Radobyčická = plz_rado | Display:  | Tarifní zona:  | Čas:  | Další znaky: ZZ
+Plzeň, Belánka = plz_bel | Display:  | Tarifní zona:  | Čas:  | Další znaky: ZZ
+Plzeň, Bory = plz_bory | Display:  | Tarifní zona:  | Čas:  | Další znaky: 
+Chlumčany,Hradčany,u čerp.st. = clum_hrad_u_cerp_stan | Display:  | Tarifní zona:  | Čas:  | Další znaky: ZZ
+Horní Lukavice = hor_luka | Display:  | Tarifní zona:  | Čas:  | Další znaky: 
+Přeštice, Na Chmelnicích = pre_na_chmel | Display:  | Tarifní zona:  | Čas:  | Další znaky: 
+Přeštice, nám. = pre_nam | Display:  | Tarifní zona:  | Čas:  | Další znaky: 
+Přeštice, u hřbitova = pre_u_hr | Display:  | Tarifní zona:  | Čas:  | Další znaky: ZZ
+Lužany, obecní úřad = luz_obec_urad | Display:  | Tarifní zona:  | Čas:  | Další znaky: 
+Nezdice = nezd | Display:  | Tarifní zona:  | Čas:  | Další znaky: 
+Borovy, u kult.domu = boro_u_kul_do | Display:  | Tarifní zona:  | Čas:  | Další znaky: ZZ
+Červené Poříčí = cer_por | Display:  | Tarifní zona:  | Čas:  | Další znaky: 
+Švihov, u vchodu ZŠ = svi_u_vch_zs | Display:  | Tarifní zona:  | Čas:  | Další znaky: 
+Švihov, nám. = svi_nam | Display:  | Tarifní zona:  | Čas:  | Další znaky: 
+Švihov,Kokšín = svi_kok | Display:  | Tarifní zona:  | Čas:  | Další znaky: ZZ
+Klatovy,Dehtín = klat_deh | Display:  | Tarifní zona:  | Čas:  | Další znaky: ZZ
+Klatovy,Štěpánovice = klat_step | Display:  | Tarifní zona:  | Čas:  | Další znaky: 
+Klatovy, Plzeňská u nemocnice = klat_plz_u_nem | Display:  | Tarifní zona:  | Čas:  | Další znaky: ZZ
+Klatovy, pod nem. = klat_pod_nem | Display:  | Tarifní zona:  | Čas:  | Další znaky: 
+Klatovy,Plánická u kruh.objezdu = klat_plan_u_kruh_obj | Display:  | Tarifní zona:  | Čas:  | Další znaky: ZZ
+Klatovy, Plánická u Netrvalů = klat_plan_u_netr | Display:  | Tarifní zona:  | Čas:  | Další znaky: 
+Klatovy, Rybníčky = klat_rybn | Display:  | Tarifní zona:  | Čas:  | Další znaky: 
+Klatovy, u Gymnázia = klat_u_gym | Display:  | Tarifní zona:  | Čas:  | Další znaky: 
+Klatovy, Tylovo nábř. = klat_tyl_nabr | Display:  | Tarifní zona:  | Čas:  | Další znaky: 
+Klatovy,,Terminál-nádraží = klat_ter_nadr | Display: Klatovy, Terminál-nádraží | Tarifní zona:  | Čas:  | Další znaky: 

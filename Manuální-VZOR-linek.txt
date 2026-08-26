@@ -1,0 +1,7 @@
+Linka: "ČÍSLO LINKY"
+Směr:  "KONEČNÁ ZASTÁVKA"
+Zastávky:
+"NÁZEV SOUBORU" | Display: "JAK SE BUDE ZOBRAZOVAT" | Přestup:  "ZATÍM NENÍ VYUŽITO" | Tarifní zona: "TARIFNÍ ZONA ČÍSLO" | Čas: "00:00"
+"NÁZEV SOUBORU" | Display: "JAK SE BUDE ZOBRAZOVAT" | Přestup:  "ZATÍM NENÍ VYUŽITO" | Tarifní zona: "TARIFNÍ ZONA ČÍSLO" | Čas: "00:00"
+"NÁZEV SOUBORU" | Display: "JAK SE BUDE ZOBRAZOVAT" | Přestup:  "ZATÍM NENÍ VYUŽITO" | Tarifní zona: "TARIFNÍ ZONA ČÍSLO" | Čas: "00:00"
+Následující linkospoj "DALŠÍ LINKOSPOJ/NEBYL PŘIDÁN(když není)"

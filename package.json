@@ -1,0 +1,41 @@
+{
+  "name": "idpk-palubni-pocitac",
+  "version": "5.2.0",
+  "description": "Palubní počítač IDPK - Editable Edition",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "build": "electron-builder --win --dir"
+  },
+  "author": "Marek",
+  "license": "ISC",
+  "devDependencies": {
+    "electron": "^28.0.0",
+    "electron-builder": "^24.9.1",
+    "electron-packager": "^17.1.2"
+  },
+  "build": {
+    "appId": "com.marek.idpkpanel",
+    "productName": "Palubní Počítač IDPK",
+    "win": {
+      "target": "dir",
+      "icon": "icon.ico"
+    },
+    "directories": {
+      "output": "dist"
+    },
+    "asar": false,
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "marek-1cz",
+        "repo": "IDPK-Palubni-Pocitac"
+      }
+    ]
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.112.4",
+    "electron-log": "^5.4.4",
+    "electron-updater": "^6.8.9"
+  }
+}
