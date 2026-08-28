@@ -8,26 +8,26 @@ window.onerror = function(message, source, lineno, colno, error) {
         document.body.appendChild(errBox);
     }
     
-    let isCrit = errBox.innerHTML.includes('KritickĂˇ chyba');
+    let isCrit = errBox.innerHTML.includes('Kritická chyba');
     
     errBox.innerHTML = `
     <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid white; padding-bottom:10px; margin-bottom:10px;">
-        <span style="font-size:20px;">KritickĂˇ chyba systĂ©mu</span>
-        <button onclick="document.getElementById('fatal-error-box').style.display='none'" style="background:black; color:white; border:1px solid white; padding:5px 15px; cursor:pointer; font-weight:bold;">ZAVĹĂŤT</button>
+        <span style="font-size:20px;">Kritická chyba systému</span>
+        <button onclick="document.getElementById('fatal-error-box').style.display='none'" style="background:black; color:white; border:1px solid white; padding:5px 15px; cursor:pointer; font-weight:bold;">ZAVŘÍT</button>
     </div>
-    <p>${message}<br>ĹĂˇdek: ${lineno}</p>
+    <p>${message}<br>Řádek: ${lineno}</p>
     ` + (isCrit ? errBox.innerHTML.split('</div>')[1] : '');
     
     errBox.style.display = 'block';
-    console.error(`[IGNOROVANĂť ERROR] ${message} (Line ${lineno})`);
+    console.error(`[IGNOROVANÝ ERROR] ${message} (Line ${lineno})`);
 
-    // --- ODESLĂNĂŤ FATĂLNĂŤ CHYBY NA DISCORD ---
-    let dId = localStorage.getItem('discordId') || "NeznĂˇmĂ˝";
-    let nick = localStorage.getItem('discordNick') || "NeznĂˇmĂ˝";
+    // --- ODESLÁNÍ FATÁLNÍ CHYBY NA DISCORD ---
+    let dId = localStorage.getItem('discordId') || "Neznámý";
+    let nick = localStorage.getItem('discordNick') || "Neznámý";
     fetchBlesk(`${API_BASE}/api/report_error`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ discord_id: dId, nick: nick, type: "SYSTĂ‰MOVĂť ERROR", message: `${message} na Ĺ™Ăˇdku ${lineno}` })
+        body: JSON.stringify({ discord_id: dId, nick: nick, type: "SYSTÉMOVÝ ERROR", message: `${message} na řádku ${lineno}` })
     }, 3000).catch(()=>{});
 
     return true; 
@@ -37,7 +37,7 @@ process.on('unhandledRejection', (reason) => {
     window.onerror("Unhandled Promise: " + reason, "", 0, 0, null); 
 });
 
-console.log("== PALUBNĂŤ SYSTĂ‰M V1.6 - INICIALIZACE ==");
+console.log("== PALUBNÍ SYSTÉM V1.6 - INICIALIZACE ==");
 
 const { ipcRenderer } = require('electron');
 const path = require('path');
@@ -45,10 +45,10 @@ const processCore = require('process');
 
 const API_BASE = 'https://datacorebot.koyeb.app';
 
-// ZDE NASTAV PĹESNĂť NĂZEV VERZE, KTERĂť MĂĹ  ZADANĂť NA WEBU V DASHBOARDU!
+// ZDE NASTAV PŘESNÝ NÁZEV VERZE, KTERÝ MÁŠ ZADANÝ NA WEBU V DASHBOARDU!
 const APP_VERSION = "V1.6"; 
 
-// BezpeÄŤnĂˇ detekce VSC (aby to nevadilo kompilĂˇtoru pĹ™i buildu)
+// Bezpečná detekce VSC (aby to nevadilo kompilátoru při buildu)
 let isDevMode = false;
 try {
     isDevMode = !__dirname.includes('app.asar');
@@ -56,7 +56,7 @@ try {
     isDevMode = false;
 }
 
-// OPRAVA ZVUKĹ®: Nasmerujeme cestu o slozku vys (pokud jsme ve slozce js), aby se spravne nasla slozka "zvuky"
+// OPRAVA ZVUKŮ: Nasmerujeme cestu o slozku vys (pokud jsme ve slozce js), aby se spravne nasla slozka "zvuky"
 function getBasePath() { 
     try {
         let devBase = __dirname;
@@ -134,7 +134,7 @@ let isPlayingQueue = false;
 let pendingStopSound = false; 
 let isStopCooldown = false;
 let lastPlayedSequence = [];
-window.currentAnnouncingStopName = ""; // GlobĂˇlnĂ­ promÄ›nnĂˇ pro logovĂˇnĂ­ nĂˇzvu zastĂˇvky
+window.currentAnnouncingStopName = ""; // Globální proměnná pro logování názvu zastávky
 
 let isDelayMode = false; 
 let isTimeBasedAuto = false; 
@@ -160,21 +160,21 @@ let currentAnnouncementIndex = 0;
 
 const audioPlayer = new Audio();
 
-// --- STATISTICKĂ‰ PROMÄšNNĂ‰ ---
+// --- STATISTICKÉ PROMĚNNÉ ---
 let statsStartTime = 0;
 let statsAnnouncedStops = [];
 let statsUniqueStopsCount = 0;
 let isStatsActive = false;
 
 // ==========================================
-// SYSTĂ‰M PRO STATISTIKY LINEK A ZASTĂVEK
+// SYSTÉM PRO STATISTIKY LINEK A ZASTÁVEK
 // ==========================================
 window.initStatsTracking = function() {
     statsStartTime = Date.now();
     statsAnnouncedStops = [];
     statsUniqueStopsCount = 0;
     isStatsActive = true;
-    debugLog("Statistiky: ZĂˇznam linky zahĂˇjen.");
+    debugLog("Statistiky: Záznam linky zahájen.");
 };
 
 window.trackStopAnnouncement = function(stopName) {
@@ -188,10 +188,10 @@ window.submitStats = function() {
     if (!isStatsActive || !routeData.line) return;
     
     let timePlayed = Date.now() - statsStartTime;
-    // Odeslat jen kdyĹľ hrĂˇÄŤ hrĂˇl aspoĹ 30 vteĹ™in NEBO vyhlĂˇsil aspoĹ 2 unikĂˇtnĂ­ zastĂˇvky
+    // Odeslat jen když hráč hrál aspoň 30 vteřin NEBO vyhlásil aspoň 2 unikátní zastávky
     if (timePlayed > 30000 || statsUniqueStopsCount >= 2) {
         let dId = localStorage.getItem('discordId') || storedDiscordId || "";
-        debugLog(`Statistiky: OdesĂ­lĂˇm data pro linku ${routeData.line} | HrĂˇÄŤ ID: ${dId} | ZastĂˇvek: ${statsAnnouncedStops.length}`);
+        debugLog(`Statistiky: Odesílám data pro linku ${routeData.line} | Hráč ID: ${dId} | Zastávek: ${statsAnnouncedStops.length}`);
         fetchBlesk(`${API_BASE}/api/submit_stats`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -199,17 +199,17 @@ window.submitStats = function() {
             keepalive: true
         }, 3000).catch(e => {});
     } else {
-        debugLog("Statistiky: Linka byla ukonÄŤena pĹ™Ă­liĹˇ brzy, zĂˇznam se neodesĂ­lĂˇ.");
+        debugLog("Statistiky: Linka byla ukončena příliš brzy, záznam se neodesílá.");
     }
     
-    isStatsActive = false; // Prevence proti dvojĂ­mu odeslĂˇnĂ­
+    isStatsActive = false; // Prevence proti dvojímu odeslání
 };
 
 // ==========================================
-// 100% BEZPEÄŚNĂť PĹĂŤSTUP K INTERNETU (PROTI ZAMRZNUTĂŤ)
+// 100% BEZPEČNÝ PŘÍSTUP K INTERNETU (PROTI ZAMRZNUTÍ)
 // ==========================================
 async function fetchBlesk(url, options, msTimeout = 4000) {
-    const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout sĂ­tÄ›")), msTimeout));
+    const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout sítě")), msTimeout));
     return Promise.race([fetch(url, options), timeout]);
 }
 
@@ -217,7 +217,7 @@ async function zanalyzujPripojeni() {
     if (!navigator.onLine) {
         return { 
             status: "WIFI_OFF", 
-            zprava: "NemĂˇte zapnutou Wi-Fi nebo jste odpojeni od sĂ­tÄ›.<br><br>Hrajete v <b>OFFLINE reĹľimu</b>. UpozorĹujeme, Ĺľe v tomto reĹľimu <b>nebudou fungovat</b> statistiky nahranĂ˝ch hodin, stahovĂˇnĂ­ novĂ˝ch verzĂ­ a automatickĂ© aktualizace zprĂˇv." 
+            zprava: "Nemáte zapnutou Wi-Fi nebo jste odpojeni od sítě.<br><br>Hrajete v <b>OFFLINE režimu</b>. Upozorňujeme, že v tomto režimu <b>nebudou fungovat</b> statistiky nahraných hodin, stahování nových verzí a automatické aktualizace zpráv." 
         };
     }
 
@@ -228,7 +228,7 @@ async function zanalyzujPripojeni() {
         } else {
             return { 
                 status: "KOYEB_ERROR", 
-                zprava: "DatabĂˇze aktuĂˇlnÄ› neodpovĂ­dĂˇ (PravdÄ›podobnÄ› probĂ­hĂˇ ĂşdrĹľba serveru).<br><br>Byli jste pĹ™epnuti do <b>OFFLINE reĹľimu</b>." 
+                zprava: "Databáze aktuálně neodpovídá (Pravděpodobně probíhá údržba serveru).<br><br>Byli jste přepnuti do <b>OFFLINE režimu</b>." 
             };
         }
     } catch (error) {
@@ -236,12 +236,12 @@ async function zanalyzujPripojeni() {
             await fetchBlesk("https://1.1.1.1", { mode: 'no-cors' }, 3000);
             return { 
                 status: "BLOCKED_BY_FIREWALL", 
-                zprava: "VĂˇĹˇ internet funguje, ale spojenĂ­ aplikace bylo <b>ZABLOKOVĂNO!</b><br><br>PravdÄ›podobnÄ› vaĹˇi hru blokuje <b>Antivirus (napĹ™. Avast)</b> nebo <b>Windows Firewall</b>. <br><br><i>Tip: Pro plnou funkÄŤnost pĹ™idejte hru do vĂ˝jimek antiviru, nebo ji zkuste spustit jako AdministrĂˇtor. NynĂ­ pokraÄŤujete v omezenĂ©m offline reĹľimu.</i>" 
+                zprava: "Váš internet funguje, ale spojení aplikace bylo <b>ZABLOKOVÁNO!</b><br><br>Pravděpodobně vaši hru blokuje <b>Antivirus (např. Avast)</b> nebo <b>Windows Firewall</b>. <br><br><i>Tip: Pro plnou funkčnost přidejte hru do výjimek antiviru, nebo ji zkuste spustit jako Administrátor. Nyní pokračujete v omezeném offline režimu.</i>" 
             };
         } catch (cloudflareError) {
             return { 
                 status: "NO_INTERNET", 
-                zprava: "Jste sice pĹ™ipojeni k Wi-Fi sĂ­ti, ale vĂˇĹˇ poÄŤĂ­taÄŤ <b>nemĂˇ pĹ™Ă­stup k internetu</b>.<br><br>Hrajete v <b>OFFLINE reĹľimu</b>. Statistiky a updaty jsou doÄŤasnÄ› nedostupnĂ©." 
+                zprava: "Jste sice připojeni k Wi-Fi síti, ale váš počítač <b>nemá přístup k internetu</b>.<br><br>Hrajete v <b>OFFLINE režimu</b>. Statistiky a updaty jsou dočasně nedostupné." 
             };
         }
     }
@@ -291,11 +291,11 @@ window.showErrorModal = function(title, msg, isVersionBlock = false, type = 'err
         }
         
         if (isGlobalShutdown) {
-            if (msgEl && !msgEl.innerHTML.includes('UKONÄŚIT')) {
+            if (msgEl && !msgEl.innerHTML.includes('UKONČIT')) {
                 msgEl.innerHTML += `
                 <br><br>
                 <div style="display:flex; gap:15px; justify-content:center; margin-top:20px; padding-top:15px; border-top:1px solid rgba(255,255,255,0.1);">
-                    <button data-custom-btn="true" onclick="window.closeApp()" style="background:#c0392b; color:white; border:none; padding:12px 15px; cursor:pointer; font-weight:bold; border-radius:5px; flex:1; box-shadow:0 4px 6px rgba(0,0,0,0.3);"><i class="fas fa-power-off"></i> UKONÄŚIT APLIKACI</button>
+                    <button data-custom-btn="true" onclick="window.closeApp()" style="background:#c0392b; color:white; border:none; padding:12px 15px; cursor:pointer; font-weight:bold; border-radius:5px; flex:1; box-shadow:0 4px 6px rgba(0,0,0,0.3);"><i class="fas fa-power-off"></i> UKONČIT APLIKACI</button>
                 </div>
                 `;
             }
@@ -305,7 +305,7 @@ window.showErrorModal = function(title, msg, isVersionBlock = false, type = 'err
                 msgEl.innerHTML += `
                 <br><br>
                 <div style="display:flex; gap:15px; justify-content:center; margin-top:20px; padding-top:15px; border-top:1px solid rgba(255,255,255,0.1);">
-                    <button data-custom-btn="true" onclick="window.closeApp()" style="background:#c0392b; color:white; border:none; padding:12px 15px; cursor:pointer; font-weight:bold; border-radius:5px; flex:1; box-shadow:0 4px 6px rgba(0,0,0,0.3);"><i class="fas fa-power-off"></i> UKONÄŚIT</button>
+                    <button data-custom-btn="true" onclick="window.closeApp()" style="background:#c0392b; color:white; border:none; padding:12px 15px; cursor:pointer; font-weight:bold; border-radius:5px; flex:1; box-shadow:0 4px 6px rgba(0,0,0,0.3);"><i class="fas fa-power-off"></i> UKONČIT</button>
                     <button data-custom-btn="true" onclick="window.requestAdminBypass()" style="background:#f59e0b; color:black; border:none; padding:12px 15px; cursor:pointer; font-weight:bold; border-radius:5px; flex:1; box-shadow:0 4px 6px rgba(0,0,0,0.3);"><i class="fas fa-unlock"></i> ADMIN BYPASS</button>
                 </div>
                 `;
@@ -383,7 +383,7 @@ function safeGetHWID() {
 }
 
 window.addEventListener('beforeunload', () => {
-    window.submitStats(); // ZĂˇznam statistik pĹ™i vypnutĂ­
+    window.submitStats(); // Záznam statistik při vypnutí
     if (!appState.startsWith('LOGIN') && appState !== 'LOCKED' && storedDiscordId) {
         fetchBlesk(`${API_BASE}/api/app_ping`, { 
             method: 'POST', 
@@ -394,7 +394,7 @@ window.addEventListener('beforeunload', () => {
     }
 });
 
-// --- AGRESIVNĂŤ SYSTĂ‰M OZNĂMENĂŤ ---
+// --- AGRESIVNÍ SYSTÉM OZNÁMENÍ ---
 window.checkAnnouncementsFromWeb = async function(discordId, appId) {
     try {
         if (!discordId) return;
@@ -402,7 +402,7 @@ window.checkAnnouncementsFromWeb = async function(discordId, appId) {
         let loadEl = document.getElementById('loadingScreen');
         let msgEl = document.getElementById('loading-msg');
         if(loadEl && msgEl) {
-            msgEl.textContent = "KONTROLA OZNĂMENĂŤ...";
+            msgEl.textContent = "KONTROLA OZNÁMENÍ...";
             loadEl.style.zIndex = "999999"; 
             loadEl.style.display = 'flex';
             window.syncDom();
@@ -416,7 +416,7 @@ window.checkAnnouncementsFromWeb = async function(discordId, appId) {
         
         if(loadEl && msgEl) {
             loadEl.style.display = 'none';
-            msgEl.textContent = "NAÄŚĂŤTĂM DATA...";
+            msgEl.textContent = "NAČÍTÁM DATA...";
             loadEl.style.zIndex = "50000";
             window.syncDom();
         }
@@ -428,7 +428,7 @@ window.checkAnnouncementsFromWeb = async function(discordId, appId) {
             window.showAnnouncement(0);
         }
     } catch (e) {
-        debugLog("NepodaĹ™ilo se zkontrolovat oznĂˇmenĂ­ z webu.");
+        debugLog("Nepodařilo se zkontrolovat oznámení z webu.");
         let loadEl = document.getElementById('loadingScreen');
         if(loadEl) {
             loadEl.style.display = 'none';
@@ -504,19 +504,19 @@ window.openFeedback = function(type) {
     document.getElementById('fb-type').value = type;
     document.getElementById('fb-text').value = ''; 
     
-    let dId = localStorage.getItem('discordId') || storedDiscordId || 'NenĂ­ zadĂˇno';
-    let nick = localStorage.getItem('discordNick') || 'NeznĂˇmĂ˝ UĹľivatel';
+    let dId = localStorage.getItem('discordId') || storedDiscordId || 'Není zadáno';
+    let nick = localStorage.getItem('discordNick') || 'Neznámý Uživatel';
     
     let inEl = document.getElementById('login-identifier-input');
-    if (dId === 'NenĂ­ zadĂˇno' && inEl && inEl.value) { dId = inEl.value; nick = inEl.value; }
+    if (dId === 'Není zadáno' && inEl && inEl.value) { dId = inEl.value; nick = inEl.value; }
     
     document.getElementById('fb-nick').textContent = nick;
     document.getElementById('fb-id').textContent = dId;
     
     if (type === 'HWID') {
-        document.getElementById('fb-text').placeholder = "Ĺ˝ĂˇdĂˇm o reset HWID k tomuto ĂşÄŤtu z dĹŻvodu: \n(NapiĹˇte dĹŻvod - napĹ™. novĂ˝ poÄŤĂ­taÄŤ, reinstalace Windows...)";
+        document.getElementById('fb-text').placeholder = "Žádám o reset HWID k tomuto účtu z důvodu: \n(Napište důvod - např. nový počítač, reinstalace Windows...)";
     } else {
-        document.getElementById('fb-text').placeholder = "NapiĹˇte svou zprĂˇvu, nĂˇvrh na zlepĹˇenĂ­ nebo ĹľĂˇdost zde...";
+        document.getElementById('fb-text').placeholder = "Napište svou zprávu, návrh na zlepšení nebo žádost zde...";
     }
     window.syncDom();
 };
@@ -527,16 +527,16 @@ window.submitFeedback = async function() {
     let type = document.getElementById('fb-type').value;
     
     let dId = localStorage.getItem('discordId') || storedDiscordId;
-    let nick = localStorage.getItem('discordNick') || 'NeznĂˇmĂ˝ UĹľivatel';
+    let nick = localStorage.getItem('discordNick') || 'Neznámý Uživatel';
     
     let inEl = document.getElementById('login-identifier-input');
     if (!dId && inEl && inEl.value) { dId = inEl.value; nick = inEl.value; }
     
-    if (!dId || dId.toLowerCase() === "nenĂ­ zadĂˇno" || dId.toLowerCase() === "none" || dId.trim() === "") {
-        return window.showErrorModal("CHYBĂŤ ĂšDAJE", "SystĂ©m ztratil vaĹˇe identifikaÄŤnĂ­ Ăşdaje (napĹ™. z dĹŻvodu nepodporovanĂ˝ch znakĹŻ v nicku).\n\nAbychom vĂˇĹˇ ĂşÄŤet naĹˇli, musĂ­te ZAVĹĂŤT toto okno, vrĂˇtit se k ĹľĂˇdosti a NAPSAT SVĂ‰ ÄŚĂŤSELNĂ‰ DISCORD ID pĹ™Ă­mo do textu zprĂˇvy!", false, 'warning');
+    if (!dId || dId.toLowerCase() === "není zadáno" || dId.toLowerCase() === "none" || dId.trim() === "") {
+        return window.showErrorModal("CHYBÍ ÚDAJE", "Systém ztratil vaše identifikační údaje (např. z důvodu nepodporovaných znaků v nicku).\n\nAbychom váš účet našli, musíte ZAVŘÍT toto okno, vrátit se k žádosti a NAPSAT SVÉ ČÍSELNÉ DISCORD ID přímo do textu zprávy!", false, 'warning');
     }
 
-    if (!text) return window.showErrorModal("CHYBA", "ZprĂˇva nemĹŻĹľe bĂ˝t prĂˇzdnĂˇ.");
+    if (!text) return window.showErrorModal("CHYBA", "Zpráva nemůže být prázdná.");
 
     let loadEl = document.getElementById('loadingScreen');
     if (loadEl) loadEl.style.display = 'flex';
@@ -560,21 +560,21 @@ window.submitFeedback = async function() {
                 if (hwidScr) hwidScr.style.display = 'flex';
             } else {
                 setTimeout(() => { 
-                    alert("ĂšspÄ›ĹˇnÄ› odeslĂˇno! DÄ›kujeme za zpÄ›tnou vazbu."); 
+                    alert("Úspěšně odesláno! Děkujeme za zpětnou vazbu."); 
                 }, 100);
             }
         } else {
-            window.showErrorModal("CHYBA", "OdeslĂˇnĂ­ selhalo: " + data.message);
+            window.showErrorModal("CHYBA", "Odeslání selhalo: " + data.message);
         }
     } catch(e) {
         if (loadEl) loadEl.style.display = 'none';
-        window.showErrorModal("CHYBA SPOJENĂŤ", "Nelze se spojit se serverem. Zkontrolujte pĹ™ipojenĂ­.");
+        window.showErrorModal("CHYBA SPOJENÍ", "Nelze se spojit se serverem. Zkontrolujte připojení.");
     }
 };
 
 window.closeApp = function() {
     window.playClick();
-    window.submitStats(); // ZĂˇznam statistik pĹ™i vypnutĂ­
+    window.submitStats(); // Záznam statistik při vypnutí
     try {
         ipcRenderer.send('quit-app');
     } catch(e) {}
@@ -584,7 +584,7 @@ window.closeApp = function() {
 window.requestAdminBypass = async function() {
     window.playClick();
     let dId = localStorage.getItem('discordId') || storedDiscordId;
-    let nick = localStorage.getItem('discordNick') || 'NeznĂˇmĂ˝ UĹľivatel';
+    let nick = localStorage.getItem('discordNick') || 'Neznámý Uživatel';
     
     let inEl = document.getElementById('login-identifier-input');
     if (!dId && inEl && inEl.value) { 
@@ -592,8 +592,8 @@ window.requestAdminBypass = async function() {
         nick = inEl.value; 
     }
     
-    if (!dId || dId.toLowerCase() === "nenĂ­ zadĂˇno" || dId.toLowerCase() === "none") {
-        alert("Nejprve prosĂ­m zadejte svĂ© ÄŤĂ­slo ID nebo jednoduchĂ˝ Nick (bez emoji) do polĂ­ÄŤka, abychom vÄ›dÄ›li, pro koho ĹľĂˇdost poslat.");
+    if (!dId || dId.toLowerCase() === "není zadáno" || dId.toLowerCase() === "none") {
+        alert("Nejprve prosím zadejte své číslo ID nebo jednoduchý Nick (bez emoji) do políčka, abychom věděli, pro koho žádost poslat.");
         window.closeErrorModal();
         return;
     }
@@ -608,27 +608,27 @@ window.requestAdminBypass = async function() {
         let res = await fetchBlesk(`${API_BASE}/api/submit_feedback`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ discord_id: dId, nick: nick, type: 'ADMIN_BYPASS', message: 'Ĺ˝Ăˇdost o jednorĂˇzovĂ˝ Admin Bypass pro starou verzi.' })
+            body: JSON.stringify({ discord_id: dId, nick: nick, type: 'ADMIN_BYPASS', message: 'Žádost o jednorázový Admin Bypass pro starou verzi.' })
         }, 6000);
         if (loadEl) loadEl.style.display = 'none';
         let data = await res.json();
         
         if (data.status === 'success') {
-            alert("Ĺ˝Ăˇdost ĂşspÄ›ĹˇnÄ› odeslĂˇna! Jakmile ji administrĂˇtor na webu schvĂˇlĂ­, zkuste se pĹ™ihlĂˇsit znovu. Bude vĂˇm povolen jednorĂˇzovĂ˝ vstup.");
+            alert("Žádost úspěšně odeslána! Jakmile ji administrátor na webu schválí, zkuste se přihlásit znovu. Bude vám povolen jednorázový vstup.");
             window.closeApp();
         } else {
-            alert("Chyba pĹ™i odesĂ­lĂˇnĂ­: " + data.message);
+            alert("Chyba při odesílání: " + data.message);
         }
     } catch(e) {
         if (loadEl) loadEl.style.display = 'none';
-        alert("Nelze se spojit se serverem. Zkontrolujte pĹ™ipojenĂ­ k internetu.");
+        alert("Nelze se spojit se serverem. Zkontrolujte připojení k internetu.");
     }
 };
 
 document.addEventListener('DOMContentLoaded', async () => {
-    debugLog("DOM NaÄŤten, startuji IPC komunikaci a otevĂ­rĂˇm bootovacĂ­ obrazovku.");
+    debugLog("DOM Načten, startuji IPC komunikaci a otevírám bootovací obrazovku.");
     
-    // --- VIZUĂLNĂŤ INJEKCE PRO IDPK (BEZ ZVUKU) ---
+    // --- VIZUÁLNÍ INJEKCE PRO IDPK (BEZ ZVUKU) ---
     setTimeout(() => {
         let allEls = document.querySelectorAll('*');
         allEls.forEach(el => {
@@ -639,24 +639,24 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
         });
         
-        // --- INJEKCE TLAÄŚĂŤTKA NA KOPĂŤROVĂNĂŤ LOGU ---
+        // --- INJEKCE TLAČÍTKA NA KOPÍROVÁNÍ LOGU ---
         let debugWrap = document.getElementById('debug-overlay');
         if (debugWrap && !document.getElementById('copy-log-btn')) {
             let btn = document.createElement('button');
             btn.id = 'copy-log-btn';
-            btn.innerHTML = '<i class="fas fa-copy"></i> ZkopĂ­rovat log';
+            btn.innerHTML = '<i class="fas fa-copy"></i> Zkopírovat log';
             btn.style.cssText = "margin-top:10px; width:100%; padding:10px; background:#38bdf8; border:none; color:black; font-weight:bold; border-radius:5px; cursor:pointer;";
             btn.onclick = function() {
                 let dt = document.getElementById('debug-text');
                 if (dt) {
                     let text = dt.innerText;
                     navigator.clipboard.writeText(text);
-                    btn.innerHTML = '<i class="fas fa-check"></i> ZkopĂ­rovĂˇno!';
-                    setTimeout(() => btn.innerHTML = '<i class="fas fa-copy"></i> ZkopĂ­rovat log', 2000);
+                    btn.innerHTML = '<i class="fas fa-check"></i> Zkopírováno!';
+                    setTimeout(() => btn.innerHTML = '<i class="fas fa-copy"></i> Zkopírovat log', 2000);
                 }
             };
             
-            // PĹ™idĂˇme to dovnitĹ™ debug okna, pod samotnĂ˝ text logu
+            // Přidáme to dovnitř debug okna, pod samotný text logu
             let dt = document.getElementById('debug-text');
             if (dt && dt.parentNode) {
                 dt.parentNode.insertBefore(btn, dt.nextSibling);
@@ -665,7 +665,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }, 500);
 
     if (isDevMode) {
-        debugLog("âš ď¸Ź DETEKOVĂN VSC (VĂťVOJĂĹSKĂť REĹ˝IM) - BLOKACE IGNOROVĂNY!");
+        debugLog("⚠️ DETEKOVÁN VSC (VÝVOJÁŘSKÝ REŽIM) - BLOKACE IGNOROVÁNY!");
     }
 
     ipcRenderer.invoke('get-link-files').then(files => { 
@@ -721,7 +721,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         localStorage.setItem('device_hwid', machineHWID);
     }
     
-    debugLog("UnikĂˇtnĂ­ HWID tohoto PC je: " + machineHWID);
+    debugLog("Unikátní HWID tohoto PC je: " + machineHWID);
 
     let startEl = document.getElementById('startupScreen');
     if (startEl) startEl.style.display = 'flex';
@@ -737,7 +737,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             const data = await res.json();
             ksStatus = data.status;
             localStorage.setItem('lastKillSwitchState', ksStatus);
-            let userFriendlyStatus = (ksStatus === 'enabled') ? 'V poĹ™Ăˇdku (Aplikace povolena)' : 'UZAMÄŚENO (Aplikace blokovĂˇna)';
+            let userFriendlyStatus = (ksStatus === 'enabled') ? 'V pořádku (Aplikace povolena)' : 'UZAMČENO (Aplikace blokována)';
             debugLog("Server je online. Kill-Switch stav: " + userFriendlyStatus);
         } catch (e) {
             isServerOnline = false;
@@ -746,27 +746,27 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     if (!isServerOnline) {
         ksStatus = localStorage.getItem('lastKillSwitchState') || 'enabled';
-        debugLog("Server nedostupnĂ˝ (offline). PoslednĂ­ znĂˇmĂ˝ stav KS: " + ksStatus);
+        debugLog("Server nedostupný (offline). Poslední známý stav KS: " + ksStatus);
         
         if (pripojeni.status === "BLOCKED_BY_FIREWALL") {
-            window.showErrorModal("ZABLOKOVĂNO ANTIVIREM", pripojeni.zprava, false, 'warning');
+            window.showErrorModal("ZABLOKOVÁNO ANTIVIREM", pripojeni.zprava, false, 'warning');
         } else {
-            window.showErrorModal("INFORMAÄŚNĂŤ SYSTĂ‰M", pripojeni.zprava, false, 'info');
+            window.showErrorModal("INFORMAČNÍ SYSTÉM", pripojeni.zprava, false, 'info');
         }
     }
 
     if (ksStatus === 'disabled') {
         if (isDevMode) {
-            debugLog("âš ď¸Ź VSC REĹ˝IM: Ignoruji GlobĂˇlnĂ­ Kill-Switch!");
+            debugLog("⚠️ VSC REŽIM: Ignoruji Globální Kill-Switch!");
         } else {
             if (startEl) startEl.style.display = 'none';
             appState = 'LOCKED';
             sessionStorage.removeItem('softResetState'); 
             
             if (!isServerOnline) {
-                window.showErrorModal("SYSTĂ‰M UZAMÄŚEN", "PĹ™i poslednĂ­m pĹ™ipojenĂ­ byl software GLOBĂLNÄš VYPNUT. Pro odemÄŤenĂ­ se musĂ­te pĹ™ipojit k internetu.", true, 'error');
+                window.showErrorModal("SYSTÉM UZAMČEN", "Při posledním připojení byl software GLOBÁLNĚ VYPNUT. Pro odemčení se musíte připojit k internetu.", true, 'error');
             } else {
-                window.showErrorModal("SYSTĂ‰M UZAMÄŚEN", "SOFTWARE JE NYNĂŤ GLOBĂLNÄš VYPNUT (ĂšDRĹ˝BA).", true, 'error');
+                window.showErrorModal("SYSTÉM UZAMČEN", "SOFTWARE JE NYNÍ GLOBÁLNĚ VYPNUT (ÚDRŽBA).", true, 'error');
             }
             return; 
         }
@@ -829,7 +829,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             let loadEl = document.getElementById('loadingScreen');
             let msgEl = document.getElementById('loading-msg');
             if(loadEl && msgEl) {
-                msgEl.textContent = "OBNOVA SYSTĂ‰MU...";
+                msgEl.textContent = "OBNOVA SYSTÉMU...";
                 loadEl.style.zIndex = "999999"; 
                 loadEl.style.display = 'flex';
             }
@@ -847,12 +847,6 @@ document.addEventListener('DOMContentLoaded', async () => {
 window.toggleSettings = function() { 
     window.playClick(); 
     let el = document.getElementById('settings-modal');
-
-window.openUserdataFolder = function() {
-    const { ipcRenderer } = require('electron');
-    ipcRenderer.send('open-userdata-folder');
-};
-
     let authOnly = document.getElementById('auth-only-settings');
 
     if (el) { 
@@ -880,7 +874,7 @@ window.fullReset = function() {
 window.softReset = function() {
     if (appState === 'LOCKED') return; 
     window.playClick();
-    window.submitStats(); // ZĂˇznam statistik pĹ™i restartu
+    window.submitStats(); // Záznam statistik při restartu
     
     const stateToSave = {
         appState, inputValues, linkospojFocus, isListOpen, selectedIdpkRouteId,
@@ -906,7 +900,7 @@ window.refreshPanel = function() {
     }, 2000); 
 };
 
-// --- PĹ®VODNĂŤ OKNO ZASTĂVEK STOP ---
+// --- PŮVODNÍ OKNO ZASTÁVEK STOP ---
 window.openStopWindow = function() { 
     window.playClick(); 
     ipcRenderer.send('open-stop-window'); 
@@ -914,18 +908,18 @@ window.openStopWindow = function() {
 };
 
 // ==========================================
-// BUSE PANEL LOGIKA (PĹIDĂNO PRO V1.6 RC-EDITION)
+// BUSE PANEL LOGIKA (PŘIDÁNO PRO V1.6 RC-EDITION)
 // ==========================================
 
-// NovĂˇ funkce pro otevĹ™enĂ­ okna s BUSE panelem (z menu ozubenĂ©ho koleÄŤka)
+// Nová funkce pro otevření okna s BUSE panelem (z menu ozubeného kolečka)
 window.openBusePanel = function() {
     window.playClick();
     window.open('buse.html', 'BUSE_PANEL', 'width=1200,height=300,menubar=no,toolbar=no,location=no,status=no');
-    window.toggleSettings(); // ZavĹ™e menu po kliknutĂ­
+    window.toggleSettings(); // Zavře menu po kliknutí
 };
 
 // ==========================================
-// POKRAÄŚOVĂNĂŤ PĹ®VODNĂŤHO KĂ“DU...
+// POKRAČOVÁNÍ PŮVODNÍHO KÓDU...
 // ==========================================
 
 window.openSupporters = async function() {
@@ -934,13 +928,13 @@ window.openSupporters = async function() {
     if(mod) mod.style.display = 'flex';
     
     let list = document.getElementById('supporters-list');
-    if(list) list.innerHTML = '<div style="color:#aaa; text-align:center; padding-top:20px;">Stahuji data z databĂˇze...<div class="spinner" style="margin:20px auto; width:20px; height:20px; border-width:3px;"></div></div>';
+    if(list) list.innerHTML = '<div style="color:#aaa; text-align:center; padding-top:20px;">Stahuji data z databáze...<div class="spinner" style="margin:20px auto; width:20px; height:20px; border-width:3px;"></div></div>';
     
     window.syncDom();
 
     try {
         let res = await fetchBlesk(`${API_BASE}/api/supporters`, { method: 'GET' }, 8000);
-        if (!res.ok) throw new Error("Chyba spojenĂ­");
+        if (!res.ok) throw new Error("Chyba spojení");
         
         let data = await res.json();
         let sups = data.supporters || data.data || data; 
@@ -948,7 +942,7 @@ window.openSupporters = async function() {
         if (Array.isArray(sups) && sups.length > 0) {
             let htmlStr = "";
             sups.forEach(sup => {
-                let name = sup.name || "AnonymnĂ­ podpora";
+                let name = sup.name || "Anonymní podpora";
                 let tier = sup.tier || 1;
                 let cardBaseStyle = "box-sizing: border-box; max-width: 100%; word-wrap: break-word; overflow-wrap: break-word; width: 100%; ";
                 let cardStyle, nameStyle, titleBadge, amtStyle;
@@ -961,7 +955,7 @@ window.openSupporters = async function() {
                 } else if (tier === 2) {
                     cardStyle = cardBaseStyle + "border: 1px solid #f59e0b; box-shadow: 0 0 15px rgba(245, 158, 11, 0.5); background: linear-gradient(135deg, #0f172a, #332200); padding: 15px; animation: pulseMedium 2s infinite alternate;";
                     nameStyle = "color: #fcd34d; font-size: 18px; font-weight: bold; text-shadow: 0 0 8px rgba(245, 158, 11, 0.8);";
-                    titleBadge = "<div style='color:#f59e0b; font-size:9px; font-weight:bold; letter-spacing:1px; margin-bottom:5px;'>VELKĂť PODPOROVATEL</div>";
+                    titleBadge = "<div style='color:#f59e0b; font-size:9px; font-weight:bold; letter-spacing:1px; margin-bottom:5px;'>VELKÝ PODPOROVATEL</div>";
                     amtStyle = "background:rgba(245, 158, 11, 0.2); color:#fcd34d; padding:4px 10px; border-radius:12px; font-weight:bold; font-size:14px; border:1px solid #f59e0b; box-shadow:0 0 10px rgba(245, 158, 11, 0.4);";
                 } else {
                     cardStyle = cardBaseStyle + "border: 1px solid #38bdf8; background: rgba(15, 23, 42, 0.8); border-left: 4px solid #38bdf8; padding: 12px;";
@@ -981,11 +975,11 @@ window.openSupporters = async function() {
             });
             list.innerHTML = htmlStr;
         } else {
-            list.innerHTML = '<div style="color:#aaa; text-align:center; padding-top:20px;">ZatĂ­m ĹľĂˇdnĂ­ podporovatelĂ©. BuÄŹte prvnĂ­!</div>';
+            list.innerHTML = '<div style="color:#aaa; text-align:center; padding-top:20px;">Zatím žádní podporovatelé. Buďte první!</div>';
         }
     } catch(e) {
         if(list) {
-            list.innerHTML = `<div style="color:#e74c3c; text-align:center; padding-top:20px; font-weight:bold;">Chyba naÄŤĂ­tĂˇnĂ­ dat.<br><br><span style="font-size:10px; color:#aaa;">Data ze serveru se zatĂ­m nepodaĹ™ilo zĂ­skat.</span></div>`;
+            list.innerHTML = `<div style="color:#e74c3c; text-align:center; padding-top:20px; font-weight:bold;">Chyba načítání dat.<br><br><span style="font-size:10px; color:#aaa;">Data ze serveru se zatím nepodařilo získat.</span></div>`;
         }
     }
     window.syncDom();
@@ -1037,7 +1031,7 @@ window.switchLoginView = function(viewId) {
         }
         window.syncDom();
     } catch(err) {
-        window.onerror("Chyba pĹ™epĂ­nĂˇnĂ­ pohledĹŻ: " + err.message, "", 0, 0, err);
+        window.onerror("Chyba přepínání pohledů: " + err.message, "", 0, 0, err);
     }
 }
 
@@ -1045,7 +1039,7 @@ window.initAppFlow = async function(isServerOnline = true) {
     let startEl = document.getElementById('startupScreen');
     if (startEl) startEl.style.display = 'none';
 
-    // PĹ™eÄŤĂ­st config.json z AppData (kam ho uloĹľil Launcher)
+    // Přečíst config.json z AppData (kam ho uložil Launcher)
     const fs = require('fs');
     const os = require('os');
     const path = require('path');
@@ -1058,21 +1052,21 @@ window.initAppFlow = async function(isServerOnline = true) {
     }
     
     storedDiscordId = config.discord_id || "";
-    let storedNick = config.discord_nick || "ĹidiÄŤ";
+    let storedNick = config.discord_nick || "Řidič";
     
     if (isDevMode && !storedDiscordId) {
         storedDiscordId = "VSC-DEV";
-        storedNick = "VĂťVOJĂĹ";
+        storedNick = "VÝVOJÁŘ";
     }
 
     if (!storedDiscordId) {
-        alert("CHYBA: PĹ™ihlĂˇĹˇenĂ­ vyprĹˇelo nebo chybĂ­ data.\n\nSpouĹˇtĂ­m IDPK Launcher pro novĂ© pĹ™ihlĂˇĹˇenĂ­...");
+        alert("CHYBA: Přihlášení vypršelo nebo chybí data.\n\nSpouštím IDPK Launcher pro nové přihlášení...");
         const { ipcRenderer } = require('electron');
         ipcRenderer.send('fallback-to-launcher');
         return;
     }
 
-    // === PREMIUM WATERMARK â€“ zobrazit pro BT / DEV / SA ===
+    // === PREMIUM WATERMARK – zobrazit pro BT / DEV / SA ===
     try {
         const userRole = config.user_role || "";
         const isPremium = userRole.includes('BT') || userRole.includes('DEV') || userRole.includes('SA') || isDevMode;
@@ -1085,14 +1079,14 @@ window.initAppFlow = async function(isServerOnline = true) {
     // =====================================================
 
 
-    debugLog("NahrĂˇvĂˇnĂ­ grafiky na druhĂ˝ monitor...");
+    debugLog("Nahrávání grafiky na druhý monitor...");
     let loadEl = document.getElementById('loadingScreen');
     let msgEl = document.getElementById('loading-msg');
     if(loadEl && msgEl) {
         if (isDevMode) {
-            msgEl.innerHTML = "<span style='color:#f1c40f; font-weight:bold;'>VSC MODE AKTIVNĂŤ</span><br><br>PĹ™eskakuji ovÄ›Ĺ™enĂ­ a administrĂˇtorskĂ© zĂˇmky...";
+            msgEl.innerHTML = "<span style='color:#f1c40f; font-weight:bold;'>VSC MODE AKTIVNÍ</span><br><br>Přeskakuji ověření a administrátorské zámky...";
         } else {
-            msgEl.textContent = "NAHRĂVĂNĂŤ GRAFIKY NA DRUHĂť MONITOR...";
+            msgEl.textContent = "NAHRÁVÁNÍ GRAFIKY NA DRUHÝ MONITOR...";
         }
         loadEl.style.zIndex = "999999"; 
         loadEl.style.display = 'flex';
@@ -1114,7 +1108,7 @@ window.initAppFlow = async function(isServerOnline = true) {
             // Ping na server s action: start
             if (storedDiscordId && isServerOnline) {
                 if (!isDevMode || (isDevMode && storedDiscordId !== "VSC-DEV")) {
-                    debugLog("âś… PĹ™ihlaĹˇovacĂ­ data z Launcheru byla ĂşspÄ›ĹˇnÄ› nalezena a pouĹľita.");
+                    debugLog("✅ Přihlašovací data z Launcheru byla úspěšně nalezena a použita.");
                 }
                 
                 fetch(`${API_BASE}/api/app_ping`, { 
@@ -1123,9 +1117,9 @@ window.initAppFlow = async function(isServerOnline = true) {
                     body: JSON.stringify({ discord_id: storedDiscordId, action: 'start', app_version: APP_VERSION }) 
                 }).then(r => r.json()).then(data => {
                     if (data.status === 'error' && !isDevMode) {
-                        alert("CHYBA: PĹ™ihlĂˇĹˇenĂ­ vyprĹˇelo nebo server ĂşÄŤet nerozpoznal.\n\nSpouĹˇtĂ­m IDPK Launcher pro novĂ© pĹ™ihlĂˇĹˇenĂ­...");
+                        alert("CHYBA: Přihlášení vypršelo nebo server účet nerozpoznal.\n\nSpouštím IDPK Launcher pro nové přihlášení...");
                         
-                        // Smazat data, aby Launcher zobrazil pĹ™ihlaĹˇovacĂ­ obrazovku
+                        // Smazat data, aby Launcher zobrazil přihlašovací obrazovku
                         const fs = require('fs');
                         const os = require('os');
                         const path = require('path');
@@ -1152,7 +1146,7 @@ window.initAppFlow = async function(isServerOnline = true) {
                         window.startPingLoop(); 
                     }
                 }).catch(e => {
-                    debugLog("Chyba pĹ™i startu session ping: " + e);
+                    debugLog("Chyba při startu session ping: " + e);
                     window.startPingLoop(); 
                 });
             } else {
@@ -1184,22 +1178,22 @@ window.resetLoginFlow = function() {
 
 window.startDiscordAuth = async function() {
     try {
-        debugLog("OdesĂ­lĂˇm ovÄ›Ĺ™enĂ­ pro HWID: " + machineHWID);
+        debugLog("Odesílám ověření pro HWID: " + machineHWID);
         const inputEl = document.getElementById('login-identifier-input');
         if (!inputEl) return;
         
         const val = inputEl.value.trim();
         if (!val || val === "") {
-            window.showErrorModal("CHYBĂŤ ĂšDAJE", "Zadejte prosĂ­m svĂ© ID nebo Nick.", false, 'warning');
+            window.showErrorModal("CHYBÍ ÚDAJE", "Zadejte prosím své ID nebo Nick.", false, 'warning');
             return;
         }
 
         let pripojeni = await zanalyzujPripojeni();
         if (pripojeni.status !== "OK") {
             if (pripojeni.status === "BLOCKED_BY_FIREWALL") {
-                window.showErrorModal("ZABLOKOVĂNO ANTIVIREM", "Pro prvnĂ­ pĹ™ihlĂˇĹˇenĂ­ pĹ™es Discord je vyĹľadovĂˇno spojenĂ­ se serverem, ale to je <b>blokovĂˇno vaĹˇĂ­m Antivirem nebo Firewallem!</b><br><br>ProsĂ­m, pĹ™idejte aplikaci do vĂ˝jimek a zkuste to znovu.", false, 'warning');
+                window.showErrorModal("ZABLOKOVÁNO ANTIVIREM", "Pro první přihlášení přes Discord je vyžadováno spojení se serverem, ale to je <b>blokováno vaším Antivirem nebo Firewallem!</b><br><br>Prosím, přidejte aplikaci do výjimek a zkuste to znovu.", false, 'warning');
             } else {
-                window.showErrorModal("CHYBĂŤ PĹIPOJENĂŤ", "Pro prvnĂ­ pĹ™ihlĂˇĹˇenĂ­ (spĂˇrovĂˇnĂ­ ĂşÄŤtu) je <b>vyĹľadovĂˇn funkÄŤnĂ­ internet</b>.<br><br>" + pripojeni.zprava, false, 'info');
+                window.showErrorModal("CHYBÍ PŘIPOJENÍ", "Pro první přihlášení (spárování účtu) je <b>vyžadován funkční internet</b>.<br><br>" + pripojeni.zprava, false, 'info');
             }
             window.resetLoginFlow();
             return;
@@ -1220,12 +1214,12 @@ window.startDiscordAuth = async function() {
             const fixedText = textData.replace(/"discord_id":\s*(\d+)/g, '"discord_id": "$1"');
             data = JSON.parse(fixedText);
         } catch(parseErr) {
-            window.showErrorModal("CHYBA SERVERU", "Aplikace nemĹŻĹľe pĹ™eÄŤĂ­st API. Zkuste zadat pĹ™Ă­mo ÄŤĂ­slo ID.", false, 'error');
+            window.showErrorModal("CHYBA SERVERU", "Aplikace nemůže přečíst API. Zkuste zadat přímo číslo ID.", false, 'error');
             return;
         }
 
         if (isDevMode && data.status === 'error') {
-            debugLog("âš ď¸Ź VSC REĹ˝IM: Ignoruji blokaci pĹ™i pĹ™ihlĂˇĹˇenĂ­ (" + data.message + ")");
+            debugLog("⚠️ VSC REŽIM: Ignoruji blokaci při přihlášení (" + data.message + ")");
             data.status = 'success';
             data.discord_id = val; 
             data.discord_nick = "VSC-DEV";
@@ -1243,15 +1237,15 @@ window.startDiscordAuth = async function() {
             storedDiscordId = data.discord_id;
             discordPollInterval = setInterval(() => window.pollDiscordAuth(), 2000);
         } else if (data.status === 'error') {
-            let isVerError = data.message && (data.message.toLowerCase().includes('verz') || data.message.toLowerCase().includes('podporovĂˇna') || data.message.includes('VYPNUT'));
-            window.showErrorModal("PĹĂŤSTUP ODEPĹEN", data.message, isVerError, 'error');
+            let isVerError = data.message && (data.message.toLowerCase().includes('verz') || data.message.toLowerCase().includes('podporována') || data.message.includes('VYPNUT'));
+            window.showErrorModal("PŘÍSTUP ODEPŘEN", data.message, isVerError, 'error');
             window.resetLoginFlow();
         } else {
-            window.showErrorModal("PĹĂŤSTUP ODEPĹEN", data.message || "ChybnĂ© jmĂ©no nebo HWID.", false, 'error');
+            window.showErrorModal("PŘÍSTUP ODEPŘEN", data.message || "Chybné jméno nebo HWID.", false, 'error');
             window.resetLoginFlow();
         }
     } catch(e) {
-        window.showErrorModal("CHYBA SPOJENĂŤ", "PĹ™i pokusu o pĹ™ihlĂˇĹˇenĂ­ doĹˇlo k vĂ˝padku sĂ­tÄ›.", false, 'error');
+        window.showErrorModal("CHYBA SPOJENÍ", "Při pokusu o přihlášení došlo k výpadku sítě.", false, 'error');
         window.resetLoginFlow();
     }
 }
@@ -1267,7 +1261,7 @@ window.pollDiscordAuth = async function() {
         
         if (data.status === 'success' || isDevMode) {
             if (isDevMode && data.status !== 'success') {
-                debugLog("âš ď¸Ź VSC REĹ˝IM: Ignoruji chybu Discord Pollingu.");
+                debugLog("⚠️ VSC REŽIM: Ignoruji chybu Discord Pollingu.");
             }
             clearInterval(discordPollInterval);
             localStorage.setItem('discordId', storedDiscordId);
@@ -1280,7 +1274,7 @@ window.pollDiscordAuth = async function() {
             window.switchLoginView('login-setup-view');
         } else if (data.status === 'error') {
             clearInterval(discordPollInterval);
-            window.showErrorModal("OVÄšĹENĂŤ SELHALO", data.message || "ZamĂ­tnuto v aplikaci Discord.", false, 'error');
+            window.showErrorModal("OVĚŘENÍ SELHALO", data.message || "Zamítnuto v aplikaci Discord.", false, 'error');
         }
     } catch(e) {}
 }
@@ -1295,7 +1289,7 @@ window.selectLoginMethod = function(mode) {
         inputValues.pinSetup = "";
         window.updatePinVisuals('pinSetup');
         let txt = document.getElementById('pin-header-text');
-        if(txt) txt.textContent = "VYTVOĹTE NOVĂť PIN";
+        if(txt) txt.textContent = "VYTVOŘTE NOVÝ PIN";
         let cancelBtn = document.getElementById('pin-cancel-btn');
         if(cancelBtn) cancelBtn.style.display = 'none'; 
         window.switchLoginView('login-pin-view');
@@ -1340,7 +1334,7 @@ window.submitPinNumber = function(numStr) {
                 inputValues.pinEnter = "";
                 let hdr = document.getElementById('pin-header-text');
                 if(hdr) { 
-                    hdr.textContent = "NESPRĂVNĂť PIN!"; 
+                    hdr.textContent = "NESPRÁVNÝ PIN!"; 
                     hdr.style.color = "#e74c3c"; 
                 }
                 window.updatePinVisuals('pinEnter');
@@ -1357,12 +1351,12 @@ window.submitPinNumber = function(numStr) {
 
 window.finalizeLogin = function() {
     window.playClick();
-    debugLog("PĹ™ihlĂˇĹˇenĂ­ ĂşspÄ›ĹˇnĂ©. OtevĂ­rĂˇm druhĂ˝ monitor.");
+    debugLog("Přihlášení úspěšné. Otevírám druhý monitor.");
     
     let loadEl = document.getElementById('loadingScreen');
     let msgEl = document.getElementById('loading-msg');
     if(loadEl && msgEl) {
-        msgEl.textContent = "NAHRĂVĂNĂŤ GRAFIKY NA DRUHĂť MONITOR...";
+        msgEl.textContent = "NAHRÁVÁNÍ GRAFIKY NA DRUHÝ MONITOR...";
         loadEl.style.zIndex = "999999"; 
         loadEl.style.display = 'flex';
     }
@@ -1406,7 +1400,7 @@ window.finalizeLogin = function() {
 window.backToLauncher = function() {
     window.playClick();
     
-    window.submitStats(); // ZĂˇznam statistik
+    window.submitStats(); // Záznam statistik
     
     fetch(`${API_BASE}/api/app_ping`, { 
         method: 'POST', 
@@ -1414,30 +1408,8 @@ window.backToLauncher = function() {
         body: JSON.stringify({ discord_id: storedDiscordId, action: 'stop', session_id: currentSessionId, app_version: APP_VERSION }) 
     }).catch(e=>{});
     
-    const fs = require('fs');
-    const os = require('os');
-    const { spawn } = require('child_process');
-    const userDataPath = process.env.APPDATA ? path.join(process.env.APPDATA, 'idpk-palubni-pocitac') : os.homedir();
-    const configPath = path.join(userDataPath, 'config.json');
-    
-    let config = {};
-    if (fs.existsSync(configPath)) {
-        try { config = JSON.parse(fs.readFileSync(configPath, 'utf8')); } catch(e){}
-    }
-    
-    config.auto_launch = false;
-    fs.writeFileSync(configPath, JSON.stringify(config, null, 2), 'utf8');
-    
-    if (config.launcher_path && fs.existsSync(config.launcher_path)) {
-        const proc = spawn(config.launcher_path, [], {
-            detached: true,
-            stdio: 'ignore'
-        });
-        proc.unref();
-    }
-    
     setTimeout(() => {
-        ipcRenderer.send('quit-app');
+        ipcRenderer.send('fallback-to-launcher');
     }, 500);
 }
 
@@ -1562,7 +1534,7 @@ window.sendDataToPanel = function(showBig = false) {
         stopPressed: stopPressed 
     });
 
-    // --- ZĂˇpis do lokĂˇlnĂ­ho ĂşloĹľiĹˇtÄ› pro BUSE Panel ---
+    // --- Zápis do lokálního úložiště pro BUSE Panel ---
     try {
         localStorage.setItem('buse_data', JSON.stringify({
             line: routeData.line, 
@@ -1654,7 +1626,7 @@ window.toggleTimeAuto = function() {
 window.toggleDelayAuto = function() { 
     window.playClick();
     if (!isDelayMode) {
-        debugLog("<span style='color:red;'>Nejprve zapnÄ›te funkci ZPOĹ˝DÄšNĂŤ!</span>");
+        debugLog("<span style='color:red;'>Nejprve zapněte funkci ZPOŽDĚNÍ!</span>");
         window.syncDom();
         return;
     }
@@ -1801,7 +1773,7 @@ window.scheduleClassicAuto = function() {
 
 window.manualContinueTrip = function() {
     window.playClick();
-    window.submitStats(); // ZĂˇznam statistik
+    window.submitStats(); // Záznam statistik
     
     if(window.autoContinueTimeout) { 
         clearTimeout(window.autoContinueTimeout); 
@@ -1830,7 +1802,7 @@ window.manualContinueTrip = function() {
     let kf = document.getElementById('key-funk'); 
     if(kf) kf.style.display = 'none';
     
-    window.updateSelectionHeader(`VĂťCHOZĂŤ: ${selectedStartStop}`, "window.backToManualWithLoad()");
+    window.updateSelectionHeader(`VÝCHOZÍ: ${selectedStartStop}`, "window.backToManualWithLoad()");
     window.loadDestinationsForStart();
 };
 
@@ -1850,7 +1822,7 @@ window.backToManualWithLoad = function() {
 
 window.autoStartRandomTrip = async function() {
     window.playClick();
-    window.submitStats(); // ZĂˇznam statistik
+    window.submitStats(); // Záznam statistik
     
     if (availableFiles.length === 0) return;
     
@@ -1880,7 +1852,7 @@ window.autoStartRandomTrip = async function() {
     
     try {
         let content = await ipcRenderer.invoke('read-route-file', fileToLoad);
-        if (!content) throw new Error("Nelze pĹ™eÄŤĂ­st " + fileToLoad);
+        if (!content) throw new Error("Nelze přečíst " + fileToLoad);
         
         let responseObj;
         if (content.toUpperCase().includes("GTFS-DATA") || content.toUpperCase().includes("GTSF-DATA")) {
@@ -1988,7 +1960,7 @@ window.autoStartRandomTrip = async function() {
         routeData.previewStopIndex = 0; 
         drivePhase = 0;
         
-        window.initStatsTracking(); // START ZĂZNAMU
+        window.initStatsTracking(); // START ZÁZNAMU
         window.switchToDriveScreen(); 
         
         routeStartupWait = true;
@@ -2014,7 +1986,7 @@ window.autoStartRandomTrip = async function() {
 
 window.submitAction = function() {
     try {
-        debugLog("OdesĂ­lĂˇm akci ve stavu: " + appState);
+        debugLog("Odesílám akci ve stavu: " + appState);
         window.playClick(); 
         
         if (appState === 'LOGIN_DISCORD') { 
@@ -2050,7 +2022,7 @@ window.submitAction = function() {
                             if(loadScreen) loadScreen.style.display = 'none';
                             
                             if (response.error) { 
-                                window.showErrorModal("CHYBA DATABĂZE", response.error);
+                                window.showErrorModal("CHYBA DATABÁZE", response.error);
                             } 
                             else if (response.isTemplate) {
                                 currentHybridTemplate = response; 
@@ -2076,7 +2048,7 @@ window.submitAction = function() {
                                 routeData.realStopIndex = 0; 
                                 routeData.previewStopIndex = 0; 
                                 drivePhase = 0; 
-                                window.initStatsTracking(); // START ZĂZNAMU
+                                window.initStatsTracking(); // START ZÁZNAMU
                                 window.switchToDriveScreen(); 
                                 window.sendDataToPanel();
                             }
@@ -2092,7 +2064,7 @@ window.submitAction = function() {
                         currentHybridTemplate = null; 
                         routeData.isMuted = false; 
                         window.parseRouteData(content); 
-                        window.initStatsTracking(); // START ZĂZNAMU
+                        window.initStatsTracking(); // START ZÁZNAMU
                         window.switchToDriveScreen(); 
                         window.sendDataToPanel(); 
                     }
@@ -2138,7 +2110,7 @@ window.submitAction = function() {
                 if(loadScreen) loadScreen.style.display = 'none'; 
                 
                 if (starts.length === 0 || (starts.length === 1 && starts[0].includes("CHYBA"))) {
-                    window.showErrorModal("CHYBA", starts.length > 0 ? starts[0] : "Ĺ˝ĂDNĂ‰ SPOJE K LINCE"); 
+                    window.showErrorModal("CHYBA", starts.length > 0 ? starts[0] : "ŽÁDNÉ SPOJE K LINCE"); 
                     window.syncDom();
                 } else { 
                     window.showStartStopSelection(starts); 
@@ -2149,7 +2121,7 @@ window.submitAction = function() {
             });
         }
     } catch(err) {
-        window.onerror("Chyba pĹ™i Submit: " + err.message, "", 0, 0, err);
+        window.onerror("Chyba při Submit: " + err.message, "", 0, 0, err);
     }
 };
 
@@ -2375,7 +2347,7 @@ window.switchToIdpkMode = function() {
         if(!warn) {
             warn = document.createElement('div');
             warn.id = 'idpk-no-sound-warn';
-            warn.innerHTML = "âš ď¸Ź <b style='text-transform:uppercase;'>Tyto linky jsou bez zvuku</b>";
+            warn.innerHTML = "⚠️ <b style='text-transform:uppercase;'>Tyto linky jsou bez zvuku</b>";
             warn.style.cssText = "color: #f59e0b; font-size: 14px; text-align: center; margin-bottom: 10px; width: 100%; border: 1px solid #f59e0b; padding: 5px; border-radius: 5px; background: rgba(245, 158, 11, 0.1);";
             idpkWrap.insertBefore(warn, idpkWrap.firstChild);
         }
@@ -2493,14 +2465,14 @@ window.showStartStopSelection = function(starts) {
     let sl = document.getElementById('idpk-selected-line'); 
     if(sl) sl.textContent = "Linka: " + inputValues.idpk; 
     
-    window.updateSelectionHeader("VĂťCHOZĂŤ ZASTĂVKA", "window.backToIdpkMode()"); 
+    window.updateSelectionHeader("VÝCHOZÍ ZASTÁVKA", "window.backToIdpkMode()"); 
     
     const container = document.getElementById('direction-list'); 
     if(!container) return;
     
     container.innerHTML = ""; 
     if (starts.length === 0) { 
-        window.showErrorModal("CHYBA", "Ĺ˝ĂˇdnĂˇ data zastĂˇvek"); 
+        window.showErrorModal("CHYBA", "Žádná data zastávek"); 
         return;
     } 
     
@@ -2550,7 +2522,7 @@ window.loadDestinationsForStart = function() {
         isSystemLoading = false; 
         if(l) l.style.display = 'none'; 
         
-        window.updateSelectionHeader("CĂŤLOVĂ STANICE", "window.reloadStartStops()"); 
+        window.updateSelectionHeader("CÍLOVÁ STANICE", "window.reloadStartStops()"); 
         const container = document.getElementById('direction-list'); 
         if(!container) return; 
         container.innerHTML = ""; 
@@ -2563,7 +2535,7 @@ window.loadDestinationsForStart = function() {
             div.style.color = "white"; 
             div.style.display = "flex"; 
             div.style.alignItems = "center"; 
-            div.innerHTML = `<span style="color:var(--idpk-yellow); font-size:20px; margin-right:10px;">âž”</span><span style="font-weight:bold; font-size:14px;">${d}</span>`; 
+            div.innerHTML = `<span style="color:var(--idpk-yellow); font-size:20px; margin-right:10px;">➔</span><span style="font-weight:bold; font-size:14px;">${d}</span>`; 
             div.setAttribute('onclick', `window.selectDestination('${d}')`); 
             container.appendChild(div); 
         }); 
@@ -2584,14 +2556,14 @@ window.loadTimesForTrip = function() {
         isSystemLoading = false; 
         if(l) l.style.display = 'none'; 
         
-        window.updateSelectionHeader("VĂťBÄšR ÄŚASU", "window.loadDestinationsForStart()"); 
+        window.updateSelectionHeader("VÝBĚR ČASU", "window.loadDestinationsForStart()"); 
         const container = document.getElementById('direction-list'); 
         if(!container) return; 
         
         container.innerHTML = `<div style="padding:10px; color:#aaa; font-size:12px;">Z: ${selectedStartStop}<br>DO: ${selectedDestination}</div>`; 
         
         if (trips.length === 0) { 
-            window.showErrorModal("CHYBA", "Ĺ˝ĂˇdnĂ© spoje nenalezeny"); 
+            window.showErrorModal("CHYBA", "Žádné spoje nenalezeny"); 
             return; 
         } 
         
@@ -2676,7 +2648,7 @@ window.startIdpkRide = function(tripId, destination, tripNumber) {
             return; 
         } 
         if (stops.length === 0) { 
-            window.showErrorModal("CHYBA", "Spoj nemĂˇ zastĂˇvky"); 
+            window.showErrorModal("CHYBA", "Spoj nemá zastávky"); 
             return; 
         } 
         
@@ -2693,7 +2665,7 @@ window.startIdpkRide = function(tripId, destination, tripNumber) {
         let w = document.getElementById('idpk-direction-wrapper'); 
         if(w) w.style.display = 'none'; 
         
-        window.initStatsTracking(); // START ZĂZNAMU
+        window.initStatsTracking(); // START ZÁZNAMU
         window.switchToDriveScreen(); 
         window.sendDataToPanel(); 
     }).catch(e=>{ 
@@ -2790,7 +2762,7 @@ window.smartButtonAction = function() {
     if (isAnnouncementPlaying || window.isAtEndOfRoute()) return; 
     
     if (drivePhase === 0) { 
-        // ZĂZNAM ZASTĂVKY DO STATISTIK
+        // ZÁZNAM ZASTÁVKY DO STATISTIK
         if (routeData.stops[routeData.realStopIndex]) {
             window.trackStopAnnouncement(routeData.stops[routeData.realStopIndex].name);
         }
@@ -2828,20 +2800,20 @@ window.smartButtonAction = function() {
     } 
 };
 
-// --- SYSTĂ‰M ZVUKĹ® A HLĂĹ ENĂŤ CHYB ---
+// --- SYSTÉM ZVUKŮ A HLÁŠENÍ CHYB ---
 window.announceStop = function(idx) { 
     const stop = routeData.stops[idx]; 
     if(!stop) return; 
     
-    window.currentAnnouncingStopName = stop.name || "NeznĂˇmĂˇ zastĂˇvka";
+    window.currentAnnouncingStopName = stop.name || "Neznámá zastávka";
 
     let sequence = ['zvuky/hlaseni/GONG.wav']; 
     if (stop.audio && stop.audio !== '.wav' && stop.audio.length > 4) { 
         sequence.push(`zvuky/zastavky/${stop.audio}`); 
     } else { 
-        let dId = localStorage.getItem('discordId') || storedDiscordId || "NeznĂˇmĂ˝";
-        let nick = localStorage.getItem('discordNick') || "NeznĂˇmĂ˝";
-        let errMsg = `U zastĂˇvky [${window.currentAnnouncingStopName}] chybĂ­ zĂˇpis zvuku v .txt souboru (nebo nebyl detekovĂˇn)!`;
+        let dId = localStorage.getItem('discordId') || storedDiscordId || "Neznámý";
+        let nick = localStorage.getItem('discordNick') || "Neznámý";
+        let errMsg = `U zastávky [${window.currentAnnouncingStopName}] chybí zápis zvuku v .txt souboru (nebo nebyl detekován)!`;
         debugLog("<span style='color:#e74c3c;'>[CHYBA LINKY " + routeData.line + "] " + errMsg + "</span>");
         
         fetchBlesk(`${API_BASE}/api/report_error`, {
@@ -2864,15 +2836,15 @@ window.announceNextStop = function(idx) {
     const stop = routeData.stops[idx]; 
     if(!stop) return; 
     
-    window.currentAnnouncingStopName = stop.name || "NeznĂˇmĂˇ zastĂˇvka";
+    window.currentAnnouncingStopName = stop.name || "Neznámá zastávka";
 
     let sequence = ['zvuky/hlaseni/GONG.wav', 'zvuky/hlaseni/PZ.wav']; 
     if (stop.audio && stop.audio !== '.wav' && stop.audio.length > 4) { 
         sequence.push(`zvuky/zastavky/${stop.audio}`); 
     } else {
-        let dId = localStorage.getItem('discordId') || storedDiscordId || "NeznĂˇmĂ˝";
-        let nick = localStorage.getItem('discordNick') || "NeznĂˇmĂ˝";
-        let errMsg = `U zastĂˇvky [${window.currentAnnouncingStopName}] chybĂ­ zĂˇpis zvuku v .txt souboru (nebo nebyl detekovĂˇn)!`;
+        let dId = localStorage.getItem('discordId') || storedDiscordId || "Neznámý";
+        let nick = localStorage.getItem('discordNick') || "Neznámý";
+        let errMsg = `U zastávky [${window.currentAnnouncingStopName}] chybí zápis zvuku v .txt souboru (nebo nebyl detekován)!`;
         debugLog("<span style='color:#e74c3c;'>[CHYBA LINKY " + routeData.line + "] " + errMsg + "</span>");
         
         fetchBlesk(`${API_BASE}/api/report_error`, {
@@ -2904,7 +2876,7 @@ window.handleTerminate = function() {
     window.playClick();
     if (window.isAtEndOfRoute()) { 
         const next = routeData.nextTurnus; 
-        if (!routeData.isMuted && next && next.includes("DALĹ ĂŤ LINKOSPOJ") && !next.includes("NEBYL")) { 
+        if (!routeData.isMuted && next && next.includes("DALŠÍ LINKOSPOJ") && !next.includes("NEBYL")) { 
             window.endRide(); 
         } else { 
             window.endRide(); 
@@ -2931,14 +2903,14 @@ window.parseRouteData = function(text) {
         if(l.startsWith('Linka:')) {
             routeData.line = l.replace('Linka:', '').trim(); 
         }
-        else if(l.startsWith('SmÄ›r:')) {
-            routeData.destination = l.replace('SmÄ›r:', '').trim(); 
+        else if(l.startsWith('Směr:')) {
+            routeData.destination = l.replace('Směr:', '').trim(); 
         }
-        else if(l.startsWith('NĂˇsledujĂ­cĂ­ linkospoj')) { 
-            routeData.nextTurnus = l.replace('NĂˇsledujĂ­cĂ­ linkospoj', '').trim().replace(/"/g, ''); 
+        else if(l.startsWith('Následující linkospoj')) { 
+            routeData.nextTurnus = l.replace('Následující linkospoj', '').trim().replace(/"/g, ''); 
             continue; 
         } 
-        else if(l.startsWith('ZastĂˇvky:')) {
+        else if(l.startsWith('Zastávky:')) {
             reading = true; 
         }
         else if(reading) { 
@@ -2948,10 +2920,10 @@ window.parseRouteData = function(text) {
                     let name = "", zone = "", type = "n", time = ""; 
                     parts.forEach(p => { 
                         if(p.trim().startsWith('Display:')) name = p.replace('Display:', '').trim(); 
-                        if(p.trim().startsWith('TarifnĂ­ zona:')) zone = p.replace('TarifnĂ­ zona:', '').trim(); 
-                        if(p.trim().startsWith('ÄŚas:')) time = p.replace('ÄŚas:', '').trim(); 
-                        if(p.includes('ZZ') || p.includes('DalĹˇĂ­ znaky: ZZ')) type = 'z'; 
-                        if(p.includes('KZ') || p.includes('DalĹˇĂ­ znaky: KZ')) type = 'z'; 
+                        if(p.trim().startsWith('Tarifní zona:')) zone = p.replace('Tarifní zona:', '').trim(); 
+                        if(p.trim().startsWith('Čas:')) time = p.replace('Čas:', '').trim(); 
+                        if(p.includes('ZZ') || p.includes('Další znaky: ZZ')) type = 'z'; 
+                        if(p.includes('KZ') || p.includes('Další znaky: KZ')) type = 'z'; 
                     }); 
                     if(name) {
                         routeData.stops.push({audio: parts[0].trim(), name, zone, type, time}); 
@@ -2971,7 +2943,7 @@ window.parseRouteData = function(text) {
 };
 
 window.endRide = function() { 
-    window.submitStats(); // ZĂˇznam statistik
+    window.submitStats(); // Záznam statistik
     stopPressed = false;
     ipcRenderer.send('broadcast-stop-state', false);
     window.updateStopVisuals();
@@ -2991,7 +2963,7 @@ window.updateDriveUI = function() {
     if(headerCode) headerCode.textContent = lkCode; 
     
     let headerDest = document.getElementById('drive-header-dest'); 
-    if(headerDest) headerDest.textContent = "âž” " + routeData.destination; 
+    if(headerDest) headerDest.textContent = "➔ " + routeData.destination; 
     
     const btnMain = document.getElementById('btn-announce'); 
     const btnSub = document.getElementById('smart-btn-sub'); 
@@ -3008,12 +2980,12 @@ window.updateDriveUI = function() {
         if(btnRandomContinue) btnRandomContinue.style.display = 'flex';
         
         if(btnRight) { 
-            btnRight.textContent = "UKONÄŚIT"; 
+            btnRight.textContent = "UKONČIT"; 
             btnRight.style.backgroundColor = "#c0392b"; 
         }
         
         let rStop = document.getElementById('drive-real-stop'); 
-        if(rStop) rStop.textContent = "JĂŤZDA UKONÄŚENA"; 
+        if(rStop) rStop.textContent = "JÍZDA UKONČENA"; 
         
         let nStop = document.getElementById('drive-next-stop'); 
         if(nStop) nStop.textContent = ""; 
@@ -3022,13 +2994,13 @@ window.updateDriveUI = function() {
         if(pvBox) pvBox.style.display = 'none'; 
         
         if (isRandomContinue && (isClassicAuto || isTimeBasedAuto || isDelayAuto) && !window.autoContinueTimeout) {
-            if(btnRandomContinue) btnRandomContinue.innerHTML = "NĂHODNĂ LINKA (Za 5s...)";
+            if(btnRandomContinue) btnRandomContinue.innerHTML = "NÁHODNÁ LINKA (Za 5s...)";
             window.autoContinueTimeout = setTimeout(() => { 
                 window.autoContinueTimeout = null; 
                 window.autoStartRandomTrip(); 
             }, 5000);
         } else { 
-            if(btnRandomContinue) btnRandomContinue.innerHTML = "NĂHODNĂ LINKA (Z PC)"; 
+            if(btnRandomContinue) btnRandomContinue.innerHTML = "NÁHODNÁ LINKA (Z PC)"; 
         }
         window.syncDom(); 
         return; 
@@ -3040,26 +3012,26 @@ window.updateDriveUI = function() {
     
     if(btnLeft) { 
         btnLeft.style.display = 'block'; 
-        btnLeft.textContent = "VYHLĂSIT ZNOVU"; 
+        btnLeft.textContent = "VYHLÁSIT ZNOVU"; 
         btnLeft.style.backgroundColor = "#dbe4eb"; 
         btnLeft.style.color = "#333"; 
     }
     
     if (drivePhase === 0) { 
-        if(btnMainTxt) btnMainTxt.textContent = "VYHLĂSIT ZASTĂVKU"; 
-        if(btnSub) btnSub.textContent = stops[realIdx] ? "AktuĂˇlnĂ­: " + stops[realIdx].name : "KONEC"; 
+        if(btnMainTxt) btnMainTxt.textContent = "VYHLÁSIT ZASTÁVKU"; 
+        if(btnSub) btnSub.textContent = stops[realIdx] ? "Aktuální: " + stops[realIdx].name : "KONEC"; 
         if(btnMain) btnMain.style.backgroundColor = "var(--idpk-yellow)"; 
     } else { 
-        if(btnMainTxt) btnMainTxt.textContent = "VYHLĂSIT PĹĂŤĹ TĂŤ"; 
-        if(btnSub) btnSub.textContent = stops[realIdx+1] ? "PĹ™Ă­ĹˇtĂ­: " + stops[realIdx+1].name : "KONEC TRASY"; 
+        if(btnMainTxt) btnMainTxt.textContent = "VYHLÁSIT PŘÍŠTÍ"; 
+        if(btnSub) btnSub.textContent = stops[realIdx+1] ? "Příští: " + stops[realIdx+1].name : "KONEC TRASY"; 
         if(btnMain) btnMain.style.backgroundColor = "#eebb00"; 
     } 
     
     let rStop = document.getElementById('drive-real-stop'); 
-    if(rStop) rStop.textContent = stops[realIdx] ? (realIdx+1)+". "+stops[realIdx].name : "NAÄŚĂŤTĂNĂŤ..."; 
+    if(rStop) rStop.textContent = stops[realIdx] ? (realIdx+1)+". "+stops[realIdx].name : "NAČÍTÁNÍ..."; 
     
     let nStop = document.getElementById('drive-next-stop'); 
-    if(nStop) nStop.textContent = stops[realIdx+1] ? "PĹ™Ă­ĹˇtĂ­: "+stops[realIdx+1].name : "NaÄŤĂ­tĂˇnĂ­..."; 
+    if(nStop) nStop.textContent = stops[realIdx+1] ? "Příští: "+stops[realIdx+1].name : "Načítání..."; 
     
     const box = document.getElementById('drive-preview-box'); 
     const boxText = document.getElementById('drive-preview-text'); 
@@ -3068,10 +3040,10 @@ window.updateDriveUI = function() {
     if (isEditing) { 
         if(box) box.style.display = 'block'; 
         let typed = stopSelectionBuffer.length > 0 ? stopSelectionBuffer : (previewIdx + 1); 
-        let stopName = stops[previewIdx] ? stops[previewIdx].name : "NEPLATNĂ‰ ÄŚĂŤSLO"; 
+        let stopName = stops[previewIdx] ? stops[previewIdx].name : "NEPLATNÉ ČÍSLO"; 
         
         if(boxText) {
-            boxText.innerHTML = `<span style="font-size:14px; color:var(--idpk-yellow); text-transform:uppercase;">VYBRĂNA ZASTĂVKA: ${typed}</span><br><span style="font-size:18px; color:white; font-weight:bold;">${stopName}</span><br><span style="font-size:11px; color:#aaa; margin-top:5px; display:block;">Potvrdit ÄŤernou teÄŤkou [â—Ź]</span>`; 
+            boxText.innerHTML = `<span style="font-size:14px; color:var(--idpk-yellow); text-transform:uppercase;">VYBRÁNA ZASTÁVKA: ${typed}</span><br><span style="font-size:18px; color:white; font-weight:bold;">${stopName}</span><br><span style="font-size:11px; color:#aaa; margin-top:5px; display:block;">Potvrdit černou tečkou [●]</span>`; 
         }
     } else { 
         if(box) box.style.display = 'none'; 
@@ -3117,7 +3089,7 @@ window.handleKeyInput = function(key, code) {
     }
 
     if (key === 'F5') {
-        debugLog("VynucenĂ˝ restart grafiky druhĂ©ho monitoru (F5).");
+        debugLog("Vynucený restart grafiky druhého monitoru (F5).");
         ipcRenderer.send('reload-panel-window');
         setTimeout(() => {
             ipcRenderer.send('open-panel-window');
@@ -3147,7 +3119,7 @@ window.handleKeyInput = function(key, code) {
     else if (key.toLowerCase() === 'r') { if (appState === 'DRIVE') window.handleLeftButton(); }
     else if (key === 'Escape') { 
         if (appState === 'DRIVE') { 
-            if(confirm("UkonÄŤit jĂ­zdu?")) window.handleTerminate(); 
+            if(confirm("Ukončit jízdu?")) window.handleTerminate(); 
         } else if (appState !== 'LOCKED' && !appState.startsWith('LOGIN')) { 
             window.softReset(); 
         } 
@@ -3438,7 +3410,7 @@ window.processAudioQueue = function() {
     window.playDirectAudio(item.file, true); 
 };
 
-// --- OPRAVENĂ DETEKCE CHYBEJĂŤCĂŤCH ZVUKĹ® S ODESLĂNĂŤM DO DISCORDU ---
+// --- OPRAVENÁ DETEKCE CHYBEJÍCÍCH ZVUKŮ S ODESLÁNÍM DO DISCORDU ---
 window.playDirectAudio = function(relativePath, fromQueue = false) { 
     let absolutePath = "file:///" + path.join(getBasePath(), relativePath).replace(/\\/g, '/'); 
     audioPlayer.src = absolutePath; 
@@ -3451,11 +3423,11 @@ window.playDirectAudio = function(relativePath, fromQueue = false) {
     }; 
     
     audioPlayer.onerror = (e) => { 
-        let dId = localStorage.getItem('discordId') || storedDiscordId || "NeznĂˇmĂ˝";
-        let nick = localStorage.getItem('discordNick') || "NeznĂˇmĂ˝";
+        let dId = localStorage.getItem('discordId') || storedDiscordId || "Neznámý";
+        let nick = localStorage.getItem('discordNick') || "Neznámý";
         
-        let stopName = window.currentAnnouncingStopName || "NeznĂˇmĂˇ zastĂˇvka";
-        let errMsg = `U zastĂˇvky [${stopName}] chybĂ­ fyzickĂ˝ zvukovĂ˝ soubor ve sloĹľce zvuky/zastavky: ${relativePath.split('/').pop()}`;
+        let stopName = window.currentAnnouncingStopName || "Neznámá zastávka";
+        let errMsg = `U zastávky [${stopName}] chybí fyzický zvukový soubor ve složce zvuky/zastavky: ${relativePath.split('/').pop()}`;
         
         debugLog("<span style='color:#e74c3c;'>[CHYBA LINKY " + routeData.line + "] " + errMsg + "</span>");
         
@@ -3472,11 +3444,11 @@ window.playDirectAudio = function(relativePath, fromQueue = false) {
     }; 
     
     audioPlayer.play().catch(e => { 
-        let dId = localStorage.getItem('discordId') || storedDiscordId || "NeznĂˇmĂ˝";
-        let nick = localStorage.getItem('discordNick') || "NeznĂˇmĂ˝";
+        let dId = localStorage.getItem('discordId') || storedDiscordId || "Neznámý";
+        let nick = localStorage.getItem('discordNick') || "Neznámý";
         
-        let stopName = window.currentAnnouncingStopName || "NeznĂˇmĂˇ zastĂˇvka";
-        let errMsg = `Nelze pĹ™ehrĂˇt zvuk (chybnĂ˝ formĂˇt/kodek) pro zastĂˇvku [${stopName}]: ${relativePath.split('/').pop()}`;
+        let stopName = window.currentAnnouncingStopName || "Neznámá zastávka";
+        let errMsg = `Nelze přehrát zvuk (chybný formát/kodek) pro zastávku [${stopName}]: ${relativePath.split('/').pop()}`;
         
         debugLog("<span style='color:#e74c3c;'>[CHYBA LINKY " + routeData.line + "] " + errMsg + "</span>");
         
@@ -3497,7 +3469,7 @@ window.playDirectAudio = function(relativePath, fromQueue = false) {
 // KOYEB CLOUD MIRROR (Zrcadlo pro mobil)
 // ============================================================
 window.syncDom = function() {
-    // OdstranÄ›no: NynĂ­ se DOM nesynchronizuje, mobilnĂ­ zrcadlo pouĹľĂ­vĂˇ lehkĂ˝ JSON polling.
+    // Odstraněno: Nyní se DOM nesynchronizuje, mobilní zrcadlo používá lehký JSON polling.
 };
 
 let mirrorSessionId = "";
@@ -3507,7 +3479,7 @@ function initKoyebMirror() {
     mirrorSessionId = safeId.replace(/[^a-zA-Z0-9]/g, '').substring(0, 8);
     if (!mirrorSessionId) mirrorSessionId = Math.random().toString(36).substring(2,8);
     
-    // Tlačítko pro mobilní propojení
+    // Tlačítko pro mobilní propojení v hlavičce
     let headerEl = document.querySelector('.system-header');
     if (headerEl && window.isPremiumUser) {
         let span = document.createElement('span');
@@ -3524,12 +3496,25 @@ function initKoyebMirror() {
         headerEl.appendChild(span);
     }
     
+    // Nastavení QR kódu v nastavení (Settings) pro premium uživatele
+    if (window.isPremiumUser) {
+        let mobileLink = document.getElementById('settings-mobile-link');
+        let mKodEl = document.getElementById('settings-m-kod');
+        let qrEl = document.getElementById('settings-qr-code');
+        if (mobileLink) mobileLink.style.display = 'flex';
+        if (mKodEl) mKodEl.textContent = mirrorSessionId;
+        if (qrEl) {
+            qrEl.src = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=https://datacorebot.koyeb.app/m/${mirrorSessionId}`;
+            qrEl.style.display = 'block';
+        }
+    }
+    
     // Zapneme smyčku odesílání
     setInterval(koyebMirrorSync, 2000);
 }
 
 async function koyebMirrorSync() {
-    // SpouĹˇtĂ­me pouze pokud bÄ›ĹľĂ­ jĂ­zda (drive-ui-wrapper)
+    // Spouštíme pouze pokud běží jízda (drive-ui-wrapper)
     let wrapper = document.getElementById('drive-ui-wrapper');
     if (!wrapper || wrapper.style.display === 'none') return;
     
@@ -3571,7 +3556,7 @@ async function koyebMirrorSync() {
     } catch(e) {}
 }
 
-// Spustit zrcadlo s mĂ­rnĂ˝m zpoĹľdÄ›nĂ­m, aby byl config uĹľ naÄŤtenĂ˝
+// Spustit zrcadlo s mírným zpožděním, aby byl config už načtený
 setTimeout(() => {
     initKoyebMirror();
 }, 5000);
