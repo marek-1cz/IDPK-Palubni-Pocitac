@@ -36,7 +36,7 @@ process.on('unhandledRejection', (reason) => {
     window.onerror("Unhandled Promise: " + reason, "", 0, 0, null); 
 });
 
-console.log("== PALUBNÍ SYSTÉM V1.6 RC-EDITION - INICIALIZACE ==");
+console.log("== PALUBNÍ SYSTÉM V1.6 - INICIALIZACE ==");
 
 const { ipcRenderer } = require('electron');
 const path = require('path');
@@ -45,7 +45,7 @@ const processCore = require('process');
 const API_BASE = 'https://datacorebot.koyeb.app';
 
 // ZDE NASTAV PŘESNÝ NÁZEV VERZE, KTERÝ MÁŠ ZADANÝ NA WEBU V DASHBOARDU!
-const APP_VERSION = "V1.6 RC-EDITION"; 
+const APP_VERSION = "V1.6"; 
 
 // Bezpečná detekce VSC (aby to nevadilo kompilátoru při buildu)
 let isDevMode = false;
