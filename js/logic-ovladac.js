@@ -1032,6 +1032,7 @@ window.initAppFlow = async function(isServerOnline = true) {
     // Přečíst config.json z AppData (kam ho uložil Launcher)
     const fs = require('fs');
     const os = require('os');
+    const path = require('path');
     const userDataPath = process.env.APPDATA ? path.join(process.env.APPDATA, 'idpk-palubni-pocitac') : os.homedir();
     const configPath = path.join(userDataPath, 'config.json');
 
