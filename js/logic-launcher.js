@@ -488,32 +488,25 @@ async function downloadVersion(versionName, folder) {
     launchIcon.className = "fas fa-spinner fa-spin";
     progressContainer.style.display = 'block';
     progressFill.style.width = '0%';
-    progressText.innerText = 'Vyhledávání na GitHubu...';
+    progressText.innerText = 'Příprava ke stažení...';
 
-    // 1. Získat release asset
     try {
-        const releaseUrl = `https://api.github.com/repos/marek-1cz/IDPK-Palubni-Pocitac/releases/tags/${versionName}`;
-        const options = { headers: { 'User-Agent': 'IDPK-Launcher' } };
+        // Najít vybranou verzi v seznamu stažených dat
+        const selectedVersion = availableVersions.find(v => v.db_version === versionName);
         
-        https.get(releaseUrl, options, (res) => {
-            let data = '';
-            res.on('data', c => data += c);
-            res.on('end', () => {
-                if(res.statusCode !== 200) {
-                    showError(`Verze ${versionName} nebyla na GitHubu nalezena!`);
-                    return;
-                }
-                const release = JSON.parse(data);
-                // Najdeme .zip (předpokládáme že nahráváš .zip obsahující win-unpacked)
-                const asset = release.assets.find(a => a.name.endsWith('.zip'));
-                if(!asset) {
-                    showError('V tomto vydání není přiložen žádný .zip soubor k instalaci!');
-                    return;
-                }
-                
-                downloadAndExtract(asset.browser_download_url, folder, versionName);
-            });
-        }).on('error', () => showError('Chyba spojení s GitHub API'));
+        if (!selectedVersion || !selectedVersion.file_url) {
+            showError(`Verze ${versionName} nemá nastavený odkaz ke stažení v databázi!`);
+            return;
+        }
+
+        const downloadUrl = selectedVersion.file_url.split(',')[0].trim(); // V případě více odkazů vezmeme první
+        
+        if (!downloadUrl) {
+            showError(`Neplatný odkaz ke stažení pro verzi ${versionName}.`);
+            return;
+        }
+
+        downloadAndExtract(downloadUrl, folder, versionName);
     } catch(e) {
         showError(e.message);
     }
