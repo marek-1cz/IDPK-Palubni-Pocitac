@@ -225,6 +225,17 @@
                 <button type="button" class="settings-action-btn" style="background:#e67e22; color:white;" onclick="window.fullReset()">TVRDÝ RESTART APP</button>
                 <div style="margin:10px 0; width:100%; border-top:1px solid #555;"></div>
                 <button type="button" id="btn-back-to-launcher" class="settings-action-btn" style="background:#3498db; color:white;" onclick="window.backToLauncher()">ZPĚT DO LAUNCHERU</button>
+                
+                <div id="settings-mobile-link" style="display:none; flex-direction:column; align-items:center; background:#1e293b; padding:15px; border-radius:8px; border:2px solid var(--idpk-yellow); width:100%; margin-top:15px; box-shadow: 0 0 15px rgba(244, 204, 23, 0.2);">
+                    <i class="fas fa-mobile-alt" style="font-size:32px; color:var(--idpk-yellow); margin-bottom:10px;"></i>
+                    <div style="color:white; font-size:14px; font-weight:bold; margin-bottom:10px; text-transform:uppercase;">Propojení přes mobil (Premium)</div>
+                    <div style="color:#aaa; font-size:12px; text-align:center; margin-bottom:15px; line-height: 1.5;">
+                        1. Naskenujte QR kód níže nebo otevřete odkaz:<br>
+                        <b>datacorebot.koyeb.app/m/<span id="settings-m-kod" style="color:var(--idpk-yellow);">NATM</span></b><br>
+                        2. Můžete ovládat palubní počítač odkudkoliv!<br>
+                    </div>
+                    <img id="settings-qr-code" src="" alt="QR KÓD" style="width:130px; height:130px; border-radius:5px; border:2px solid white; display:none;">
+                </div>
             </div>
             <button type="button" class="settings-action-btn" style="background:#8e44ad; color:white; margin-top: 15px;" onclick="window.toggleSettings(); document.getElementById('debug-overlay').style.display='flex';">ZOBRAZIT LOG</button>
             <button type="button" class="settings-action-btn" style="background:#555; margin-top:auto;" onclick="window.toggleSettings()">ZAVŘÍT</button>
