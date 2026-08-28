@@ -39,11 +39,17 @@ let currentStopState = false;
 
 const PATH_EXE = path.dirname(process.execPath);
 const PATH_DEV = __dirname;
+// Cesta k permanentním uživatelským datům (nepřepsána updatem)
+const PATH_USERDATA = path.join(process.env.APPDATA || os.homedir(), 'idpk-palubni-pocitac', 'userdata');
 
 const cleanStr = (s) => s ? s.replace(/["'\r\n]+/g, '').trim() : "";
 
 function getUniversalPath(folder, filename) {
-    // 1. Zkontrolujeme userData složku (pro stažená GTFS data)
+    // 0. Priorita: uživatelská data (zvuky, obraz, linky) – NIKDY nepřepsáno updatem
+    let p_user = path.join(PATH_USERDATA, folder, filename);
+    if (fs.existsSync(p_user)) return p_user;
+
+    // 1. Zkontrolujeme userData složku Electronu (pro stažená GTFS data)
     let p0 = path.join(app.getPath('userData'), folder, filename);
     if (fs.existsSync(p0)) return p0;
 
@@ -60,7 +66,12 @@ function getUniversalPath(folder, filename) {
 
 function getUnlockedCustomRoutes() {
     let customRoutes = new Set();
-    let dirsToScan = [path.join(PATH_EXE, 'linky'), path.join(PATH_DEV, 'linky')];
+    // Skenujeme userdata/linky (priorita), pak vedle EXE a ve vývojářské složce
+    let dirsToScan = [
+        path.join(PATH_USERDATA, 'linky'),
+        path.join(PATH_EXE, 'linky'),
+        path.join(PATH_DEV, 'linky')
+    ];
     dirsToScan.forEach(dir => {
         if (fs.existsSync(dir)) {
             let files = fs.readdirSync(dir);
@@ -270,6 +281,11 @@ ipcMain.on('relaunch-app', () => { app.relaunch(); app.exit(); });
 ipcMain.on('fallback-to-launcher', () => {
     if (controllerWindow && !controllerWindow.isDestroyed()) controllerWindow.close();
     createLauncher();
+});
+ipcMain.on('open-userdata-folder', () => {
+    const udPath = path.join(process.env.APPDATA || os.homedir(), 'idpk-palubni-pocitac', 'userdata');
+    if (!fs.existsSync(udPath)) fs.mkdirSync(udPath, { recursive: true });
+    require('electron').shell.openPath(udPath);
 });
 
 function getDataFilePath(filename) { return getUniversalPath('data', filename) || path.join(__dirname, 'data', filename); }
@@ -494,6 +510,127 @@ async function getHeadsign(tripId) {
     return "";
 }
 
+// ============================================================
+// GTFS IN-MEMORY CACHE – soubory se čtou jednou, pak z RAM
+// ============================================================
+let gtfsCache = null;
+let gtfsCacheLoading = false;
+let gtfsCacheWaiters = [];
+
+async function ensureGtfsCache() {
+    if (gtfsCache) return gtfsCache;
+    if (gtfsCacheLoading) {
+        // Čekáme až jiný volající dokončí načítání
+        return new Promise((resolve) => gtfsCacheWaiters.push(resolve));
+    }
+    gtfsCacheLoading = true;
+    log.info('[GTFS Cache] Zahajuji načítání GTFS dat do RAM...');
+    const t0 = Date.now();
+
+    const routesPath = getDataFilePath('routes.txt');
+    const tripsPath = getDataFilePath('trips.txt');
+    const stopTimesPath = getDataFilePath('stop_times.txt');
+    const stopsPath = getDataFilePath('stops.txt');
+
+    const cache = {
+        routes: [],           // [{ routeId, routeShort, routeLong }]
+        trips: new Map(),     // tripId → { routeId, headsign }
+        routeTrips: new Map(),// routeId → [tripId, ...]
+        stopTimes: new Map(), // tripId → [{ seq, time, stopId, pickupType }]
+        stops: new Map(),     // stopId → { name, zone }
+        stopsByName: new Map()// stopName → [stopId, ...]
+    };
+
+    try {
+        // 1. routes.txt
+        if (routesPath && fs.existsSync(routesPath)) {
+            const rl = readline.createInterface({ input: fs.createReadStream(routesPath), crlfDelay: Infinity });
+            let first = true;
+            for await (const line of rl) {
+                if (first) { first = false; continue; }
+                const p = parseCSV(line);
+                const routeId = cleanStr(p[0]);
+                const routeShort = cleanStr(p[2]);
+                const routeLong = cleanStr(p[3]);
+                if (routeId) cache.routes.push({ routeId, routeShort, routeLong });
+            }
+        }
+
+        // 2. trips.txt
+        if (tripsPath && fs.existsSync(tripsPath)) {
+            const rl = readline.createInterface({ input: fs.createReadStream(tripsPath), crlfDelay: Infinity });
+            let first = true;
+            for await (const line of rl) {
+                if (first) { first = false; continue; }
+                const p = parseCSV(line);
+                const routeId = cleanStr(p[0]);
+                const tripId = cleanStr(p[2]);
+                const headsign = cleanStr(p[3]);
+                if (tripId) {
+                    cache.trips.set(tripId, { routeId, headsign });
+                    if (!cache.routeTrips.has(routeId)) cache.routeTrips.set(routeId, []);
+                    cache.routeTrips.get(routeId).push(tripId);
+                }
+            }
+        }
+
+        // 3. stops.txt
+        if (stopsPath && fs.existsSync(stopsPath)) {
+            const sContent = fs.readFileSync(stopsPath, 'utf-8').split('\n');
+            sContent.forEach((line, idx) => {
+                if (idx === 0 || !line.trim()) return;
+                const p = parseCSV(line);
+                const stopId = cleanStr(p[0]);
+                const name = cleanStr(p[2]);
+                let zone = p.length > 6 ? p[6] : (p.length > 5 ? p[5] : "");
+                if (zone.includes('.')) zone = "";
+                zone = cleanZones(zone);
+                if (stopId) {
+                    cache.stops.set(stopId, { name, zone });
+                    if (!cache.stopsByName.has(name)) cache.stopsByName.set(name, []);
+                    cache.stopsByName.get(name).push(stopId);
+                }
+            });
+        }
+
+        // 4. stop_times.txt (největší soubor – čteme streamem)
+        if (stopTimesPath && fs.existsSync(stopTimesPath)) {
+            const rl = readline.createInterface({ input: fs.createReadStream(stopTimesPath), crlfDelay: Infinity });
+            let first = true;
+            for await (const line of rl) {
+                if (first) { first = false; continue; }
+                const p = line.split(',').map(s => s.replace(/["'\r\n]+/g, '').trim());
+                const tripId = p[0];
+                if (!tripId) continue;
+                if (!cache.stopTimes.has(tripId)) cache.stopTimes.set(tripId, []);
+                cache.stopTimes.get(tripId).push({
+                    seq: parseInt(p[4]) || 0,
+                    time: p[1] ? p[1].substring(0, 5) : "",
+                    stopId: p[3],
+                    pickupType: p[5] || '0'
+                });
+            }
+        }
+
+    } catch(e) {
+        log.error('[GTFS Cache] Chyba při načítání: ' + e.message);
+    }
+
+    gtfsCache = cache;
+    gtfsCacheLoading = false;
+    log.info(`[GTFS Cache] Načteno za ${Date.now() - t0}ms | routes:${cache.routes.length} trips:${cache.trips.size} stops:${cache.stops.size}`);
+
+    // Odblokujeme čekající volající
+    gtfsCacheWaiters.forEach(r => r(cache));
+    gtfsCacheWaiters = [];
+    return cache;
+}
+
+function invalidateGtfsCache() {
+    gtfsCache = null;
+    log.info('[GTFS Cache] Cache invalidována (nová GTFS data).');
+}
+
 async function getGtfsStopsForTrip(tripId) {
     if (tripId.startsWith('json_')) {
         let lNum = tripId.split('_')[1]; const spojNum = parseInt(tripId.split('_')[2]);
@@ -502,45 +639,27 @@ async function getGtfsStopsForTrip(tripId) {
         return [];
     }
 
-    const stopsInfo = new Map();
-    const sContent = fs.readFileSync(getDataFilePath('stops.txt'), 'utf-8');
-    const sLines = sContent.split('\n');
-    sLines.forEach((line, idx) => {
-        if (idx === 0 || !line.trim()) return;
-        const p = parseCSV(line);
-        let zone = p.length > 6 ? p[6] : (p.length > 5 ? p[5] : "");
-        if (zone.includes('.')) zone = ""; 
-        stopsInfo.set(cleanStr(p[0]), { name: cleanStr(p[2]), zone: cleanZones(zone) });
+    const cache = await ensureGtfsCache();
+    const stopTimesForTrip = cache.stopTimes.get(tripId) || [];
+    const result = stopTimesForTrip.map(st => {
+        const info = cache.stops.get(st.stopId) || { name: 'Neznámá', zone: '' };
+        let type = 'n';
+        if (st.pickupType === '2' || st.pickupType === '3') type = 'z';
+        return { name: info.name, zone: info.zone, time: st.time, type, seq: st.seq };
     });
-
-    const result = [];
-    const stream = fs.createReadStream(getDataFilePath('stop_times.txt'));
-    const rl = readline.createInterface({ input: stream, crlfDelay: Infinity });
-    let first = true;
-    for await (const line of rl) {
-        if (first) { first = false; continue; }
-        const p = line.split(',').map(s => s.replace(/["'\r\n]+/g, '').trim());
-        if (p[0] === tripId) {
-            const stopId = p[3]; const info = stopsInfo.get(stopId) || { name: "Neznámá", zone: "" };
-            let time = p[1]; if (time) time = time.substring(0, 5);
-            let type = 'n'; if (p[5] && (p[5] === '2' || p[5] === '3')) type = 'z';
-            result.push({ name: info.name, zone: info.zone, time: time, type: type, seq: parseInt(p[4]) });
-        }
-    }
-    return result.sort((a,b) => a.seq - b.seq);
+    return result.sort((a, b) => a.seq - b.seq);
 }
 
-ipcMain.handle('gtfs-load-routes', async () => { 
-    const routesPath = getDataFilePath('routes.txt'); 
-    const results = []; 
+ipcMain.handle('gtfs-load-routes', async () => {
+    const results = [];
     let customRoutes = getUnlockedCustomRoutes();
 
+    // JSON linky ze složky data
     try {
         let dirsToScan = [path.join(PATH_EXE, 'data'), path.join(PATH_DEV, 'data')];
         dirsToScan.forEach(dir => {
             if (fs.existsSync(dir)) {
-                let files = fs.readdirSync(dir);
-                files.filter(f => f.endsWith('.json')).forEach(f => {
+                fs.readdirSync(dir).filter(f => f.endsWith('.json')).forEach(f => {
                     let num = f.replace('.json', '');
                     results.push(`${num} | Lokální JSON Linka ${num} | ${num}`);
                 });
@@ -548,116 +667,125 @@ ipcMain.handle('gtfs-load-routes', async () => {
         });
     } catch(e) {}
 
-    if (!fs.existsSync(routesPath)) return [...new Set(results)].sort(); 
-
-    const fileStream = fs.createReadStream(routesPath); 
-    const rl = readline.createInterface({ input: fileStream, crlfDelay: Infinity }); 
-    let first = true; 
-    for await (const line of rl) { 
-        if (first) { first = false; continue; } 
-        const p = parseCSV(line); 
-        let routeShort = cleanStr(p[2]);
-        let exactRouteId = cleanStr(p[0]);
-
-        if (customRoutes.has(routeShort) || customRoutes.has(exactRouteId)) {
-            results.push(`${routeShort} | ${cleanStr(p[3])} | ${exactRouteId}`);
-            continue;
+    // GTFS routes z cache
+    const routesPath = getDataFilePath('routes.txt');
+    if (routesPath && fs.existsSync(routesPath)) {
+        const cache = await ensureGtfsCache();
+        for (const r of cache.routes) {
+            const { routeId, routeShort, routeLong } = r;
+            if (customRoutes.has(routeShort) || customRoutes.has(routeId)) {
+                results.push(`${routeShort} | ${routeLong} | ${routeId}`);
+                continue;
+            }
+            const num = parseInt(routeShort);
+            if (!isNaN(num)) {
+                if (num === 440424 || num === 424) continue;
+                const inRange = (num >= 400621 && num <= 405611) ||
+                                (num >= 430432 && num <= 440649) ||
+                                (num >= 450411 && num <= 475211) ||
+                                (num >= 490722 && num <= 496711);
+                if (inRange) results.push(`${routeShort} | ${routeLong} | ${routeId}`);
+            }
         }
-
-        const num = parseInt(routeShort); 
-        if (!isNaN(num)) { 
-            if (num === 440424 || num === 424) continue; 
-            const inRange = (num >= 400621 && num <= 405611) || 
-                            (num >= 430432 && num <= 440649) || 
-                            (num >= 450411 && num <= 475211) || 
-                            (num >= 490722 && num <= 496711); 
-            if (inRange) { results.push(`${routeShort} | ${cleanStr(p[3])} | ${exactRouteId}`); } 
-        } 
-    } 
-    return [...new Set(results)].sort(); 
+    }
+    return [...new Set(results)].sort();
 });
 
-ipcMain.handle('gtfs-get-start-stops', async (event, routeId) => { 
+ipcMain.handle('gtfs-get-start-stops', async (event, routeId) => {
     let jsonId = getJsonRouteId(routeId);
-    if (jsonId) { 
-        const data = loadJsonData(jsonId); 
-        const starts = new Set(); 
-        data.forEach(t => { if(t.zastavky.length > 0) starts.add(t.zastavky[0].name); }); 
-        return Array.from(starts).sort(); 
-    } 
+    if (jsonId) {
+        const data = loadJsonData(jsonId);
+        const starts = new Set();
+        data.forEach(t => { if (t.zastavky.length > 0) starts.add(t.zastavky[0].name); });
+        return Array.from(starts).sort();
+    }
 
-    const tripsPath = getDataFilePath('trips.txt'); const stopTimesPath = getDataFilePath('stop_times.txt'); const stopsPath = getDataFilePath('stops.txt'); 
-    const tripIds = new Set(); const tripsStream = fs.createReadStream(tripsPath); const rlTrips = readline.createInterface({ input: tripsStream, crlfDelay: Infinity }); 
-    let tFirst = true; 
-    for await (const line of rlTrips) { 
-        if (tFirst) { tFirst = false; continue; } 
-        const p = parseCSV(line); if (cleanStr(p[0]) === cleanStr(routeId)) tripIds.add(cleanStr(p[2])); 
-    } 
-    if (tripIds.size === 0) return [];
-    
-    const stopsMap = new Map(); const sContent = fs.readFileSync(stopsPath, 'utf-8').split('\n'); sContent.forEach((line, idx) => { if (idx === 0 || !line.trim()) return; const p = parseCSV(line); stopsMap.set(cleanStr(p[0]), cleanStr(p[2])); }); 
-    
-    const tripMinStops = new Map(); const stStream = fs.createReadStream(stopTimesPath); const rlSt = readline.createInterface({ input: stStream, crlfDelay: Infinity }); 
-    let stFirst = true; 
-    for await (const line of rlSt) { 
-        if (stFirst) { stFirst = false; continue; } 
-        const p = line.split(',').map(s => s.replace(/["'\r\n]+/g, '').trim());
-        const tid = p[0]; 
-        if (tripIds.has(tid)) { const currentSeq = parseInt(p[4]); if (!tripMinStops.has(tid) || currentSeq < tripMinStops.get(tid).minSeq) { tripMinStops.set(tid, { minSeq: currentSeq, stopId: p[3] }); } } 
-    } 
-    const uniqueStartNames = new Set(); tripMinStops.forEach(val => { if (stopsMap.has(val.stopId)) { uniqueStartNames.add(stopsMap.get(val.stopId)); } }); return Array.from(uniqueStartNames).sort(); 
+    const cache = await ensureGtfsCache();
+    const tripIds = (cache.routeTrips.get(cleanStr(routeId)) || []);
+    if (tripIds.length === 0) return [];
+
+    const uniqueStartNames = new Set();
+    for (const tid of tripIds) {
+        const times = cache.stopTimes.get(tid) || [];
+        if (times.length === 0) continue;
+        const firstStop = times.reduce((min, s) => s.seq < min.seq ? s : min, times[0]);
+        const stopInfo = cache.stops.get(firstStop.stopId);
+        if (stopInfo) uniqueStartNames.add(stopInfo.name);
+    }
+    return Array.from(uniqueStartNames).sort();
 });
 
-ipcMain.handle('gtfs-get-destinations-from-start', async (event, {routeId, startStopName}) => { 
+ipcMain.handle('gtfs-get-destinations-from-start', async (event, {routeId, startStopName}) => {
     let jsonId = getJsonRouteId(routeId);
-    if (jsonId) { 
-        const data = loadJsonData(jsonId); 
-        const dests = new Set(); 
-        data.forEach(t => { if(t.zastavky.length > 0 && t.zastavky[0].name === startStopName) { dests.add(t.smer); } }); 
-        return Array.from(dests).sort(); 
-    } 
+    if (jsonId) {
+        const data = loadJsonData(jsonId);
+        const dests = new Set();
+        data.forEach(t => { if (t.zastavky.length > 0 && t.zastavky[0].name === startStopName) dests.add(t.smer); });
+        return Array.from(dests).sort();
+    }
 
-    const tripsPath = getDataFilePath('trips.txt'); const stopTimesPath = getDataFilePath('stop_times.txt'); const stopsPath = getDataFilePath('stops.txt'); 
-    const stopNameMap = new Map(); const sContent = fs.readFileSync(stopsPath, 'utf-8').split('\n'); sContent.forEach((line, idx) => { if (idx === 0 || !line.trim()) return; const p = parseCSV(line); const name = cleanStr(p[2]); if (!stopNameMap.has(name)) stopNameMap.set(name, []); stopNameMap.get(name).push(cleanStr(p[0])); }); const targetStopIds = stopNameMap.get(startStopName) || []; 
-    const routeTrips = new Map(); const tripsStream = fs.createReadStream(tripsPath); const rlTrips = readline.createInterface({ input: tripsStream, crlfDelay: Infinity }); let tFirst = true; for await (const line of rlTrips) { if (tFirst) { tFirst = false; continue; } const p = parseCSV(line); if (cleanStr(p[0]) === cleanStr(routeId)) routeTrips.set(cleanStr(p[2]), cleanStr(p[3])); } 
-    const tripMinStops = new Map(); const stStream = fs.createReadStream(stopTimesPath); const rlSt = readline.createInterface({ input: stStream, crlfDelay: Infinity }); let stFirst = true; 
-    for await (const line of rlSt) { 
-        if (stFirst) { stFirst = false; continue; } 
-        const p = line.split(',').map(s => s.replace(/["'\r\n]+/g, '').trim()); 
-        const tid = p[0]; 
-        if (routeTrips.has(tid)) { const currentSeq = parseInt(p[4]); if (!tripMinStops.has(tid) || currentSeq < tripMinStops.get(tid).minSeq) { tripMinStops.set(tid, { minSeq: currentSeq, stopId: p[3] }); } } 
-    } 
-    const validHeadsigns = new Set(); tripMinStops.forEach((val, tid) => { if (targetStopIds.includes(val.stopId)) { validHeadsigns.add(routeTrips.get(tid)); } }); return Array.from(validHeadsigns).sort(); 
+    const cache = await ensureGtfsCache();
+    const targetStopIds = cache.stopsByName.get(startStopName) || [];
+    const tripIds = (cache.routeTrips.get(cleanStr(routeId)) || []);
+    const validHeadsigns = new Set();
+
+    for (const tid of tripIds) {
+        const tripInfo = cache.trips.get(tid);
+        if (!tripInfo) continue;
+        const times = cache.stopTimes.get(tid) || [];
+        if (times.length === 0) continue;
+        const firstStop = times.reduce((min, s) => s.seq < min.seq ? s : min, times[0]);
+        if (targetStopIds.includes(firstStop.stopId)) {
+            validHeadsigns.add(tripInfo.headsign);
+        }
+    }
+    return Array.from(validHeadsigns).sort();
 });
 
-ipcMain.handle('gtfs-get-final-trips', async (event, {routeId, startStopName, headsign}) => { 
+ipcMain.handle('gtfs-get-final-trips', async (event, {routeId, startStopName, headsign}) => {
     let jsonId = getJsonRouteId(routeId);
-    if (jsonId) { 
-        const data = loadJsonData(jsonId); 
-        const results = []; 
-        data.forEach(t => { if (t.smer === headsign && t.zastavky.length > 0 && t.zastavky[0].name === startStopName) { results.push({ tripId: `json_${jsonId}_${t.spoj}`, time: t.odjezd, formattedName: `${jsonId}/${t.spoj}`, spojNum: t.spoj, headsign: t.smer, tripNumber: `json_${jsonId}_${t.spoj}` }); } }); 
-        return results.sort((a, b) => a.time.localeCompare(b.time)); 
-    } 
+    if (jsonId) {
+        const data = loadJsonData(jsonId);
+        const results = [];
+        data.forEach(t => {
+            if (t.smer === headsign && t.zastavky.length > 0 && t.zastavky[0].name === startStopName) {
+                results.push({ tripId: `json_${jsonId}_${t.spoj}`, time: t.odjezd, formattedName: `${jsonId}/${t.spoj}`, spojNum: t.spoj, headsign: t.smer, tripNumber: `json_${jsonId}_${t.spoj}` });
+            }
+        });
+        return results.sort((a, b) => a.time.localeCompare(b.time));
+    }
 
-    const tripsPath = getDataFilePath('trips.txt'); const stopTimesPath = getDataFilePath('stop_times.txt'); const stopsPath = getDataFilePath('stops.txt'); const routesPath = getDataFilePath('routes.txt');
-    
-    let routeShortName = ""; const routesStream = fs.createReadStream(routesPath); const rlRoutes = readline.createInterface({ input: routesStream, crlfDelay: Infinity }); let rFirst = true; for await (const line of rlRoutes) { const p = parseCSV(line); if (rFirst) { rFirst = false; continue; } if (cleanStr(p[0]) === cleanStr(routeId)) { routeShortName = cleanStr(p[2]); break; } }
+    const cache = await ensureGtfsCache();
     let customRoutes = getUnlockedCustomRoutes();
+
+    // Najít routeShortName z cache
+    const routeInfo = cache.routes.find(r => r.routeId === cleanStr(routeId));
+    const routeShortName = routeInfo ? routeInfo.routeShort : cleanStr(routeId);
     let lineNumber = routeShortName;
     if (!customRoutes.has(routeId) && !customRoutes.has(routeShortName)) {
         lineNumber = routeShortName.replace(/\D/g, '').slice(-3);
     }
-    
-    const stopNameMap = new Map(); const sContent = fs.readFileSync(stopsPath, 'utf-8').split('\n'); sContent.forEach((line, idx) => { if (idx === 0 || !line.trim()) return; const p = parseCSV(line); const name = cleanStr(p[2]); if (!stopNameMap.has(name)) stopNameMap.set(name, []); stopNameMap.get(name).push(cleanStr(p[0])); }); const targetStopIds = stopNameMap.get(startStopName) || []; 
-    const validTrips = new Map(); const tripsStream = fs.createReadStream(tripsPath); const rlTrips = readline.createInterface({ input: tripsStream, crlfDelay: Infinity }); let tFirst = true; for await (const line of rlTrips) { const p = parseCSV(line); if (tFirst) { tFirst = false; continue; } if (cleanStr(p[0]) === cleanStr(routeId) && cleanStr(p[3]) === cleanStr(headsign)) { let tid = cleanStr(p[2]); let cleanSpoj = extractSpojNumber(tid, routeId); validTrips.set(tid, { cleanLine: lineNumber, cleanSpoj }); } } 
-    const tripStartData = new Map(); const stStream = fs.createReadStream(stopTimesPath); const rlSt = readline.createInterface({ input: stStream, crlfDelay: Infinity }); let stFirst = true; 
-    for await (const line of rlSt) { 
-        if (stFirst) { stFirst = false; continue; } 
-        const p = line.split(',').map(s => s.replace(/["'\r\n]+/g, '').trim()); 
-        const tid = p[0]; 
-        if (validTrips.has(tid)) { const currentSeq = parseInt(p[4]); if (!tripStartData.has(tid) || currentSeq < tripStartData.get(tid).seq) { tripStartData.set(tid, { seq: currentSeq, time: p[1], stopId: p[3] }); } } 
-    } 
-    const finalResults = []; const seenCombos = new Set(); tripStartData.forEach((val, tid) => { if (targetStopIds.includes(val.stopId)) { let time = val.time; if (time.length >= 5) time = time.substring(0, 5); let tripInfo = validTrips.get(tid); let spojNum = parseInt(tripInfo.cleanSpoj) || 0; let formattedName = `${tripInfo.cleanLine}/${tripInfo.cleanSpoj}`; let uniqueKey = tid; if (!seenCombos.has(uniqueKey)) { seenCombos.add(uniqueKey); finalResults.push({ tripId: tid, time: time, formattedName: formattedName, spojNum: spojNum, headsign: headsign, tripNumber: formattedName }); } } }); return finalResults.sort((a, b) => a.time.localeCompare(b.time)); 
+
+    const targetStopIds = cache.stopsByName.get(startStopName) || [];
+    const tripIds = cache.routeTrips.get(cleanStr(routeId)) || [];
+    const finalResults = [];
+    const seenCombos = new Set();
+
+    for (const tid of tripIds) {
+        const tripInfo = cache.trips.get(tid);
+        if (!tripInfo || tripInfo.headsign !== cleanStr(headsign)) continue;
+        const times = cache.stopTimes.get(tid) || [];
+        if (times.length === 0) continue;
+        const firstStop = times.reduce((min, s) => s.seq < min.seq ? s : min, times[0]);
+        if (!targetStopIds.includes(firstStop.stopId)) continue;
+        if (seenCombos.has(tid)) continue;
+        seenCombos.add(tid);
+        const cleanSpoj = extractSpojNumber(tid, routeId);
+        const spojNum = parseInt(cleanSpoj) || 0;
+        const formattedName = `${lineNumber}/${cleanSpoj}`;
+        finalResults.push({ tripId: tid, time: firstStop.time, formattedName, spojNum, headsign: tripInfo.headsign, tripNumber: formattedName });
+    }
+    return finalResults.sort((a, b) => a.time.localeCompare(b.time));
 });
 
 ipcMain.handle('gtfs-get-stops', async (event, tripId) => { return getGtfsStopsForTrip(tripId); });

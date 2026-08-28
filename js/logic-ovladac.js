@@ -1066,7 +1066,17 @@ window.initAppFlow = async function(isServerOnline = true) {
         return;
     }
 
-    // Můžeme si do configu v budoucnu uložit i appId nebo hwid
+    // === PREMIUM WATERMARK – zobrazit pro BT / DEV / SA ===
+    try {
+        const userRole = config.user_role || "";
+        const isPremium = userRole.includes('BT') || userRole.includes('DEV') || userRole.includes('SA') || isDevMode;
+        if (isPremium) {
+            const pwEl = document.getElementById('premium-watermark');
+            if (pwEl) pwEl.style.display = 'block';
+        }
+    } catch(e) {}
+    // =====================================================
+
 
     debugLog("Nahrávání grafiky na druhý monitor...");
     let loadEl = document.getElementById('loadingScreen');
@@ -3476,56 +3486,75 @@ window.playDirectAudio = function(relativePath, fromQueue = false) {
     }); 
 };
 
-window.syncDom = function() {
+// ============================================================
+// KOYEB CLOUD MIRROR (Zrcadlo pro mobil)
+// ============================================================
+let mirrorSessionId = "";
+
+function initKoyebMirror() {
+    mirrorSessionId = storedDiscordId.replace(/[^a-zA-Z0-9]/g, '').substring(0, 8);
+    if (!mirrorSessionId) mirrorSessionId = Math.random().toString(36).substring(2,8);
+    
+    // Zobrazení M-KÓDU (Session ID) na úvodní obrazovce
+    let headerEl = document.querySelector('.system-header');
+    if (headerEl) {
+        let span = document.createElement('span');
+        span.style.fontSize = '12px';
+        span.style.color = '#10b981'; // Green
+        span.style.float = 'right';
+        span.style.marginRight = '10px';
+        span.innerHTML = `<i class="fas fa-mobile-alt"></i> M-KÓD: ${mirrorSessionId}`;
+        headerEl.appendChild(span);
+    }
+    
+    // Zapneme smyčku odesílání
+    setInterval(koyebMirrorSync, 2000);
+}
+
+async function koyebMirrorSync() {
+    // Spouštíme pouze pokud běží jízda (drive-ui-wrapper)
+    let wrapper = document.getElementById('drive-ui-wrapper');
+    if (!wrapper || wrapper.style.display === 'none') return;
+    
+    let header = "";
+    let hCode = document.getElementById('drive-header-code');
+    let hDest = document.getElementById('drive-header-dest');
+    if (hCode && hDest) header = hCode.innerText + " | " + hDest.innerText;
+    
+    let nextStop = document.getElementById('drive-next-stop') ? document.getElementById('drive-next-stop').innerText : "";
+    let currStop = document.getElementById('drive-real-stop') ? document.getElementById('drive-real-stop').innerHTML : "";
+    let smartBtnMain = document.getElementById('smart-btn-main') ? document.getElementById('smart-btn-main').innerText : "";
+    let smartBtnSub = document.getElementById('smart-btn-sub') ? document.getElementById('smart-btn-sub').innerText : "";
+    
+    let state = {
+        header, nextStop, currStop, smartBtnMain, smartBtnSub
+    };
+
     try {
-        document.querySelectorAll('input').forEach(i => { 
-            if (i.getAttribute('value') !== i.value) {
-                i.setAttribute('value', i.value); 
-            }
+        let resp = await fetch('https://datacorebot.koyeb.app/api/mirror/pc_sync', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                session_id: mirrorSessionId,
+                discord_id: storedDiscordId,
+                state: state
+            })
         });
         
-        document.querySelectorAll('.link-list-container, #direction-list, .settings-modal, .funk-modal, #debug-overlay, .announcement-content').forEach(el => {
-            if(el.scrollTop > 0) { 
-                if (el.getAttribute('data-scroll') !== String(el.scrollTop)) {
-                    el.setAttribute('data-scroll', el.scrollTop); 
-                }
-            } else { 
-                el.removeAttribute('data-scroll'); 
-            }
-        });
-        
-        const bodyClone = document.body.cloneNode(true);
-        const scripts = bodyClone.querySelectorAll('script'); 
-        scripts.forEach(s => s.remove());
-        const audios = bodyClone.querySelectorAll('audio'); 
-        audios.forEach(a => a.remove());
-        const pcDot = bodyClone.querySelector('#mobile-conn-dot'); 
-        if (pcDot) pcDot.remove();
-        
-        ipcRenderer.send('sync-dom', bodyClone.innerHTML);
+        let json = await resp.json();
+        if (json.actions && json.actions.length > 0) {
+            json.actions.forEach(act => {
+                if (act === 'btn-announce') window.smartButtonAction();
+                else if (act === 'btn-up') window.moveArrow('up');
+                else if (act === 'btn-down') window.moveArrow('down');
+                else if (act === 'btn-terminate') window.handleTerminate();
+                else if (act === 'btn-repeat') window.handleLeftButton();
+            });
+        }
     } catch(e) {}
 }
 
-ipcRenderer.on('mobile-action', (event, actionStr) => {
-    let parts = actionStr.split(':::'); 
-    let cmd = parts[0];
-    
-    if (cmd === 'updateDelayDisplay') { 
-        let d = document.getElementById('delay-slider'); 
-        if(d) d.value = parts[1]; 
-        window.updateDelayDisplay(); 
-    }
-    else if (cmd === 'setFictionalTime') { 
-        let f = document.getElementById('fictional-time-input'); 
-        if(f) f.value = parts[1]; 
-        window.setFictionalTime(); 
-    }
-    else if (cmd === 'submitPinNumber') { 
-        window.submitPinNumber(parts[1]); 
-    }
-    else { 
-        if (typeof window[cmd] === 'function') { 
-            window[cmd](...parts.slice(1)); 
-        } 
-    }
-});
+// Spustit zrcadlo s mírným zpožděním, aby byl config už načtený
+setTimeout(() => {
+    initKoyebMirror();
+}, 5000);

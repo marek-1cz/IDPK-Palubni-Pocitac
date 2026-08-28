@@ -27,6 +27,49 @@
         @keyframes starGlow { from { text-shadow: 0 0 5px rgba(244, 204, 23, 0.5); transform: scale(1); } to { text-shadow: 0 0 15px rgba(244, 204, 23, 1); transform: scale(1.1); } }
         @keyframes pulseExtreme { from { box-shadow: 0 0 15px rgba(255, 51, 51, 0.6); transform: scale(1); } to { box-shadow: 0 0 40px rgba(255, 51, 51, 1); transform: scale(1.03); } }
 
+        /* === PREMIUM WATERMARK === */
+        #premium-watermark {
+            display: none;
+            position: fixed;
+            bottom: 12px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 99999;
+            pointer-events: none;
+            text-align: center;
+        }
+        #premium-watermark .pw-inner {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            background: linear-gradient(135deg, rgba(0,0,0,0.55), rgba(30,20,0,0.55));
+            border: 1px solid rgba(244, 204, 23, 0.5);
+            border-radius: 20px;
+            padding: 4px 12px;
+            backdrop-filter: blur(6px);
+            animation: premiumPulse 3s ease-in-out infinite;
+        }
+        #premium-watermark .pw-star { font-size: 11px; color: #F4CC17; }
+        #premium-watermark .pw-text {
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            background: linear-gradient(90deg, #F4CC17, #fff8a0, #F4CC17);
+            background-size: 200% auto;
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            animation: premiumShine 2.5s linear infinite;
+        }
+        @keyframes premiumPulse {
+            0%, 100% { box-shadow: 0 0 6px rgba(244,204,23,0.3); }
+            50% { box-shadow: 0 0 16px rgba(244,204,23,0.7); }
+        }
+        @keyframes premiumShine {
+            to { background-position: 200% center; }
+        }
+
         .settings-modal, .funk-modal { position: absolute; top: 0; left: 0; right: 0; bottom: 0; background-color: var(--idpk-dark-blue); z-index: 10000; display: none; flex-direction: column; padding: 15px; align-items: center; justify-content: flex-start; overflow-y: auto; }
         .settings-title, .funk-title { color: var(--idpk-yellow); font-size: 18px; font-weight: bold; margin-bottom: 15px; text-transform: uppercase; letter-spacing: 2px; border-bottom: 2px solid white; padding-bottom: 5px; width: 100%; text-align: center; }
         .settings-action-btn, .funk-btn-close { width: 100%; height: 45px; margin-bottom: 8px; font-weight: bold; font-size: 13px; border: none; border-radius: 6px; cursor: pointer; text-transform: uppercase; box-shadow: 0 3px 0 rgba(0,0,0,0.3); transition: background 0.2s, color 0.2s;}
@@ -173,6 +216,7 @@
             <div class="settings-title">DIAGNOSTIKA V1.6 RC-EDITION</div>
             <button type="button" class="settings-action-btn" style="background:#a855f7; color:white; border: 1px solid #d8b4fe; box-shadow: 0 0 15px rgba(168, 85, 247, 0.6); margin-bottom: 15px; font-size: 14px;" onclick="window.openFeedback('GENERAL')"><i class="fas fa-comments"></i> NAPSAT VÝVOJÁŘŮM / NÁPADY</button>
             <div id="auth-only-settings" style="width: 100%; display: flex; flex-direction: column; align-items: center;">
+                <button type="button" class="settings-action-btn" style="background:#10b981; color:white; margin-bottom:15px;" onclick="window.openUserdataFolder()">OTEVŘÍT MOJE DATA (ZVUKY/OBRAZ)</button>
                 <button type="button" class="settings-action-btn" style="background:#e74c3c; color:white; margin-bottom:15px;" onclick="window.openStopWindow()">OTEVŘÍT STOP (DISPLEJ)</button>
                 <button type="button" class="settings-action-btn" style="background:#f39c12; color:white; border: 2px solid white; box-shadow: 0 0 15px rgba(243, 156, 18, 0.6); margin-bottom:15px;" onclick="window.openBusePanel()">ZOBRAZIT VENKOVNÍ BUSE PANEL</button>
                 <button type="button" class="settings-action-btn" style="background:#27ae60; color:white; margin-bottom:15px;" onclick="window.softReset()">OBNOVIT CHOD (SOFT RESET)</button>
@@ -241,6 +285,16 @@
             <button type="button" class="btn" id="key-0" style="grid-area:k0;" onclick="window.pressKey('0')">0</button><button type="button" class="btn btn-confirm" id="key-ent" onclick="window.handleEnterOrStop()">ENT</button>
         </div>
     </div>
+
+    <!-- PREMIUM WATERMARK (zobrazí se pro BT/DEV/SA role) -->
+    <div id="premium-watermark">
+        <div class="pw-inner">
+            <span class="pw-star">★</span>
+            <span class="pw-text">Premium Version</span>
+            <span class="pw-star">★</span>
+        </div>
+    </div>
+
     <script src="js/logic-ovladac.js"></script>
 </body>
 </html>

@@ -77,13 +77,13 @@
             </div>
             
             <div class="sidebar-menu">
-                <button class="menu-item active"><i class="fas fa-play"></i> Hra</button>
-                <button class="menu-item"><i class="fas fa-cog"></i> Nastavení</button>
+                <button class="menu-item active" id="sidebar-btn-game"><i class="fas fa-play"></i> Hra</button>
+                <button class="menu-item" id="sidebar-btn-settings"><i class="fas fa-cog"></i> Nastavení</button>
             </div>
         </div>
 
-        <!-- Hlavní obsah -->
-        <div class="main-content">
+        <!-- Hlavní obsah (hra) -->
+        <div class="main-content" id="main-content-game">
             <div class="hero-section">
                 <h1>Palubní Počítač OIS</h1>
                 <p>Verze s plnou kontrolou přes Dashboard</p>
@@ -117,6 +117,63 @@
                         <div id="progress-fill" class="progress-fill" style="width: 0%"></div>
                     </div>
                     <span id="progress-text">Stahování: 0%</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Nastavení panel (Settings) -->
+        <div class="main-content" id="main-content-settings" style="display:none; overflow-y:auto;">
+            <div style="padding: 0 10px;">
+                <div style="font-size:16px; font-weight:bold; color:white; letter-spacing:2px; text-transform:uppercase; margin-bottom:20px; padding-bottom:12px; border-bottom:1px solid rgba(255,255,255,0.1);">
+                    <i class="fas fa-cog" style="color:#3b82f6; margin-right:8px;"></i>Nastavení Launcheru
+                </div>
+
+                <!-- Aktualizace -->
+                <div style="margin-bottom:20px;">
+                    <div style="color:#64748b; font-size:10px; letter-spacing:2px; text-transform:uppercase; margin-bottom:10px;">🔄 AKTUALIZACE</div>
+                    <button id="btn-check-update" style="width:100%; padding:12px 16px; background:rgba(59,130,246,0.12); border:1px solid rgba(59,130,246,0.35); border-radius:8px; color:white; font-size:13px; font-weight:600; cursor:pointer; text-align:left; transition:0.2s; margin-bottom:8px;">
+                        <i class="fas fa-sync-alt" style="margin-right:10px; color:#3b82f6;"></i>Zkontrolovat aktualizace
+                    </button>
+                    <div id="settings-available-versions" style="background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.08); border-radius:8px; padding:12px; color:#64748b; font-size:12px; line-height:1.7;">
+                        <i class="fas fa-list" style="margin-right:8px; color:#3b82f6;"></i>Verze dostupné pro vaši roli:<br>
+                        <span id="settings-versions-list">Přihlaste se pro zobrazení.</span>
+                    </div>
+                </div>
+
+                <!-- Podpora -->
+                <div style="margin-bottom:20px;">
+                    <div style="color:#64748b; font-size:10px; letter-spacing:2px; text-transform:uppercase; margin-bottom:10px;">☕ PODPORA PROJEKTU</div>
+                    <button id="btn-buy-coffee" style="width:100%; padding:12px 16px; background:linear-gradient(135deg,rgba(251,191,36,0.15),rgba(245,158,11,0.15)); border:1px solid rgba(251,191,36,0.35); border-radius:8px; color:#fbbf24; font-size:13px; font-weight:600; cursor:pointer; text-align:left; transition:0.2s;">
+                        <i class="fas fa-coffee" style="margin-right:10px;"></i>Koupit předplatné / podporovat projekt
+                        <span style="font-size:11px; color:#64748b; display:block; margin-top:3px; margin-left:24px;">buymeacoffee.com/marekk_czz</span>
+                    </button>
+                </div>
+
+                <!-- Správa dat -->
+                <div style="margin-bottom:20px;">
+                    <div style="color:#64748b; font-size:10px; letter-spacing:2px; text-transform:uppercase; margin-bottom:10px;">📁 SPRÁVA DAT</div>
+                    <button id="btn-open-userdata" style="width:100%; padding:12px 16px; background:rgba(16,185,129,0.08); border:1px solid rgba(16,185,129,0.25); border-radius:8px; color:white; font-size:13px; font-weight:600; cursor:pointer; text-align:left; transition:0.2s; margin-bottom:8px;">
+                        <i class="fas fa-folder-open" style="margin-right:10px; color:#10b981;"></i>Otevřít moje uživatelská data
+                        <span style="font-size:11px; color:#64748b; display:block; margin-top:3px; margin-left:24px;">Zvuky, obraz, linky – nebude přepsáno updatem</span>
+                    </button>
+                    <button id="btn-clean-old-versions" style="width:100%; padding:12px 16px; background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.08); border-radius:8px; color:white; font-size:13px; font-weight:600; cursor:pointer; text-align:left; transition:0.2s; margin-bottom:8px;">
+                        <i class="fas fa-broom" style="margin-right:10px; color:#f59e0b;"></i>Vyčistit staré verze hry
+                        <span style="font-size:11px; color:#64748b; display:block; margin-top:3px; margin-left:24px;">Ponechá jen aktuálně vybranou verzi</span>
+                    </button>
+                    <button id="btn-delete-all-data" style="width:100%; padding:12px 16px; background:rgba(239,68,68,0.08); border:1px solid rgba(239,68,68,0.25); border-radius:8px; color:#ef4444; font-size:13px; font-weight:600; cursor:pointer; text-align:left; transition:0.2s;">
+                        <i class="fas fa-trash-alt" style="margin-right:10px;"></i>Smazat všechna stažená data
+                        <span style="font-size:11px; display:block; margin-top:3px; margin-left:24px; color:#94a3b8;">⚠️ Vaše vlastní úpravy (zvuky, linky) budou zachovány</span>
+                    </button>
+                </div>
+
+                <!-- O aplikaci -->
+                <div style="background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.06); border-radius:8px; padding:14px;">
+                    <div style="color:#64748b; font-size:10px; letter-spacing:2px; text-transform:uppercase; margin-bottom:8px;">ℹ️ O APLIKACI</div>
+                    <div style="color:#475569; font-size:12px; line-height:2;">
+                        IDPK Launcher v1.6 RC-EDITION<br>
+                        <span id="settings-app-version">Verze hry: načítám...</span><br>
+                        <a href="#" id="settings-discord-link" style="color:#3b82f6; text-decoration:none;"><i class="fab fa-discord" style="margin-right:5px;"></i>Připojit se na Discord</a>
+                    </div>
                 </div>
             </div>
         </div>

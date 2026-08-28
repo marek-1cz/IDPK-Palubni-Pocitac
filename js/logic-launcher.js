@@ -345,6 +345,11 @@ async function initLauncher(config) {
         let { data, error } = await supabase.from('users').select('role, avatar_url').eq('discord_id', config.discord_id).single();
         if (data) {
             currentUserRole = data.role || 'User';
+            
+            // Uložit roli do config.json pro Ovladač (Premium detekce)
+            config.user_role = currentUserRole;
+            saveConfig(config);
+
             if (data.avatar_url) {
                 // Najít element pro avatar
                 const avatarImg = document.querySelector('.user-info i.fa-user-circle');
@@ -662,5 +667,155 @@ function getHWID() {
                 }
             });
         } else resolve("NOT-WINDOWS-" + Math.random().toString(36).substr(2, 9));
+    });
+}
+
+// ============================================================
+// SETTINGS PANEL LOGIKA
+// ============================================================
+const sidebarBtnGame = document.getElementById('sidebar-btn-game');
+const sidebarBtnSettings = document.getElementById('sidebar-btn-settings');
+const mainContentGame = document.getElementById('main-content-game');
+const mainContentSettings = document.getElementById('main-content-settings');
+
+if (sidebarBtnGame && sidebarBtnSettings) {
+    sidebarBtnGame.addEventListener('click', () => {
+        sidebarBtnGame.classList.add('active');
+        sidebarBtnSettings.classList.remove('active');
+        if (mainContentGame) mainContentGame.style.display = '';
+        if (mainContentSettings) mainContentSettings.style.display = 'none';
+    });
+
+    sidebarBtnSettings.addEventListener('click', () => {
+        sidebarBtnSettings.classList.add('active');
+        sidebarBtnGame.classList.remove('active');
+        if (mainContentGame) mainContentGame.style.display = 'none';
+        if (mainContentSettings) mainContentSettings.style.display = '';
+        updateSettingsVersionList();
+    });
+}
+
+// Aktualizovat seznam verzí v settings
+function updateSettingsVersionList() {
+    const listEl = document.getElementById('settings-versions-list');
+    const appVerEl = document.getElementById('settings-app-version');
+    if (!listEl) return;
+    
+    const cfg = loadConfig();
+    if (appVerEl && cfg.last_version) appVerEl.textContent = `Verze hry: ${cfg.last_version}`;
+
+    if (!availableVersions || availableVersions.length === 0) {
+        listEl.textContent = 'Přihlaste se pro zobrazení dostupných verzí.';
+        return;
+    }
+    listEl.innerHTML = availableVersions.map(v => 
+        `<div style="padding:3px 0;">• <b style="color:white;">${v.version_name}</b> <span style="color:#64748b;">(${v.target_role || 'User'})</span></div>`
+    ).join('');
+}
+
+// Zkontrolovat aktualizace
+const btnCheckUpdate = document.getElementById('btn-check-update');
+if (btnCheckUpdate) {
+    btnCheckUpdate.addEventListener('click', async () => {
+        btnCheckUpdate.disabled = true;
+        btnCheckUpdate.innerHTML = '<i class="fas fa-spinner fa-spin" style="margin-right:10px; color:#3b82f6;"></i>Kontroluji...';
+        try {
+            await loadAvailableVersions();
+            updateSettingsVersionList();
+            alert('Aktualizace zkontrolovány! Seznam verzí byl obnoven.');
+        } catch(e) {
+            alert('Chyba při kontrole aktualizací: ' + e.message);
+        } finally {
+            btnCheckUpdate.disabled = false;
+            btnCheckUpdate.innerHTML = '<i class="fas fa-sync-alt" style="margin-right:10px; color:#3b82f6;"></i>Zkontrolovat aktualizace';
+        }
+    });
+}
+
+// Koupit předplatné
+const btnBuyCoffee = document.getElementById('btn-buy-coffee');
+if (btnBuyCoffee) {
+    btnBuyCoffee.addEventListener('click', () => {
+        const { shell } = require('electron');
+        shell.openExternal('https://buymeacoffee.com/marekk_czz');
+    });
+}
+
+// Otevřít složku s uživatelskými daty
+const btnOpenUserdata = document.getElementById('btn-open-userdata');
+if (btnOpenUserdata) {
+    btnOpenUserdata.addEventListener('click', () => {
+        const { shell } = require('electron');
+        const udPath = path.join(process.env.APPDATA || os.homedir(), 'idpk-palubni-pocitac', 'userdata');
+        if (!fs.existsSync(udPath)) fs.mkdirSync(udPath, { recursive: true });
+        shell.openPath(udPath);
+    });
+}
+
+// Vyčistit staré verze
+const btnCleanOldVersions = document.getElementById('btn-clean-old-versions');
+if (btnCleanOldVersions) {
+    btnCleanOldVersions.addEventListener('click', () => {
+        const cfg = loadConfig();
+        const currentVersion = cfg.last_version;
+        if (!currentVersion) {
+            alert('Nejdříve spusťte hru, aby se zaznamenala aktuální verze.');
+            return;
+        }
+        const confirmed = confirm(
+            `Tato akce smaže všechny stažené verze kromě aktuální "${currentVersion}".\n\nChcete pokračovat?`
+        );
+        if (!confirmed) return;
+        try {
+            const versionsDir = path.join(process.env.APPDATA || os.homedir(), 'idpk-palubni-pocitac', 'versions');
+            if (!fs.existsSync(versionsDir)) { alert('Složka verzí neexistuje.'); return; }
+            const dirs = fs.readdirSync(versionsDir);
+            let deleted = 0;
+            dirs.forEach(d => {
+                if (d !== currentVersion) {
+                    const fullPath = path.join(versionsDir, d);
+                    fs.rmSync(fullPath, { recursive: true, force: true });
+                    deleted++;
+                }
+            });
+            alert(`Hotovo! Smazáno ${deleted} starých verzí.`);
+        } catch(e) {
+            alert('Chyba při mazání: ' + e.message);
+        }
+    });
+}
+
+// Smazat všechna stažená data
+const btnDeleteAllData = document.getElementById('btn-delete-all-data');
+if (btnDeleteAllData) {
+    btnDeleteAllData.addEventListener('click', () => {
+        const confirmed = confirm(
+            '⚠️ VAROVÁNÍ ⚠️\n\n' +
+            'Tato akce smaže VŠECHNY stažené verze hry.\n\n' +
+            'Vaše vlastní data (zvuky, obraz, linky ve složce "userdata") NEBUDOU smazána.\n\n' +
+            'Po smazání bude nutné znovu stáhnout hru přes Launcher.\n\n' +
+            'Chcete pokračovat?'
+        );
+        if (!confirmed) return;
+        try {
+            const versionsDir = path.join(process.env.APPDATA || os.homedir(), 'idpk-palubni-pocitac', 'versions');
+            if (fs.existsSync(versionsDir)) {
+                fs.rmSync(versionsDir, { recursive: true, force: true });
+            }
+            alert('Hotovo! Všechna stažená data byla smazána. Při příštím spuštění se hra stáhne znovu.');
+            checkLocalVersion(versionSelect.value);
+        } catch(e) {
+            alert('Chyba při mazání: ' + e.message);
+        }
+    });
+}
+
+// Discord odkaz
+const settingsDiscordLink = document.getElementById('settings-discord-link');
+if (settingsDiscordLink) {
+    settingsDiscordLink.addEventListener('click', (e) => {
+        e.preventDefault();
+        const { shell } = require('electron');
+        shell.openExternal('https://discord.gg/idpk');
     });
 }
