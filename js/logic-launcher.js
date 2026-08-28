@@ -377,7 +377,7 @@ async function initLauncher(config) {
 }
 
 async function loadAvailableVersions() {
-    let { data: dbVersions, error } = await supabase.from('app_releases').select('*').eq('is_active', true);
+    let { data: dbVersions, error } = await supabase.from('software_versions').select('*').eq('is_active', true);
     if (error) {
         console.error("Chyba při načítání verzí z DB:", error);
         dbVersions = [];
@@ -388,14 +388,17 @@ async function loadAvailableVersions() {
     let finalVersions = [];
     
     sortedActive.forEach(v => {
-        let channel = v.channel || 'public';
+        // Zkontrolovat jestli se má zobrazit v launcheru (defaultně ano)
+        if (v.show_in_launcher === false || v.show_in_launcher === "false") return;
+        
+        let targetRole = v.target_role || 'User';
         let allowed = false;
         
-        if (channel === 'public') {
+        if (targetRole === 'User') {
             allowed = true;
-        } else if (channel === 'beta') {
+        } else if (targetRole === 'BT') {
             if (currentUserRole.includes('BT') || currentUserRole.includes('DEV') || currentUserRole.includes('SA')) allowed = true;
-        } else if (channel === 'developer') {
+        } else if (targetRole === 'DEV_SA') {
             if (currentUserRole.includes('DEV') || currentUserRole.includes('SA')) allowed = true;
         }
         
@@ -416,8 +419,8 @@ async function loadAvailableVersions() {
     availableVersions = finalVersions;
     finalVersions.forEach(v => {
         const opt = document.createElement('option');
-        opt.value = v.version;
-        opt.innerText = `Build: ${v.version} (${v.channel.toUpperCase()})`;
+        opt.value = v.db_version;
+        opt.innerText = v.version_name;
         versionSelect.appendChild(opt);
     });
 
