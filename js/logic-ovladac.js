@@ -3492,7 +3492,8 @@ window.playDirectAudio = function(relativePath, fromQueue = false) {
 let mirrorSessionId = "";
 
 function initKoyebMirror() {
-    mirrorSessionId = storedDiscordId.replace(/[^a-zA-Z0-9]/g, '').substring(0, 8);
+    let safeId = storedDiscordId || "";
+    mirrorSessionId = safeId.replace(/[^a-zA-Z0-9]/g, '').substring(0, 8);
     if (!mirrorSessionId) mirrorSessionId = Math.random().toString(36).substring(2,8);
     
     // Zobrazení M-KÓDU (Session ID) na úvodní obrazovce

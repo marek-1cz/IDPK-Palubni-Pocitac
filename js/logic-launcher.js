@@ -28,6 +28,7 @@ const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZ
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY, { auth: { persistSession: false } });
 
 const hwidDisplay = document.getElementById('hwid-display');
+let availableVersions = [];
 const roleDisplay = document.getElementById('role-display');
 const versionSelect = document.getElementById('version-select');
 const btnLaunch = document.getElementById('btn-launch');
