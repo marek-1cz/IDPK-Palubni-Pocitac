@@ -3489,6 +3489,10 @@ window.playDirectAudio = function(relativePath, fromQueue = false) {
 // ============================================================
 // KOYEB CLOUD MIRROR (Zrcadlo pro mobil)
 // ============================================================
+window.syncDom = function() {
+    // Odstraněno: Nyní se DOM nesynchronizuje, mobilní zrcadlo používá lehký JSON polling.
+};
+
 let mirrorSessionId = "";
 
 function initKoyebMirror() {
