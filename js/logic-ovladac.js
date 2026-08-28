@@ -1,4 +1,4 @@
-﻿
+
 window.onerror = function(message, source, lineno, colno, error) {
     let errBox = document.getElementById('fatal-error-box');
     if (!errBox) {
@@ -3507,19 +3507,24 @@ function initKoyebMirror() {
     mirrorSessionId = safeId.replace(/[^a-zA-Z0-9]/g, '').substring(0, 8);
     if (!mirrorSessionId) mirrorSessionId = Math.random().toString(36).substring(2,8);
     
-    // ZobrazenĂ­ M-KĂ“DU (Session ID) na ĂşvodnĂ­ obrazovce
+    // Tlačítko pro mobilní propojení
     let headerEl = document.querySelector('.system-header');
-    if (headerEl) {
+    if (headerEl && window.isPremiumUser) {
         let span = document.createElement('span');
         span.style.fontSize = '12px';
-        span.style.color = '#10b981'; // Green
+        span.style.color = 'black';
+        span.style.background = 'var(--idpk-yellow)';
+        span.style.padding = '3px 8px';
+        span.style.borderRadius = '4px';
         span.style.float = 'right';
         span.style.marginRight = '10px';
-        span.innerHTML = `<i class="fas fa-mobile-alt"></i> M-KĂ“D: ${mirrorSessionId}`;
+        span.style.cursor = 'pointer';
+        span.innerHTML = `<i class="fas fa-mobile-alt"></i> MOBILNÍ OVLÁDÁNÍ`;
+        span.onclick = function() { window.toggleSettings(); };
         headerEl.appendChild(span);
     }
     
-    // Zapneme smyÄŤku odesĂ­lĂˇnĂ­
+    // Zapneme smyčku odesílání
     setInterval(koyebMirrorSync, 2000);
 }
 
