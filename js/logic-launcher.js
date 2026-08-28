@@ -634,6 +634,20 @@ function showError(msg) {
     launchIcon.className = "fas fa-exclamation-triangle";
     progressContainer.style.display = 'none';
     checkLocalVersion(versionSelect.value);
+    
+    // Odeslání logu o chybě do Discordu
+    if (config && config.discord_id) {
+        fetch('https://datacorebot.koyeb.app/api/report_error', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                discord_id: config.discord_id,
+                nick: config.discord_nick || "Neznámý",
+                type: "LAUNCHER ERROR",
+                message: msg
+            })
+        }).catch(() => {});
+    }
 }
 
 function getHWID() {
