@@ -167,6 +167,13 @@ function createController() {
     controllerWindow.on('closed', () => { app.quit(); });
 }
 
+ipcMain.on('resize-controller', (event, width) => {
+    if (controllerWindow && !controllerWindow.isDestroyed()) {
+        const bounds = controllerWindow.getBounds();
+        controllerWindow.setSize(width, bounds.height, true);
+    }
+});
+
 ipcMain.on('open-panel-window', () => {
     if (panelWindow) return;
     panelWindow = new BrowserWindow({ 

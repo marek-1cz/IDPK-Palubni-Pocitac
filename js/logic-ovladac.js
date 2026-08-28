@@ -3560,3 +3560,35 @@ async function koyebMirrorSync() {
 setTimeout(() => {
     initKoyebMirror();
 }, 5000);
+
+// ============================================================
+// DYNAMIC WINDOW SCALING OBSERVER
+// ============================================================
+setTimeout(() => {
+    const modals = ['settings-modal', 'funk-modal', 'supporters-modal', 'feedback-modal'];
+    let lastState = false;
+    
+    const observer = new MutationObserver(() => {
+        let anyOpen = false;
+        modals.forEach(id => {
+            let el = document.getElementById(id);
+            if (el && el.style.display !== 'none' && el.style.display !== '') {
+                anyOpen = true;
+            }
+        });
+        
+        if (anyOpen !== lastState) {
+            lastState = anyOpen;
+            try {
+                require('electron').ipcRenderer.send('resize-controller', anyOpen ? 760 : 380);
+            } catch(e) {}
+        }
+    });
+
+    modals.forEach(id => {
+        let el = document.getElementById(id);
+        if (el) {
+            observer.observe(el, { attributes: true, attributeFilter: ['style'] });
+        }
+    });
+}, 1000);
