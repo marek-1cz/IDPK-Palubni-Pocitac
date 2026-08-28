@@ -1,4 +1,4 @@
-const path = require('path');
+
 window.onerror = function(message, source, lineno, colno, error) {
     let errBox = document.getElementById('fatal-error-box');
     if (!errBox) {
