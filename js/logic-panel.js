@@ -3,6 +3,15 @@ const path = require('path');
 const process = require('process');
 
 function getBasePath() {
+    try {
+        let devBase = __dirname;
+        if (devBase.endsWith('js') || devBase.endsWith('js\\') || devBase.endsWith('js/')) {
+            devBase = path.join(__dirname, '..');
+        }
+        if (require('fs').existsSync(path.join(devBase, 'obraz'))) {
+            return devBase;
+        }
+    } catch(e) {}
     return path.join(__dirname, '..');
 }
 

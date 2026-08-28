@@ -1,3 +1,4 @@
+const path = require('path');
 window.onerror = function(message, source, lineno, colno, error) {
     let errBox = document.getElementById('fatal-error-box');
     if (!errBox) {
@@ -57,6 +58,15 @@ try {
 
 // OPRAVA ZVUKŮ: Nasmerujeme cestu o slozku vys (pokud jsme ve slozce js), aby se spravne nasla slozka "zvuky"
 function getBasePath() { 
+    try {
+        let devBase = __dirname;
+        if (devBase.endsWith('js') || devBase.endsWith('js\\') || devBase.endsWith('js/')) {
+            devBase = path.join(__dirname, '..');
+        }
+        if (require('fs').existsSync(path.join(devBase, 'obraz'))) {
+            return devBase;
+        }
+    } catch(e) {}
     return path.join(__dirname, '..');
 }
 
