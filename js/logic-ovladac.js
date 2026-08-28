@@ -57,15 +57,7 @@ try {
 
 // OPRAVA ZVUKŮ: Nasmerujeme cestu o slozku vys (pokud jsme ve slozce js), aby se spravne nasla slozka "zvuky"
 function getBasePath() { 
-    try {
-        if (isDevMode) {
-            return __dirname.includes('js') ? path.join(__dirname, '..') : __dirname;
-        } else {
-            return path.dirname(processCore.execPath); 
-        }
-    } catch(e) {
-        return __dirname;
-    }
+    return path.join(__dirname, '..');
 }
 
 function debugLog(msg) {
@@ -735,7 +727,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             const data = await res.json();
             ksStatus = data.status;
             localStorage.setItem('lastKillSwitchState', ksStatus);
-            debugLog("Server je online. Kill-Switch stav: " + ksStatus);
+            let userFriendlyStatus = (ksStatus === 'enabled') ? 'V pořádku (Aplikace povolena)' : 'UZAMČENO (Aplikace blokována)';
+            debugLog("Server je online. Kill-Switch stav: " + userFriendlyStatus);
         } catch (e) {
             isServerOnline = false;
         }
@@ -835,7 +828,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             }, 4000);
         }
     } else {
-        window.initLoginFlow(isServerOnline);
+        window.initAppFlow(isServerOnline);
     }
 
     setInterval(window.timeLoop, 1000);
@@ -1032,126 +1025,121 @@ window.switchLoginView = function(viewId) {
     }
 }
 
-window.initLoginFlow = async function(isServerOnline = true) {
-    try {
-        let startEl = document.getElementById('startupScreen');
-        if (startEl) startEl.style.display = 'none';
-        ipcRenderer.send('panel-idle'); 
+window.initAppFlow = async function(isServerOnline = true) {
+    let startEl = document.getElementById('startupScreen');
+    if (startEl) startEl.style.display = 'none';
 
-        let savedMode = localStorage.getItem('loginMode');
-        storedDiscordId = localStorage.getItem('discordId');
+    // Přečíst config.json z AppData (kam ho uložil Launcher)
+    const fs = require('fs');
+    const os = require('os');
+    const userDataPath = process.env.APPDATA ? path.join(process.env.APPDATA, 'idpk-palubni-pocitac') : os.homedir();
+    const configPath = path.join(userDataPath, 'config.json');
 
-        if (savedMode === 'AUTO' && storedDiscordId) {
-            if (!isServerOnline) {
-                debugLog("Offline režim: Přihlašuji z lokální paměti (AUTO).");
-                appState = 'LOGIN_AUTO';
-                let nickEl = document.getElementById('auto-login-name');
-                if (nickEl) nickEl.textContent = localStorage.getItem('discordNick') || "Řidič (Offline)";
-                window.switchLoginView('login-auto-view');
-                return;
-            }
+    let config = {};
+    if (fs.existsSync(configPath)) {
+        try { config = JSON.parse(fs.readFileSync(configPath, 'utf8')); } catch(e){}
+    }
+    
+    storedDiscordId = config.discord_id || "";
+    let storedNick = config.discord_nick || "Řidič";
+    
+    if (isDevMode && !storedDiscordId) {
+        storedDiscordId = "VSC-DEV";
+        storedNick = "VÝVOJÁŘ";
+    }
 
-            try {
-                let r = await fetchBlesk(`${API_BASE}/api/silent_check`, { 
+    if (!storedDiscordId) {
+        alert("CHYBA: Přihlášení vypršelo nebo chybí data.\n\nSpouštím IDPK Launcher pro nové přihlášení...");
+        const { ipcRenderer } = require('electron');
+        ipcRenderer.send('fallback-to-launcher');
+        return;
+    }
+
+    // Můžeme si do configu v budoucnu uložit i appId nebo hwid
+
+    debugLog("Nahrávání grafiky na druhý monitor...");
+    let loadEl = document.getElementById('loadingScreen');
+    let msgEl = document.getElementById('loading-msg');
+    if(loadEl && msgEl) {
+        if (isDevMode) {
+            msgEl.innerHTML = "<span style='color:#f1c40f; font-weight:bold;'>VSC MODE AKTIVNÍ</span><br><br>Přeskakuji ověření a administrátorské zámky...";
+        } else {
+            msgEl.textContent = "NAHRÁVÁNÍ GRAFIKY NA DRUHÝ MONITOR...";
+        }
+        loadEl.style.zIndex = "999999"; 
+        loadEl.style.display = 'flex';
+    }
+    window.syncDom();
+
+    ipcRenderer.send('reload-panel-window');
+    
+    let bootDelay = isDevMode ? 2000 : 0;
+    
+    setTimeout(() => {
+        ipcRenderer.send('open-panel-window');
+        ipcRenderer.send('panel-idle');
+        
+        setTimeout(() => {
+            if(loadEl) loadEl.style.display = 'none';
+            window.switchToLinkospojScreen();
+            
+            // Ping na server s action: start
+            if (storedDiscordId && isServerOnline) {
+                if (!isDevMode || (isDevMode && storedDiscordId !== "VSC-DEV")) {
+                    debugLog("✅ Přihlašovací data z Launcheru byla úspěšně nalezena a použita.");
+                }
+                
+                fetch(`${API_BASE}/api/app_ping`, { 
                     method: 'POST', 
                     headers: { 'Content-Type': 'application/json' }, 
-                    body: JSON.stringify({ discord_id: storedDiscordId, hwid: machineHWID, app_version: APP_VERSION })
-                }, 6000);
-                
-                let d = await r.json();
-                
-                if (isDevMode && d.status === 'error' && (d.message.includes('VYPNUT') || d.message.includes('verzi') || d.message.includes('verze') || d.message.includes('podporována'))) {
-                    debugLog("⚠️ VSC REŽIM: Ignoruji blokaci od serveru (" + d.message + ")");
-                    d.status = 'success';
-                    d.app_id = d.app_id || localStorage.getItem('appId') || 1000;
-                }
+                    body: JSON.stringify({ discord_id: storedDiscordId, action: 'start', app_version: APP_VERSION }) 
+                }).then(r => r.json()).then(data => {
+                    if (data.status === 'error' && !isDevMode) {
+                        alert("CHYBA: Přihlášení vypršelo nebo server účet nerozpoznal.\n\nSpouštím IDPK Launcher pro nové přihlášení...");
+                        
+                        // Smazat data, aby Launcher zobrazil přihlašovací obrazovku
+                        const fs = require('fs');
+                        const os = require('os');
+                        const path = require('path');
+                        const userDataPath = process.env.APPDATA ? path.join(process.env.APPDATA, 'idpk-palubni-pocitac') : os.homedir();
+                        const configPath = path.join(userDataPath, 'config.json');
+                        let config = {};
+                        if (fs.existsSync(configPath)) {
+                            try { config = JSON.parse(fs.readFileSync(configPath, 'utf8')); } catch(e){}
+                        }
+                        config.discord_id = "";
+                        config.discord_nick = "";
+                        config.email = "";
+                        fs.writeFileSync(configPath, JSON.stringify(config, null, 2), 'utf8');
 
-                if (d.status === 'success') {
-                    appState = 'LOGIN_AUTO';
-                    let nickEl = document.getElementById('auto-login-name');
-                    if (nickEl) nickEl.textContent = localStorage.getItem('discordNick') || "Řidič";
-                    if (d.app_id) {
-                        storedAppId = d.app_id;
-                        localStorage.setItem('appId', storedAppId);
+                        const { ipcRenderer } = require('electron');
+                        ipcRenderer.send('fallback-to-launcher');
+                        return;
                     }
-                    window.switchLoginView('login-auto-view');
-                    return;
-                } else {
-                    let isVerError = d.message && (d.message.toLowerCase().includes('verz') || d.message.toLowerCase().includes('podporována'));
-                    window.showErrorModal("ZAMÍTNUTO", d.message || "Tento PC nemá přístup.", isVerError, 'error');
-                    window.resetLoginFlow();
-                    return;
-                }
-            } catch(e){ 
-                debugLog("Chyba při tichém ověření, fallback na offline režim.");
-                appState = 'LOGIN_AUTO';
-                let nickEl = document.getElementById('auto-login-name');
-                if (nickEl) nickEl.textContent = localStorage.getItem('discordNick') || "Řidič (Offline)";
-                window.switchLoginView('login-auto-view');
-                return;
-            }
-        } 
-        else if (savedMode === 'PIN' && storedDiscordId) {
-            if (!isServerOnline) {
-                appState = 'LOGIN_PIN_ENTER';
-                inputValues.pinEnter = "";
-                window.updatePinVisuals('pinEnter');
-                let pinText = document.getElementById('pin-header-text');
-                if (pinText) pinText.textContent = "ZADEJTE PIN (OFFLINE)";
-                let cancelBtn = document.getElementById('pin-cancel-btn');
-                if(cancelBtn) cancelBtn.style.display = 'block';
-                window.switchLoginView('login-pin-view');
-                return;
-            }
-
-            try {
-                let r = await fetchBlesk(`${API_BASE}/api/silent_check`, { 
-                    method: 'POST', 
-                    headers: { 'Content-Type': 'application/json' }, 
-                    body: JSON.stringify({ discord_id: storedDiscordId, hwid: machineHWID, app_version: APP_VERSION })
-                }, 6000);
-                
-                let d = await r.json();
-
-                if (isDevMode && d.status === 'error' && (d.message.includes('VYPNUT') || d.message.includes('verzi') || d.message.includes('verze') || d.message.includes('podporována'))) {
-                    debugLog("⚠️ VSC REŽIM: Ignoruji blokaci od serveru (" + d.message + ")");
-                    d.status = 'success';
-                    d.app_id = d.app_id || localStorage.getItem('appId') || 1000;
-                }
-
-                if (d.status === 'success') {
-                    appState = 'LOGIN_PIN_ENTER';
-                    inputValues.pinEnter = "";
-                    window.updatePinVisuals('pinEnter');
-                    let pinText = document.getElementById('pin-header-text');
-                    if (pinText) pinText.textContent = "ZADEJTE PIN";
-                    let cancelBtn = document.getElementById('pin-cancel-btn');
-                    if(cancelBtn) cancelBtn.style.display = 'block';
-                    if (d.app_id) {
-                        storedAppId = d.app_id;
-                        localStorage.setItem('appId', storedAppId);
+                    if(data.session_id) {
+                        currentSessionId = data.session_id;
+                        localStorage.setItem('currentSessionId', currentSessionId);
+                        window.startPingLoop(); 
+                    } else {
+                        window.startPingLoop(); 
                     }
-                    window.switchLoginView('login-pin-view');
-                    return;
-                } else {
-                    let isVerError = d.message && (d.message.toLowerCase().includes('verz') || d.message.toLowerCase().includes('podporována'));
-                    window.showErrorModal("ZAMÍTNUTO", d.message || "Tento PC nemá přístup.", isVerError, 'error');
-                    window.resetLoginFlow();
-                    return;
-                }
-            } catch(e){
-                appState = 'LOGIN_PIN_ENTER';
-                inputValues.pinEnter = "";
-                window.updatePinVisuals('pinEnter');
-                let pinText = document.getElementById('pin-header-text');
-                if (pinText) pinText.textContent = "ZADEJTE PIN (OFFLINE)";
-                let cancelBtn = document.getElementById('pin-cancel-btn');
-                if(cancelBtn) cancelBtn.style.display = 'block';
-                window.switchLoginView('login-pin-view');
-                return;
+                }).catch(e => {
+                    debugLog("Chyba při startu session ping: " + e);
+                    window.startPingLoop(); 
+                });
+            } else {
+                window.startPingLoop(); 
             }
-        } 
-        window.resetLoginFlow();
+            
+            setTimeout(() => {
+                if (storedDiscordId && isServerOnline) {
+                    window.checkAnnouncementsFromWeb(storedDiscordId, storedAppId);
+                }
+            }, 3000);
+            
+        }, 100);
+    }, bootDelay);
+}
     } catch(err) {}
 }
 
@@ -1210,13 +1198,22 @@ window.startDiscordAuth = async function() {
             return;
         }
 
-        if (isDevMode && data.status === 'error' && data.message && (data.message.includes('VYPNUT') || data.message.includes('verzi') || data.message.includes('verze') || data.message.includes('podporována'))) {
+        if (isDevMode && data.status === 'error') {
             debugLog("⚠️ VSC REŽIM: Ignoruji blokaci při přihlášení (" + data.message + ")");
-            data.status = 'waiting';
+            data.status = 'success';
             data.discord_id = val; 
+            data.discord_nick = "VSC-DEV";
         }
         
-        if (data.status === 'waiting') {
+        if (data.status === 'success') {
+            storedDiscordId = data.discord_id;
+            storedNick = data.discord_nick || data.discord_id;
+            localStorage.setItem('discordId', storedDiscordId);
+            localStorage.setItem('discordNick', storedNick);
+            window.playClick();
+            appState = 'LOGIN_SETUP_CHOICE';
+            window.switchLoginView('login-setup-view');
+        } else if (data.status === 'waiting') {
             storedDiscordId = data.discord_id;
             discordPollInterval = setInterval(() => window.pollDiscordAuth(), 2000);
         } else if (data.status === 'error') {
@@ -1242,8 +1239,8 @@ window.pollDiscordAuth = async function() {
         }, 4000);
         const data = await res.json();
         
-        if (data.status === 'success' || (isDevMode && data.status === 'error')) {
-            if (isDevMode && data.status === 'error') {
+        if (data.status === 'success' || isDevMode) {
+            if (isDevMode && data.status !== 'success') {
                 debugLog("⚠️ VSC REŽIM: Ignoruji chybu Discord Pollingu.");
             }
             clearInterval(discordPollInterval);
@@ -1361,7 +1358,7 @@ window.finalizeLogin = function() {
             fetch(`${API_BASE}/api/app_ping`, { 
                 method: 'POST', 
                 headers: { 'Content-Type': 'application/json' }, 
-                body: JSON.stringify({ discord_id: storedDiscordId, action: 'start' }) 
+                body: JSON.stringify({ discord_id: storedDiscordId, action: 'start', app_version: APP_VERSION }) 
             }).then(r => r.json()).then(data => {
                 if(data.session_id) {
                     currentSessionId = data.session_id;
@@ -1380,77 +1377,42 @@ window.finalizeLogin = function() {
     }, 1000);
 }
 
-window.backToLogin = function() {
+window.backToLauncher = function() {
     window.playClick();
     
-    if (!logoutConfirmStep) {
-        logoutConfirmStep = true;
-        let btn = document.getElementById('btn-logout');
-        if(btn){
-            btn.textContent = "POTVRDIT ODHLÁŠENÍ";
-            btn.style.background = "#e74c3c";
-        }
-        setTimeout(() => {
-            logoutConfirmStep = false;
-            let resetBtn = document.getElementById('btn-logout');
-            if(resetBtn){ 
-                resetBtn.textContent = "ODHLÁSIT SE"; 
-                resetBtn.style.background = "#3498db"; 
-            }
-        }, 3000);
-        return;
-    }
-    
-    window.submitStats(); // Záznam statistik při odhlášení
-    
-    logoutConfirmStep = false;
-    let btn = document.getElementById('btn-logout');
-    if(btn){ 
-        btn.textContent = "ODHLÁSIT SE"; 
-        btn.style.background = "#3498db"; 
-    }
-
-    localStorage.removeItem('loginMode');
-    localStorage.removeItem('savedPin');
-    localStorage.removeItem('discordId');
-    localStorage.removeItem('discordNick');
-    sessionStorage.removeItem('softResetState');
+    window.submitStats(); // Záznam statistik
     
     fetch(`${API_BASE}/api/app_ping`, { 
         method: 'POST', 
         headers: { 'Content-Type': 'application/json' }, 
-        body: JSON.stringify({ discord_id: storedDiscordId, action: 'stop', session_id: currentSessionId }) 
+        body: JSON.stringify({ discord_id: storedDiscordId, action: 'stop', session_id: currentSessionId, app_version: APP_VERSION }) 
     }).catch(e=>{});
-    currentSessionId = "";
-    localStorage.removeItem('currentSessionId');
-    if(pingInterval) clearInterval(pingInterval);
     
-    ipcRenderer.send('reset-panel');
+    const fs = require('fs');
+    const os = require('os');
+    const { spawn } = require('child_process');
+    const userDataPath = process.env.APPDATA ? path.join(process.env.APPDATA, 'idpk-palubni-pocitac') : os.homedir();
+    const configPath = path.join(userDataPath, 'config.json');
     
-    document.querySelectorAll('.settings-modal, .funk-modal, .error-modal, #debug-overlay, .loading-overlay, .announcement-modal').forEach(el => el.style.display = 'none');
-    document.getElementById('linkospoj-wrapper').style.display = 'none';
-    document.getElementById('idpk-db-wrapper').style.display = 'none';
-    document.getElementById('idpk-direction-wrapper').style.display = 'none';
-    document.getElementById('drive-ui-wrapper').style.display = 'none';
-    document.getElementById('drive-controls-area').style.display = 'none';
-    document.getElementById('main-keypad').style.display = 'none';
+    let config = {};
+    if (fs.existsSync(configPath)) {
+        try { config = JSON.parse(fs.readFileSync(configPath, 'utf8')); } catch(e){}
+    }
     
-    appState = 'BOOT';
-    storedDiscordId = "";
-    storedAppId = "";
-    window.resetLoginFlow();
-
+    config.auto_launch = false;
+    fs.writeFileSync(configPath, JSON.stringify(config, null, 2), 'utf8');
+    
+    if (config.launcher_path && fs.existsSync(config.launcher_path)) {
+        const proc = spawn(config.launcher_path, [], {
+            detached: true,
+            stdio: 'ignore'
+        });
+        proc.unref();
+    }
+    
     setTimeout(() => {
-        window.focus();
-        let inputEl = document.getElementById('login-identifier-input');
-        if (inputEl) {
-            inputEl.disabled = false;
-            inputEl.readOnly = false;
-            inputEl.blur(); 
-            inputEl.focus();
-            inputEl.click();
-        }
-    }, 100);
+        ipcRenderer.send('quit-app');
+    }, 500);
 }
 
 window.startPingLoop = function() {
@@ -1460,7 +1422,7 @@ window.startPingLoop = function() {
             fetch(`${API_BASE}/api/app_ping`, { 
                 method: 'POST', 
                 headers: { 'Content-Type': 'application/json' }, 
-                body: JSON.stringify({ discord_id: storedDiscordId, action: 'ping', session_id: currentSessionId }) 
+                body: JSON.stringify({ discord_id: storedDiscordId, action: 'ping', session_id: currentSessionId, app_version: APP_VERSION }) 
             }).catch(e=>{});
         }
     }, 60000);

@@ -3,8 +3,7 @@ const path = require('path');
 const process = require('process');
 
 function getBasePath() {
-    const isPackaged = __dirname.includes('app.asar');
-    return isPackaged ? path.dirname(process.execPath) : __dirname;
+    return path.join(__dirname, '..');
 }
 
 let isIdle = true; 

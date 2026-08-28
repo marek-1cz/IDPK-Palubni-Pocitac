@@ -1,7 +1,7 @@
 {
   "name": "idpk-palubni-pocitac",
-  "version": "5.2.0",
-  "description": "Palubní počítač IDPK - Editable Edition",
+  "version": "1.6.0",
+  "description": "Systém Palubního Počítače OIS pro linky IDPK s plnou kontrolou přes Dashboard",
   "main": "main.js",
   "scripts": {
     "start": "electron .",
@@ -37,6 +37,7 @@
     "@supabase/supabase-js": "^2.112.4",
     "electron-log": "^5.4.4",
     "electron-updater": "^6.8.9",
+    "extract-zip": "^2.0.1",
     "ws": "^8.21.3"
   }
 }

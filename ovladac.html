@@ -125,12 +125,7 @@
     
     <div id="startupScreen" class="startup-screen" style="display:flex;"><div class="spinner"></div><div class="startup-title">NAČÍTÁNÍ SYSTÉMU...</div></div>
 
-    <div id="hwid-success-screen" class="startup-screen" style="display:none; z-index: 999999; flex-direction: column; padding: 20px;">
-        <div style="font-size: 60px; color: var(--idpk-green); margin-bottom: 10px;">✔</div>
-        <div class="startup-title" style="color:var(--idpk-green); text-align:center;">ŽÁDOST ODESLÁNA</div>
-        <div style="color:white; font-size:15px; text-align:center; margin-top: 15px;">Nyní čekejte na zprávu na vašem Discordu ohledně schválení resetu.</div>
-        <button type="button" class="error-back-btn" style="margin-top:30px; width:100%;" onclick="window.close()">VYPNOUT APLIKACI</button>
-    </div>
+
 
     <div id="announcement-modal" class="announcement-modal">
         <div class="announcement-inner-box">
@@ -185,7 +180,7 @@
                 <button type="button" class="settings-action-btn" style="background:#c0392b; color:white;" onclick="window.manualResetStop()">RESET STOPKY</button>
                 <button type="button" class="settings-action-btn" style="background:#e67e22; color:white;" onclick="window.fullReset()">TVRDÝ RESTART APP</button>
                 <div style="margin:10px 0; width:100%; border-top:1px solid #555;"></div>
-                <button type="button" id="btn-logout" class="settings-action-btn" style="background:#3498db; color:white;" onclick="window.backToLogin()">ODHLÁSIT SE</button>
+                <button type="button" id="btn-back-to-launcher" class="settings-action-btn" style="background:#3498db; color:white;" onclick="window.backToLauncher()">ZPĚT DO LAUNCHERU</button>
             </div>
             <button type="button" class="settings-action-btn" style="background:#8e44ad; color:white; margin-top: 15px;" onclick="window.toggleSettings(); document.getElementById('debug-overlay').style.display='flex';">ZOBRAZIT LOG</button>
             <button type="button" class="settings-action-btn" style="background:#555; margin-top:auto;" onclick="window.toggleSettings()">ZAVŘÍT</button>
@@ -204,41 +199,9 @@
 
         <div class="screen-area">
             
-            <div id="login-discord-view" class="login-view">
-                <div class="system-header" style="width: 100%;">PALUBNÍ SYSTÉM v1.6 RC-EDITION</div>
-                <div style="flex:1; display:flex; flex-direction:column; justify-content:center; width:100%;">
-                    <div class="auth-input-container"><div class="auth-input-label">APP ID NEBO NICK</div><input type="text" id="login-identifier-input" class="auth-input-field" placeholder="Zadejte jméno..." autocomplete="off"></div>
-                    <button type="button" class="auth-btn-green" onclick="window.submitAction()">POKRAČOVAT K OVĚŘENÍ</button>
-                </div>
-            </div>
 
-            <div id="login-waiting-view" class="login-view">
-                <div class="system-header" style="width: 100%;">BEZPEČNOSTNÍ KONTROLA</div>
-                <div style="flex:1; display:flex; flex-direction:column; justify-content:center; align-items:center; width:100%;">
-                    <div class="auth-spinner"></div><div style="color:white; font-weight:bold; font-size:16px; text-align:center;">Čekám na schválení...</div>
-                    <div class="auth-info-box"><strong style="font-size:13px; color:var(--idpk-yellow); display:block; margin-bottom:5px;">Nepřišla Vám zpráva?</strong>1. Jděte na náš Discord.<br>2. Otevřete kanál <b>#bot-příkazy</b>.<br>3. Napište příkaz: <span style="color:var(--idpk-yellow); font-weight:bold;">!auth</span><br>4. Klikněte na tlačítko ve zprávě.</div>
-                </div>
-                <button type="button" class="auth-btn-dark" onclick="window.resetLoginFlow()">ZRUŠIT</button>
-            </div>
 
-            <div id="login-setup-view" class="login-view">
-                <div class="system-header" style="width: 100%;">NASTAVENÍ PŘIHLÁŠENÍ</div>
-                <div style="flex:1; display:flex; flex-direction:column; justify-content:center; width:100%;"><button type="button" class="auth-btn-dark" onclick="window.selectLoginMethod('PIN')">VYTVOŘIT 4-MÍSTNÝ PIN</button><button type="button" class="auth-btn-green" onclick="window.selectLoginMethod('AUTO')">AUTOMATICKÉ PŘIHLÁŠENÍ</button></div>
-            </div>
-
-            <div id="login-pin-view" class="login-view">
-                <div class="system-header" id="pin-header-text" style="width: 100%;">ZADEJTE PIN</div>
-                <div style="flex:1; display:flex; flex-direction:column; justify-content:center; align-items:center; width:100%;"><div class="pin-container"><div class="pin-dot" id="pin-1"></div><div class="pin-dot" id="pin-2"></div><div class="pin-dot" id="pin-3"></div><div class="pin-dot" id="pin-4"></div></div><button type="button" class="auth-btn-dark" id="pin-cancel-btn" onclick="window.resetLoginFlow()">ZRUŠIT / ZPĚT</button></div>
-                <div id="hwid-display-pin" class="hwid-watermark">HWID: ---</div>
-            </div>
-
-            <div id="login-auto-view" class="login-view">
-                <div class="system-header" style="width: 100%;">VÍTEJTE ZPĚT</div>
-                <div style="flex:1; display:flex; flex-direction:column; justify-content:center; align-items:center; width:100%;"><div style="color:var(--idpk-green); font-size:50px; margin-bottom:10px;">✔</div><div style="color:white; font-size:16px;">Přihlášen uživatel:</div><div id="auto-login-name" style="color:var(--idpk-yellow); font-size:24px; font-weight:bold; margin-top:5px; text-transform:uppercase; text-align:center; margin-bottom: 20px;">Jméno</div><button type="button" class="auth-btn-green" onclick="window.finalizeLogin()">POKRAČOVAT</button><div style="color:#aaa; font-size:11px; margin-top:10px;">Nebo stiskněte ENTER</div></div>
-                <div id="hwid-display-auto" class="hwid-watermark">HWID: ---</div>
-            </div>
-
-            <div id="linkospoj-wrapper" style="display:none; flex-direction:column; height:100%;">
+            <div id="linkospoj-wrapper" style="display:flex; flex-direction:column; height:100%;">
                 <div class="system-header">PALUBNÍ SYSTÉM v1.6 RC-EDITION</div><div style="text-align:center;"><h3 style="margin:0; color:var(--idpk-yellow); font-size:14px;">VÝBĚR SPOJE</h3><div id="display-linkospoj" class="input-display"></div></div><div id="list-toggle" class="list-toggle-row" onclick="window.toggleListMouse()">SEZNAM <span id="checkbox-icon">[ ]</span></div><div id="link-list" class="link-list-container"></div><button type="button" class="db-switch-btn" onclick="window.switchToIdpkMode()">CELÁ DATABÁZE (IDPK)</button>
             </div>
 

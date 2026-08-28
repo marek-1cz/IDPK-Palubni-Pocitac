@@ -4,15 +4,14 @@ const fs = require('fs');
 const readline = require('readline');
 const http = require('http'); 
 const { exec } = require('child_process');
-const { autoUpdater } = require('electron-updater');
 const log = require('electron-log');
 const { createClient } = require('@supabase/supabase-js');
 const WebSocket = require('ws');
 global.WebSocket = WebSocket; // DŮLEŽITÉ: Musí se nastavit přímo do Node.js global objektu
+const extract = require('extract-zip');
+const https = require('https');
+const os = require('os');
 
-// Nastavení logování pro updater
-autoUpdater.logger = log;
-autoUpdater.logger.transports.file.level = 'info';
 log.info('App starting...');
 
 const SUPABASE_URL = 'https://tdonrppusbwhoftdontz.supabase.co';
@@ -44,10 +43,18 @@ const PATH_DEV = __dirname;
 const cleanStr = (s) => s ? s.replace(/["'\r\n]+/g, '').trim() : "";
 
 function getUniversalPath(folder, filename) {
+    // 1. Zkontrolujeme userData složku (pro stažená GTFS data)
+    let p0 = path.join(app.getPath('userData'), folder, filename);
+    if (fs.existsSync(p0)) return p0;
+
+    // 2. Zkontrolujeme složku vedle EXE
     let p1 = path.join(PATH_EXE, folder, filename);
     if (fs.existsSync(p1)) return p1;
+
+    // 3. Zkontrolujeme vývojářskou složku
     let p2 = path.join(PATH_DEV, folder, filename);
     if (fs.existsSync(p2)) return p2;
+
     return null;
 }
 
@@ -259,6 +266,11 @@ ipcMain.on('reload-panel-window', () => { if (panelWindow) panelWindow.reload();
 ipcMain.on('panel-boot', () => { if (panelWindow) panelWindow.webContents.send('show-boot-screen'); });
 ipcMain.on('panel-idle', () => { if (panelWindow) panelWindow.webContents.send('reset-panel-ui'); });
 ipcMain.on('quit-app', () => { app.quit(); });
+ipcMain.on('relaunch-app', () => { app.relaunch(); app.exit(); });
+ipcMain.on('fallback-to-launcher', () => {
+    if (controllerWindow && !controllerWindow.isDestroyed()) controllerWindow.close();
+    createLauncher();
+});
 
 function getDataFilePath(filename) { return getUniversalPath('data', filename) || path.join(__dirname, 'data', filename); }
 
@@ -682,50 +694,152 @@ app.whenReady().then(() => {
             callback({ path: url });
         });
     }
-
     initExternalFolders(); 
-    createController(); 
-    setupAutoUpdater();
 });
 
-async function setupAutoUpdater() {
-    try {
-        // Získání HWID pro identifikaci uživatele
-        const hwid = await getHWIDForUpdater();
+async function syncGtfsData() {
+    return new Promise((resolve) => {
+        log.info("Zahajuji kontrolu aktualizací GTFS dat...");
+        const options = {
+            hostname: 'api.github.com',
+            path: '/repos/marek-1cz/IDPK-GTFS-Data/releases/latest',
+            method: 'GET',
+            headers: { 'User-Agent': 'IDPK-Palubni-Pocitac' }
+        };
+
+        const req = https.request(options, (res) => {
+            let data = '';
+            res.on('data', (chunk) => { data += chunk; });
+            res.on('end', async () => {
+                if (res.statusCode !== 200) {
+                    log.error("Nepodařilo se ověřit GTFS data: " + res.statusCode);
+                    return resolve();
+                }
+                try {
+                    const release = JSON.parse(data);
+                    const latestVersion = release.tag_name;
+                    const versionFile = path.join(app.getPath('userData'), 'gtfs_version.json');
+                    
+                    let currentVersion = "";
+                    if (fs.existsSync(versionFile)) {
+                        currentVersion = JSON.parse(fs.readFileSync(versionFile, 'utf-8')).version;
+                    }
+
+                    if (currentVersion === latestVersion) {
+                        log.info("GTFS data jsou aktuální (" + currentVersion + ")");
+                        return resolve();
+                    }
+
+                    log.info("Nalezena nová verze GTFS: " + latestVersion + ". Stahuji...");
+                    const asset = release.assets.find(a => a.name === 'gtfs.zip');
+                    if (!asset) {
+                        log.error("V release chybí gtfs.zip!");
+                        return resolve();
+                    }
+
+                    const zipPath = path.join(app.getPath('userData'), 'gtfs.zip');
+                    const targetDir = path.join(app.getPath('userData'), 'data');
+                    
+                    if (!fs.existsSync(targetDir)) fs.mkdirSync(targetDir, { recursive: true });
+
+                    const file = fs.createWriteStream(zipPath);
+                    https.get(asset.browser_download_url, (response) => {
+                        // GitHub releases usually redirect to a CDN
+                        if (response.statusCode === 302 || response.statusCode === 301) {
+                            https.get(response.headers.location, (redirectResponse) => {
+                                redirectResponse.pipe(file);
+                                file.on('finish', async () => {
+                                    file.close();
+                                    log.info("GTFS stahování dokončeno, rozbaluji...");
+                                    try {
+                                        await extract(zipPath, { dir: targetDir });
+                                        fs.writeFileSync(versionFile, JSON.stringify({ version: latestVersion }));
+                                        log.info("GTFS úspěšně aktualizováno na " + latestVersion);
+                                    } catch (err) {
+                                        log.error("Chyba při rozbalování GTFS: " + err);
+                                    }
+                                    resolve();
+                                });
+                            });
+                        } else {
+                            response.pipe(file);
+                            file.on('finish', async () => {
+                                file.close();
+                                try {
+                                    await extract(zipPath, { dir: targetDir });
+                                    fs.writeFileSync(versionFile, JSON.stringify({ version: latestVersion }));
+                                    log.info("GTFS úspěšně aktualizováno na " + latestVersion);
+                                } catch (err) {
+                                    log.error("Chyba při rozbalování GTFS: " + err);
+                                }
+                                resolve();
+                            });
+                        }
+                    }).on('error', (err) => {
+                        log.error("Chyba při stahování GTFS: " + err.message);
+                        fs.unlink(zipPath, () => {});
+                        resolve();
+                    });
+                } catch (e) {
+                    log.error("Chyba při zpracování verze GTFS: " + e.message);
+                    resolve();
+                }
+            });
+        });
         
-        // Zjištění role ze Supabase
-        let { data, error } = await supabase
-            .from('app_users')
-            .select('role')
-            .eq('hwid', hwid)
-            .single();
-            
-        let role = 'public';
-        
-        if (error || !data) {
-            // Pokud uživatel neexistuje, vytvoříme ho s rolí public
-            await supabase.from('app_users').insert([{ hwid: hwid, role: 'public' }]);
-        } else {
-            role = data.role;
+        req.on('error', (e) => {
+            log.error("Chyba spojení s GitHubem (GTFS): " + e.message);
+            resolve();
+        });
+        req.end();
+    });
+}
+
+app.on('ready', async () => {
+    if (process.argv.includes('--no-launcher')) {
+        createController();
+        await syncGtfsData();
+    } else {
+        const userDataPath = process.env.APPDATA ? path.join(process.env.APPDATA, 'idpk-palubni-pocitac') : os.homedir();
+        const configPath = path.join(userDataPath, 'config.json');
+        let autoLaunched = false;
+
+        if (fs.existsSync(configPath)) {
+            try {
+                const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+                if (config.auto_launch && config.last_version && config.discord_id) {
+                    const versionFolder = path.join(userDataPath, 'versions', config.last_version, 'win-unpacked');
+                    const exePath = path.join(versionFolder, 'Palubní Počítač IDPK.exe');
+                    if (fs.existsSync(exePath)) {
+                        const { spawn } = require('child_process');
+                        const child = spawn(exePath, ['--no-launcher'], { detached: true, stdio: 'ignore' });
+                        child.unref();
+                        autoLaunched = true;
+                        app.quit();
+                    }
+                }
+            } catch (e) {
+                console.error("Chyba při čtení config.json", e);
+            }
         }
         
-        log.info(`Uživatel HWID: ${hwid} má roli: ${role}`);
-        
-        // Nastavení kanálu podle role
-        if (role === 'developer') {
-            autoUpdater.channel = 'alpha'; // GitHub releases pre-release (alpha)
-        } else if (role === 'beta_tester' || role === 'beta') {
-            autoUpdater.channel = 'beta'; // GitHub releases pre-release (beta)
-        } else {
-            autoUpdater.channel = 'latest'; // Běžní uživatelé
+        if (!autoLaunched) {
+            createLauncher();
         }
-        
-        // Spustit kontrolu
-        autoUpdater.checkForUpdatesAndNotify();
-        
-    } catch (e) {
-        log.error('Chyba při auto-updateru:', e);
     }
+});
+
+let launcherWindow;
+function createLauncher() {
+    launcherWindow = new BrowserWindow({
+        width: 800, height: 600, resizable: false, frame: false, title: "IDPK Launcher",
+        webPreferences: { nodeIntegration: true, contextIsolation: false },
+        icon: path.join(__dirname, 'icon.ico'),
+        backgroundColor: '#0f172a'
+    });
+    loadWindowFile(launcherWindow, 'launcher.html');
+
+    launcherWindow.on('closed', () => { app.quit(); });
 }
 
 function getHWIDForUpdater() {
@@ -734,14 +848,12 @@ function getHWIDForUpdater() {
             exec('wmic csproduct get uuid', (err, stdout) => {
                 if (err) resolve("UNKNOWN-HWID-UPDATER-" + Math.random().toString(36).substr(2, 9));
                 else {
-                    let lines = stdout.split('\\n');
-                    let uuid = lines[1] ? lines[1].trim() : ("UNKNOWN-HWID-" + Math.random().toString(36).substr(2, 9));
-                    resolve(uuid);
+                    let lines = stdout.split('\n');
+                    if (lines.length > 1) resolve(lines[1].trim());
+                    else resolve("UNKNOWN-HWID-UPDATER-" + Math.random().toString(36).substr(2, 9));
                 }
             });
-        } else {
-            resolve("NON-WIN-HWID-" + Math.random().toString(36).substr(2, 9));
-        }
+        } else resolve("NOT-WINDOWS-" + Math.random().toString(36).substr(2, 9));
     });
 }
 
@@ -950,7 +1062,9 @@ const server = http.createServer((req, res) => {
     }
 });
 
-server.listen(5000, '0.0.0.0', () => { console.log("Mobilní server běží na portu 5000"); });
+if (process.argv.includes('--no-launcher')) {
+    server.listen(5000, '0.0.0.0', () => { console.log("Mobilní server běží na portu 5000"); });
+}
 
 ipcMain.on('sync-dom', (event, html) => {
     sseClients.forEach(client => {
