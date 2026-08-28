@@ -359,6 +359,17 @@ async function initLauncher(config) {
                     avatarImg.parentNode.replaceChild(img, avatarImg);
                 }
             }
+            if (currentUserRole.includes('DEV') || currentUserRole.includes('SA')) {
+                const btnDevBuild = document.getElementById('btn-dev-build');
+                if (btnDevBuild) {
+                    btnDevBuild.style.display = 'block';
+                    btnDevBuild.addEventListener('click', () => {
+                        btnDevBuild.disabled = true;
+                        btnDevBuild.innerHTML = '<i class="fas fa-spinner fa-spin"></i> SPOUŠTÍM...';
+                        ipcRenderer.send('launch-dev-build');
+                    });
+                }
+            }
         } else {
             currentUserRole = 'User';
         }

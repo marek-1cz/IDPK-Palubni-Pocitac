@@ -102,10 +102,13 @@
                     <label for="auto-launch-checkbox" style="color: #94a3b8; font-size: 14px; cursor: pointer;">Příště spustit rovnou hru (bez Launcheru)</label>
                 </div>
 
-                <div class="action-row">
-                    <button id="btn-launch" class="btn-launch" disabled>
-                        <span class="launch-text">NAČÍTÁM...</span>
-                        <i class="fas fa-spinner fa-spin launch-icon"></i>
+                <div class="launch-actions">
+                    <button id="btn-launch" class="btn-primary" disabled>
+                        <i id="launch-icon" class="fas fa-spinner fa-spin"></i>
+                        <span id="launch-text">NAČÍTÁNÍ...</span>
+                    </button>
+                    <button id="btn-dev-build" class="btn-primary" style="display: none; margin-top: 10px; width: 100%; background: #ca8a04; color: white;">
+                        <i class="fas fa-hammer"></i> SPUSTIT LOKÁLNÍ DEV BUILD
                     </button>
                 </div>
                 

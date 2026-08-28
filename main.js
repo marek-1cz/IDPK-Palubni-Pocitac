@@ -842,6 +842,14 @@ function createLauncher() {
     launcherWindow.on('closed', () => { app.quit(); });
 }
 
+ipcMain.on('launch-dev-build', () => {
+    if (launcherWindow && !launcherWindow.isDestroyed()) {
+        launcherWindow.removeAllListeners('closed');
+        launcherWindow.close();
+    }
+    createController();
+});
+
 function getHWIDForUpdater() {
     return new Promise((resolve) => {
         if (process.platform === 'win32') {
