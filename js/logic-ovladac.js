@@ -1141,8 +1141,6 @@ window.initAppFlow = async function(isServerOnline = true) {
         }, 100);
     }, bootDelay);
 }
-    } catch(err) {}
-}
 
 window.resetLoginFlow = function() {
     window.playClick();
