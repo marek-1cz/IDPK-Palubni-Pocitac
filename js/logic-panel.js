@@ -137,8 +137,14 @@ function updateUI(data) {
         document.getElementById('line-num').textContent = displayLine;
     }
     if (data.destination) {
+        const formatDestination = (text) => {
+            return text.toLowerCase().split(/([\s-]+)/).map(part => {
+                if (part.match(/^[\s-]+$/)) return part;
+                return part.charAt(0).toUpperCase() + part.slice(1);
+            }).join('');
+        };
         const destEl = document.getElementById('destination');
-        destEl.textContent = data.destination;
+        destEl.textContent = formatDestination(data.destination);
         fitDestinationText(destEl);
     }
 
@@ -155,7 +161,7 @@ function updateUI(data) {
                 changeBackground('obraz/podklady/podklad-konec.png'); 
             } 
             else { 
-                if (currentStop.type === 'z' && data.stopPressed === true) { 
+                if (data.stopPressed === true) { 
                     changeBackground(`obraz/podklady/podklad-zast-z-stop.png`); 
                 } 
                 else { 
@@ -163,7 +169,7 @@ function updateUI(data) {
                     changeBackground(`obraz/podklady/podklad-zast-${suffix}.png`); 
                 }
             }
-            let zoneText = currentStop.zone ? currentStop.zone.replace(/,/g, '<br>') : "";
+            let zoneText = formatMultiZone(currentStop.zone);
             if(currentStop.type === 'z' && !zoneText) zoneText = "ZZ";
             document.getElementById('single-zone').innerHTML = zoneText;
             const nameEl = document.getElementById('single-name');
@@ -196,31 +202,51 @@ function updateUI(data) {
     }
 }
 
+window.textScaleCache = window.textScaleCache || {};
+
 function fitDestinationText(element) { 
+    const key = 'dest_' + element.textContent;
+    if (window.textScaleCache[key]) {
+        element.style.fontSize = window.textScaleCache[key] + "vh";
+        return;
+    }
     let size = 10; 
     element.style.fontSize = size + "vh"; 
     while (element.scrollWidth > element.clientWidth && size > 4) { 
         size -= 0.2; 
         element.style.fontSize = size + "vh"; 
     } 
+    window.textScaleCache[key] = size;
 }
 
 function fitBigText(element) { 
+    const key = 'big_' + element.textContent;
+    if (window.textScaleCache[key]) {
+        element.style.fontSize = window.textScaleCache[key] + "vh";
+        return;
+    }
     let size = 16; 
     element.style.fontSize = size + "vh"; 
     while (element.scrollWidth > element.clientWidth && size > 5) { 
         size -= 0.5; 
         element.style.fontSize = size + "vh"; 
     } 
+    window.textScaleCache[key] = size;
 }
 
 function fitStopText(element, maxVh) { 
+    const key = 'stop_' + element.textContent + '_' + maxVh;
+    if (window.textScaleCache[key]) {
+        element.style.fontSize = window.textScaleCache[key] + "vh";
+        return;
+    }
     let size = maxVh; 
     element.style.fontSize = size + "vh"; 
     while (element.scrollWidth > element.clientWidth && size > 3) { 
         size -= 0.2; 
         element.style.fontSize = size + "vh"; 
     } 
+    window.textScaleCache[key] = size;
 }
 
 function updateStopRow(num, stopData, estTime = null) { 
@@ -230,7 +256,7 @@ function updateStopRow(num, stopData, estTime = null) {
     
     if (stopData) { 
         nameEl.textContent = formatStopName(stopData.name); 
-        let zText = stopData.zone ? stopData.zone.replace(/,/g, '<br>') : ""; 
+        let zText = formatMultiZone(stopData.zone); 
         if(stopData.type === 'z' && !zText) zText = "ZZ"; 
         zoneEl.innerHTML = zText; 
         
@@ -249,7 +275,19 @@ function updateStopRow(num, stopData, estTime = null) {
         nameEl.textContent = ""; 
         zoneEl.innerHTML = ""; 
         timeContainer.innerHTML = ""; 
-    } 
+    }
+}
+
+function formatMultiZone(zoneStr) {
+    if (!zoneStr) return "";
+    let parts = zoneStr.split(/<br>|,/g).filter(x => x.trim().length > 0);
+    if (parts.length <= 1) return parts[0] || "";
+    let html = "";
+    for (let i = 0; i < parts.length; i++) {
+        let shift = i * 1.0; 
+        html += `<div style="transform: translateX(-${shift}vw); line-height: 1.05;">${parts[i].trim()}</div>`;
+    }
+    return html;
 }
 
 function formatStopName(rawName) { 

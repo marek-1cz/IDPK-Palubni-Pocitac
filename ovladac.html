@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
-    <title>Palubní počítač V1.6 RC-EDITION</title>
+    <title>OIS IDPK V1.6.2</title>
     <style>
         :root {
             --idpk-blue: #035689; --idpk-dark-blue: #023e63; --idpk-yellow: #F4CC17;
@@ -21,59 +21,273 @@
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
         .startup-title { font-size: 24px; font-weight: 900; color: white; margin-top: 10px; }
 
-        .settings-btn { position: absolute; top: 5px; right: 5px; width: 35px; height: 35px; color: rgba(255, 255, 255, 0.5); font-size: 24px; display: flex; justify-content: center; align-items: center; cursor: pointer; z-index: 999999; transition: color 0.2s;}
+        .settings-btn { color: rgba(255, 255, 255, 0.5); display: flex; justify-content: center; align-items: center; cursor: pointer; z-index: 9999; transition: color 0.2s;}
         .settings-btn:hover { color: var(--idpk-yellow); }
-        .star-btn { position: absolute; top: 5px; right: 45px; width: 35px; height: 35px; color: #F4CC17; font-size: 20px; display: flex; justify-content: center; align-items: center; cursor: pointer; z-index: 999999; animation: starGlow 2s infinite alternate; }
+        .star-btn { color: #F4CC17; display: flex; justify-content: center; align-items: center; cursor: pointer; z-index: 9999; animation: starGlow 2s infinite alternate; }
         @keyframes starGlow { from { text-shadow: 0 0 5px rgba(244, 204, 23, 0.5); transform: scale(1); } to { text-shadow: 0 0 15px rgba(244, 204, 23, 1); transform: scale(1.1); } }
         @keyframes pulseExtreme { from { box-shadow: 0 0 15px rgba(255, 51, 51, 0.6); transform: scale(1); } to { box-shadow: 0 0 40px rgba(255, 51, 51, 1); transform: scale(1.03); } }
 
-        /* === PREMIUM WATERMARK === */
+        /* === TOAST NOTIFICATION === */
+        #toast-notification {
+            position: fixed;
+            top: -100px;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 999999;
+            background: rgba(15, 23, 42, 0.95);
+            border: 2px solid rgba(56, 189, 248, 0.8);
+            border-radius: 12px;
+            padding: 20px 30px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 15px;
+            color: #fff;
+            font-size: 16px;
+            font-weight: bold;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.8), 0 0 20px rgba(56, 189, 248, 0.4);
+            backdrop-filter: blur(10px);
+            transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+            white-space: normal;
+            text-align: center;
+            max-width: 400px;
+            opacity: 0;
+            pointer-events: none;
+        }
+        #toast-notification.toast-show { top: 50%; opacity: 1; }
+        #toast-notification.toast-info { border-color: #38bdf8; }
+        #toast-notification.toast-success { border-color: #22c55e; box-shadow: 0 10px 40px rgba(0,0,0,0.8), 0 0 20px rgba(34, 197, 94, 0.4); }
+        #toast-notification.toast-error { border-color: #ef4444; box-shadow: 0 10px 40px rgba(0,0,0,0.8), 0 0 20px rgba(239, 68, 68, 0.4); }
+        #toast-icon { font-size: 24px; flex-shrink: 0; }
+
+        /* === PREMIUM BADGE – smart animace === */
         #premium-watermark {
             display: none;
-            position: fixed;
-            bottom: 12px;
-            left: 50%;
-            transform: translateX(-50%);
-            z-index: 99999;
-            pointer-events: none;
-            text-align: center;
+            position: absolute;
+            top: 5px;
+            left: 45px;
+            z-index: 9998;
+            pointer-events: all;
+            cursor: pointer;
         }
         #premium-watermark .pw-inner {
             display: inline-flex;
             align-items: center;
-            gap: 6px;
-            background: linear-gradient(135deg, rgba(0,0,0,0.55), rgba(30,20,0,0.55));
+            gap: 4px;
+            background: linear-gradient(135deg, rgba(244,204,23,0.2), rgba(244,204,23,0.1));
             border: 1px solid rgba(244, 204, 23, 0.5);
             border-radius: 20px;
-            padding: 4px 12px;
-            backdrop-filter: blur(6px);
-            animation: premiumPulse 3s ease-in-out infinite;
+            padding: 3px 10px;
+            backdrop-filter: blur(4px);
+            transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+            overflow: hidden;
+            white-space: nowrap;
         }
-        #premium-watermark .pw-star { font-size: 11px; color: #F4CC17; }
+        #premium-watermark.pw-collapsed .pw-inner {
+            padding: 3px 6px;
+            border-radius: 50%;
+            gap: 0;
+            background: transparent;
+            border-color: transparent;
+        }
+        #premium-watermark.pw-collapsed .pw-text {
+            max-width: 0;
+            opacity: 0;
+            margin: 0;
+            padding: 0;
+        }
+        #premium-watermark .pw-star { font-size: 11px; color: #F4CC17; animation: premiumGlow 2s ease-in-out infinite alternate; flex-shrink: 0; }
         #premium-watermark .pw-text {
-            font-size: 11px;
+            font-size: 10px;
+            font-weight: 700;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            color: #F4CC17;
+            max-width: 120px;
+            opacity: 1;
+            transition: max-width 0.4s ease, opacity 0.3s ease;
+        }
+        @keyframes premiumGlow {
+            from { text-shadow: 0 0 4px rgba(244,204,23,0.5); }
+            to { text-shadow: 0 0 12px rgba(244,204,23,1), 0 0 20px rgba(244,204,23,0.5); }
+        }
+
+        /* === GLASS BUTTONS === */
+
+        /* === LINK SELECTION REDESIGN === */
+        .link-search-box {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            background: rgba(0,0,20,0.6);
+            border: 2px solid rgba(244,204,23,0.5);
+            border-radius: 12px;
+            padding: 10px 14px;
+            margin-bottom: 10px;
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+        .link-search-box:focus-within {
+            border-color: var(--idpk-yellow);
+            box-shadow: 0 0 16px rgba(244,204,23,0.3);
+        }
+        .link-search-icon { color: rgba(244,204,23,0.7); font-size: 16px; flex-shrink: 0; }
+        #search-linkospoj-input, #search-idpk-input {
+            background: transparent;
+            border: none;
+            color: white;
+            font-size: 22px;
+            font-weight: 700;
+            font-family: 'Consolas', monospace;
+            width: 100%;
+            outline: none;
+            letter-spacing: 1px;
+        }
+        #search-linkospoj-input::placeholder, #search-idpk-input::placeholder { color: rgba(255,255,255,0.2); font-weight: 400; font-size: 16px; }
+        .link-search-clear {
+            color: rgba(255,255,255,0.4);
+            font-size: 18px;
+            cursor: pointer;
+            flex-shrink: 0;
+            transition: color 0.2s;
+        }
+        .link-search-clear:hover { color: var(--idpk-yellow); }
+        .link-suggestions {
+            flex: 1;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+        .link-suggestion-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 14px;
+            border-radius: 10px;
+            border: 1px solid rgba(255,255,255,0.06);
+            background: rgba(255,255,255,0.04);
+            color: white;
+            font-size: 14px;
+            cursor: pointer;
+            transition: background 0.15s, border-color 0.15s, transform 0.1s;
+            animation: slideInItem 0.15s ease;
+        }
+        @keyframes slideInItem {
+            from { opacity: 0; transform: translateY(-5px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .link-suggestion-item:hover { background: rgba(255,255,255,0.1); border-color: rgba(244,204,23,0.3); }
+        .link-suggestion-item.lsi-selected {
+            background: rgba(244,204,23,0.15);
+            border-color: rgba(244,204,23,0.6);
+            box-shadow: 0 0 10px rgba(244,204,23,0.15);
+        }
+        .lsi-badge {
+            background: rgba(244,204,23,0.2);
+            border: 1px solid rgba(244,204,23,0.4);
+            border-radius: 6px;
+            padding: 6px 12px;
+            font-size: 18px;
+            font-weight: 900;
+            color: var(--idpk-yellow);
+            flex-shrink: 0;
+            min-width: 50px;
+            text-align: center;
+        }
+        .lsi-badge.beta { background: rgba(52,152,219,0.2); border-color: rgba(52,152,219,0.4); color: #3498db; }
+        .lsi-name { flex: 1; font-size: 11.5px; color: rgba(255,255,255,0.7); display: flex; flex-wrap: wrap; line-height: 1.3; overflow-wrap: break-word; }
+        .lsi-match { color: var(--idpk-yellow); font-weight: 700; }
+        .link-no-results {
+            text-align: center;
+            color: rgba(255,255,255,0.35);
+            font-size: 13px;
+            padding: 30px 20px;
+        }
+        .link-empty-state {
+            text-align: center;
+            color: rgba(255,255,255,0.25);
+            font-size: 12px;
+            padding: 20px;
+            line-height: 2;
+        }
+        .link-select-section-title {
+            font-size: 10px;
+            font-weight: 700;
+            letter-spacing: 2px;
+            color: rgba(255,255,255,0.3);
+            text-transform: uppercase;
+            padding: 4px 0 6px 2px;
+            margin-bottom: 4px;
+            border-bottom: 1px solid rgba(255,255,255,0.06);
+        }
+        .glass-section-title {
+            width: 100%;
+            font-size: 10px;
             font-weight: 700;
             letter-spacing: 2px;
             text-transform: uppercase;
-            background: linear-gradient(90deg, #F4CC17, #fff8a0, #F4CC17);
-            background-size: 200% auto;
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
-            animation: premiumShine 2.5s linear infinite;
+            color: rgba(255,255,255,0.4);
+            padding: 4px 0 6px 2px;
+            margin-top: 8px;
+            border-bottom: 1px solid rgba(255,255,255,0.08);
+            margin-bottom: 8px;
         }
-        @keyframes premiumPulse {
-            0%, 100% { box-shadow: 0 0 6px rgba(244,204,23,0.3); }
-            50% { box-shadow: 0 0 16px rgba(244,204,23,0.7); }
+        .glass-btn {
+            width: 100%;
+            padding: 12px 16px;
+            margin-bottom: 7px;
+            border: 1px solid rgba(255,255,255,0.12);
+            border-radius: 12px;
+            background: rgba(255,255,255,0.06);
+            color: white;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            text-align: left;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            transition: background 0.2s, border-color 0.2s;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.2), inset 0 1px 0 rgba(255,255,255,0.07);
+            backdrop-filter: blur(4px);
         }
-        @keyframes premiumShine {
-            to { background-position: 200% center; }
+        .glass-btn:hover { background: rgba(255,255,255,0.12); border-color: rgba(255,255,255,0.2); }
+        .glass-btn:active { background: rgba(255,255,255,0.18); transform: scale(0.98); }
+        .glass-btn .gb-icon { font-size: 15px; width: 20px; text-align: center; flex-shrink: 0; }
+        .glass-btn.gb-yellow { border-color: rgba(244,204,23,0.4); background: rgba(244,204,23,0.1); }
+        .glass-btn.gb-yellow:hover { background: rgba(244,204,23,0.18); }
+        .glass-btn.gb-green { border-color: rgba(4,142,86,0.5); background: rgba(4,142,86,0.15); }
+        .glass-btn.gb-green:hover { background: rgba(4,142,86,0.25); }
+        .glass-btn.gb-red { border-color: rgba(231,76,60,0.5); background: rgba(231,76,60,0.15); }
+        .glass-btn.gb-red:hover { background: rgba(231,76,60,0.25); }
+        .glass-btn.gb-blue { border-color: rgba(52,152,219,0.5); background: rgba(52,152,219,0.15); }
+        .glass-btn.gb-blue:hover { background: rgba(52,152,219,0.25); }
+        .glass-btn.gb-purple { border-color: rgba(168,85,247,0.5); background: rgba(168,85,247,0.15); }
+        .glass-btn.gb-purple:hover { background: rgba(168,85,247,0.25); }
+        .glass-btn.gb-orange { border-color: rgba(243,156,18,0.5); background: rgba(243,156,18,0.15); }
+        .glass-btn.gb-orange:hover { background: rgba(243,156,18,0.25); }
+        .glass-close-btn {
+            width: 100%;
+            padding: 13px;
+            margin-top: 8px;
+            border: 1px solid rgba(255,255,255,0.15);
+            border-radius: 12px;
+            background: rgba(255,255,255,0.08);
+            color: rgba(255,255,255,0.7);
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.2s;
         }
+        .glass-close-btn:hover { background: rgba(255,255,255,0.14); color: white; }
 
-        .settings-modal, .funk-modal { position: absolute; left: 380px; width: 380px; top: 0; bottom: 0; background-color: var(--idpk-dark-blue); z-index: 10000; display: none; flex-direction: column; padding: 15px; align-items: center; justify-content: flex-start; overflow-y: auto; border-left: 2px solid var(--idpk-yellow); }
+        /* Modaly jako OVERLAY – bez zvětšení okna */
+        .settings-modal, .funk-modal { position: fixed; left: 0; right: 0; top: 0; bottom: 0; width: 100%; background-color: var(--idpk-dark-blue); z-index: 10000; display: none; flex-direction: column; padding: 15px; align-items: center; justify-content: flex-start; overflow-y: auto; }
+        .glass-modal { background: rgba(2, 30, 50, 0.92) !important; backdrop-filter: blur(24px) !important; -webkit-backdrop-filter: blur(24px) !important; }
         .settings-title, .funk-title { color: var(--idpk-yellow); font-size: 18px; font-weight: bold; margin-bottom: 15px; text-transform: uppercase; letter-spacing: 2px; border-bottom: 2px solid white; padding-bottom: 5px; width: 100%; text-align: center; }
         .settings-action-btn, .funk-btn-close { width: 100%; height: 45px; margin-bottom: 8px; font-weight: bold; font-size: 13px; border: none; border-radius: 6px; cursor: pointer; text-transform: uppercase; box-shadow: 0 3px 0 rgba(0,0,0,0.3); transition: background 0.2s, color 0.2s;}
         .settings-action-btn:active { transform: translateY(2px); box-shadow: 0 1px 0 rgba(0,0,0,0.3); }
+
 
         #debug-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.95); z-index: 999999; flex-direction: column; padding: 20px; color: #0f0; font-family: monospace; box-sizing: border-box; }
 
@@ -128,7 +342,7 @@
         .drive-main-info { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; text-align: center; position: relative; width: 100%; }
         .drive-label-small { font-size: 10px; color: rgba(255,255,255,0.7); text-transform: uppercase; margin-bottom: 5px; width: 100%; text-align: center;}
         .drive-next-stop-val { font-size: 16px; color: white; margin-bottom: 15px; font-weight: normal; width: 100%; text-align: center; }
-        #drive-stop-indicator { width: 100%; background-color: var(--idpk-red); color: white; font-weight: bold; font-size: 22px; padding: 12px 0; border-radius: 6px; text-align: center; margin-bottom: 15px; display: none; box-shadow: 0 4px 0 #922b21; letter-spacing: 2px; }
+        #drive-stop-indicator { width: 100%; background-color: var(--idpk-red); color: white; font-weight: bold; font-size: 16px; padding: 6px 0; border-radius: 6px; text-align: center; margin-bottom: 5px; display: none; box-shadow: 0 3px 0 #922b21; letter-spacing: 2px; }
         .stop-preview-box { width: 100%; margin: 0 auto 10px auto; padding: 12px; background: rgba(0,0,0,0.8); border: 2px solid var(--idpk-yellow); border-radius: 6px; color: white; text-align: center; display: none; }
         .drive-current-box { width: 100%; margin: 0 auto; padding: 12px; background: rgba(0,0,0,0.35); border: 1px dashed rgba(244, 204, 23, 0.8); border-radius: 6px; color: var(--idpk-yellow); font-size: 19px; font-weight: bold; text-align: center; display: flex; justify-content: center; align-items: center; box-shadow: inset 0 0 15px rgba(0,0,0,0.5); }
         #drive-controls-area { flex-shrink: 0; margin-bottom: 10px; width: 100%; }
@@ -157,14 +371,38 @@
         /* Tlačítko STOP pro enter (zachováno) */
         .btn-stop { background-color: var(--idpk-red) !important; color: white !important; box-shadow: 0 3px 0 #922b21 !important; font-size: 24px !important; letter-spacing: 2px !important; animation: blinkAnim 0.5s infinite alternate; }
         @keyframes blinkAnim { from { opacity: 1; } to { opacity: 0.8; } }
-    </style>
+        @keyframes pulse5 {
+            0% { opacity: 0.2; color: white; }
+            10% { opacity: 1; color: var(--idpk-red); }
+            20% { opacity: 0.2; color: white; }
+            30% { opacity: 1; color: var(--idpk-red); }
+            40% { opacity: 0.2; color: white; }
+            50% { opacity: 1; color: var(--idpk-red); }
+            60% { opacity: 0.2; color: white; }
+            70% { opacity: 1; color: var(--idpk-red); }
+            80% { opacity: 0.2; color: white; }
+            90% { opacity: 1; color: var(--idpk-red); }
+            100% { opacity: 1; color: var(--idpk-red); }
+        }
+        .pulse-x {
+            animation: pulse5 2s forwards;
+            display: inline-block;
+        }
+        .swal2-container { z-index: 1000000 !important; }
+</style>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 </head>
 <body>
 
-    <div class="star-btn" id="btn-supporters" onclick="window.openSupporters()" title="Podporovatelé">⭐</div>
-    <div class="settings-btn" id="btn-settings-gear" onclick="window.toggleSettings()">⚙</div>
-
-    <div id="loadingScreen" class="loading-overlay"><div class="spinner"></div><div style="margin-top:10px; font-weight:bold;" id="loading-msg">NAČÍTÁM DATA...</div></div>
+    <div id="loadingScreen" class="loading-overlay">
+        <div class="spinner"></div>
+        <div style="margin-top:10px; font-weight:bold; font-size: 16px;" id="loading-msg">NAČÍTÁM DATA...</div>
+        <div style="margin-top:20px; font-weight:900; font-size:12px; color: var(--idpk-yellow); letter-spacing: 2px;">★ PREMIUM VERSION ★</div>
+    </div>
+    
+    <div id="temp-premium-popup" style="position: fixed; top: 40px; left: 50%; transform: translateX(-50%); background: linear-gradient(135deg, rgba(244,204,23,0.95), rgba(244,204,23,0.85)); color: #000; padding: 12px 24px; border-radius: 30px; font-weight: 900; font-size: 16px; letter-spacing: 2px; z-index: 99999; display: none; box-shadow: 0 10px 25px rgba(244,204,23,0.4); text-transform: uppercase;">
+        <span style="margin-right: 8px;">★</span> Premium Version
+    </div>
     
     <div id="startupScreen" class="startup-screen" style="display:flex;"><div class="spinner"></div><div class="startup-title">NAČÍTÁNÍ SYSTÉMU...</div></div>
 
@@ -172,7 +410,7 @@
 
     <div id="announcement-modal" class="announcement-modal">
         <div class="announcement-inner-box">
-            <img src="https://tdonrppusbwhoftdontz.supabase.co/storage/v1/object/public/logo/datacorebot%20n.png" class="announcement-logo" alt="Logo">
+            <img src="assets/img/datacorebot_n.png" class="announcement-logo" alt="Logo">
             <div id="announcement-title" class="announcement-title">ZPRÁVA OD VÝVOJÁŘE</div>
             <div id="announcement-text" class="announcement-content">Tady bude text zprávy z databáze...</div>
             <button type="button" id="announcement-link-btn" class="settings-action-btn" style="display:none; background:var(--idpk-yellow); color:black; margin-bottom:10px; font-size:14px; box-shadow: 0 3px 0 #cba90f;" onclick="window.openAnnouncementLink()">ZOBRAZIT VÍCE INFO</button>
@@ -181,7 +419,7 @@
     </div>
     
     <div id="funk-modal" class="funk-modal">
-        <div class="settings-title">FUNKCE V1.6 RC-EDITION</div>
+        <div class="settings-title">FUNKCE OIS IDPK V1.6.2</div>
         <div class="funk-row"><span class="funk-label">NÁHODNÉ POKRAČOVÁNÍ LINKOSPOJŮ</span><button type="button" id="btn-random-continue" class="funk-toggle" onclick="window.toggleRandomContinue()">VYPNUTO</button></div>
         <div class="funk-row"><span class="funk-label">ZPOŽDĚNÍ (REAL / FIKCE)</span><button type="button" id="btn-delay-mode" class="funk-toggle" onclick="window.toggleDelayMode()">VYPNUTO</button></div>
         <div class="funk-row"><span class="funk-label">NASTAVIT FIKTIVNÍ ČAS</span><div style="display:flex; gap:10px; margin-top:5px;"><input type="time" id="fictional-time-input" style="width:60px; text-align:center; padding:5px; font-weight:bold; font-size:16px; flex:1;"><button type="button" class="settings-action-btn" style="width:auto; height:auto; padding:5px 15px; margin:0; background:var(--idpk-yellow); color:black;" onclick="window.setFictionalTime()">OK</button></div></div>
@@ -211,34 +449,81 @@
         <button type="button" class="settings-action-btn" style="background:#555; color:white;" onclick="document.getElementById('feedback-modal').style.display='none';">ZRUŠIT</button>
     </div>
 
-    <div class="main-container">
-        <div id="settings-modal" class="settings-modal">
-            <div class="settings-title">DIAGNOSTIKA V1.6 RC-EDITION</div>
-            <button type="button" class="settings-action-btn" style="background:#a855f7; color:white; border: 1px solid #d8b4fe; box-shadow: 0 0 15px rgba(168, 85, 247, 0.6); margin-bottom: 15px; font-size: 14px;" onclick="window.openFeedback('GENERAL')"><i class="fas fa-comments"></i> NAPSAT VÝVOJÁŘŮM / NÁPADY</button>
-            <div id="auth-only-settings" style="width: 100%; display: flex; flex-direction: column; align-items: center;">
-                <button type="button" class="settings-action-btn" style="background:#10b981; color:white; margin-bottom:15px;" onclick="window.openUserdataFolder()">OTEVŘÍT MOJE DATA (ZVUKY/OBRAZ)</button>
-                <button type="button" class="settings-action-btn" style="background:#e74c3c; color:white; margin-bottom:15px;" onclick="window.openStopWindow()">OTEVŘÍT STOP (DISPLEJ)</button>
-                <button type="button" class="settings-action-btn" style="background:#f39c12; color:white; border: 2px solid white; box-shadow: 0 0 15px rgba(243, 156, 18, 0.6); margin-bottom:15px;" onclick="window.openBusePanel()">ZOBRAZIT VENKOVNÍ BUSE PANEL</button>
-                <button type="button" class="settings-action-btn" style="background:#27ae60; color:white; margin-bottom:15px;" onclick="window.softReset()">OBNOVIT CHOD (SOFT RESET)</button>
-                <button type="button" class="settings-action-btn" style="background:var(--idpk-yellow); color:black;" onclick="window.refreshPanel()">OBNOVIT DISPLEJ ZASTÁVEK</button>
-                <button type="button" class="settings-action-btn" style="background:#c0392b; color:white;" onclick="window.manualResetStop()">RESET STOPKY</button>
-                <button type="button" class="settings-action-btn" style="background:#e67e22; color:white;" onclick="window.fullReset()">TVRDÝ RESTART APP</button>
-                <div style="margin:10px 0; width:100%; border-top:1px solid #555;"></div>
-                <button type="button" id="btn-back-to-launcher" class="settings-action-btn" style="background:#3498db; color:white;" onclick="window.backToLauncher()">ZPĚT DO LAUNCHERU</button>
-                
-                <div id="settings-mobile-link" style="display:none; flex-direction:column; align-items:center; background:#1e293b; padding:15px; border-radius:8px; border:2px solid var(--idpk-yellow); width:100%; margin-top:15px; box-shadow: 0 0 15px rgba(244, 204, 23, 0.2);">
-                    <i class="fas fa-mobile-alt" style="font-size:32px; color:var(--idpk-yellow); margin-bottom:10px;"></i>
-                    <div style="color:white; font-size:14px; font-weight:bold; margin-bottom:10px; text-transform:uppercase;">Propojení přes mobil (Premium)</div>
-                    <div style="color:#aaa; font-size:12px; text-align:center; margin-bottom:15px; line-height: 1.5;">
-                        1. Naskenujte QR kód níže nebo otevřete odkaz:<br>
-                        <b>datacorebot.koyeb.app/m/<span id="settings-m-kod" style="color:var(--idpk-yellow);">NATM</span></b><br>
-                        2. Můžete ovládat palubní počítač odkudkoliv!<br>
-                    </div>
-                    <img id="settings-qr-code" src="" alt="QR KÓD" style="width:130px; height:130px; border-radius:5px; border:2px solid white; display:none;">
-                </div>
+    <!-- TOAST NOTIFICATION -->
+    <div id="toast-notification">
+        <span id="toast-icon">ℹ️</span>
+        <span id="toast-text">...</span>
+    </div>
+
+        <div class="main-container">
+        <!-- Zrcadlo Indicator -->
+        <div id="mirror-indicator" style="display: none; position: absolute; top: 55px; left: 15px; background: rgba(34, 197, 94, 0.1); border: 1px solid rgba(34, 197, 94, 0.3); color: #22c55e; font-weight: bold; font-size: 11px; padding: 3px 8px; border-radius: 12px; z-index: 10000; align-items: center; gap: 6px;">
+            <div style="width: 6px; height: 6px; background: #22c55e; border-radius: 50%; box-shadow: 0 0 5px #22c55e; animation: pulse 2s infinite;"></div>
+            <span>SDÍLENÍ OBRAZU</span>
+        </div>
+        <div id="settings-modal" class="settings-modal glass-modal">
+            <div class="settings-title" style="font-size:15px; letter-spacing:3px; border-bottom-color: rgba(255,255,255,0.15); color:rgba(255,255,255,0.9);">⚙ NASTAVENÍ</div>
+
+            <div class="glass-section-title">Komunikace s vývojáři</div>
+            <button type="button" class="glass-btn gb-purple" onclick="window.openFeedback('GENERAL')">
+                <span class="gb-icon"><i class="fas fa-comments"></i></span> Napsat vývojářům / Nápady
+            </button>
+
+            <div class="glass-section-title">Funkce a Displeje</div>
+            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:8px; margin-bottom:12px; width:100%;">
+                <button type="button" class="glass-btn gb-orange" onclick="window.openBusePanel()" style="margin-bottom:0; padding:8px 10px; font-size:11px;">
+                    <span class="gb-icon"><i class="fas fa-bus"></i></span> Venkovní panel
+                </button>
+                <button type="button" class="glass-btn gb-yellow" onclick="window.openUserdataFolder()" style="margin-bottom:0; padding:8px 10px; font-size:11px;">
+                    <span class="gb-icon"><i class="fas fa-folder-open"></i></span> Moje data
+                </button>
+                <button type="button" class="glass-btn gb-purple" onclick="window.openMobileInfo()" style="margin-bottom:0; padding:8px 10px; font-size:11px;">
+                    <span class="gb-icon"><i class="fas fa-mobile-alt"></i></span> Mobilní zrcadlení
+                </button>
+                <button type="button" class="glass-btn gb-red" onclick="window.openStopWindow()" style="margin-bottom:0; padding:8px 10px; font-size:11px;">
+                    <span class="gb-icon"><i class="fas fa-tv"></i></span> STOP displej
+                </button>
+                <button type="button" class="glass-btn" onclick="if(typeof window.showNotification === 'function') window.showNotification('Tato funkce je momentálně ve fázi vývoje a zatím není dostupná.', 'error', 4000); else alert('Tato funkce je momentálně ve fázi vývoje a zatím není dostupná.');" style="margin-bottom:0; padding:8px 10px; font-size:11px; grid-column: 1 / -1; background: #475569; color: #94a3b8; border-color: #334155;">
+                    <span class="gb-icon"><i class="fas fa-edit"></i></span> Editor vlastních linek (Ve vývoji)
+                </button>
             </div>
-            <button type="button" class="settings-action-btn" style="background:#8e44ad; color:white; margin-top: 15px;" onclick="window.toggleSettings(); document.getElementById('debug-overlay').style.display='flex';">ZOBRAZIT LOG</button>
-            <button type="button" class="settings-action-btn" style="background:#555; margin-top:auto;" onclick="window.toggleSettings()">ZAVŘÍT</button>
+
+            <div id="auth-only-settings" style="width: 100%; display: flex; flex-direction: column; align-items: center;">
+                <div class="glass-section-title">Systém</div>
+                <button type="button" class="glass-btn gb-green" onclick="window.softReset()">
+                    <span class="gb-icon"><i class="fas fa-sync-alt"></i></span> Obnovit chod (soft reset)
+                </button>
+                <button type="button" class="glass-btn" onclick="window.refreshPanel()">
+                    <span class="gb-icon"><i class="fas fa-desktop"></i></span> Obnovit displej zastávek
+                </button>
+                <button type="button" class="glass-btn" onclick="window.manualResetStop()">
+                    <span class="gb-icon"><i class="fas fa-stopwatch"></i></span> Reset stopky
+                </button>
+                <button type="button" class="glass-btn gb-red" onclick="window.fullReset()">
+                    <span class="gb-icon"><i class="fas fa-power-off"></i></span> Tvrdý restart aplikace
+                </button>
+
+                <div class="glass-section-title">Přechod</div>
+                <button type="button" id="btn-back-to-launcher" class="glass-btn gb-blue" onclick="window.backToLauncher()">
+                    <span class="gb-icon"><i class="fas fa-arrow-left"></i></span> Zpět do Launcheru
+                </button>
+
+                <div style="margin-top: 25px; font-size: 11px; color: rgba(255,255,255,0.4); text-align: center; text-transform: uppercase; letter-spacing: 1px;">
+                    <i class="fas fa-database"></i> GTFS DATA: <span id="gtfs-update-date" style="color: rgba(255,255,255,0.7); font-weight: bold;">Načítám...</span>
+                </div>
+
+                            </div>
+
+            <div class="glass-section-title">Diagnostika</div>
+            <button type="button" class="glass-btn gb-purple" onclick="window.toggleSettings(); document.getElementById('debug-overlay').style.display='flex';">
+                <span class="gb-icon"><i class="fas fa-terminal"></i></span> Zobrazit diagnostický log
+            </button>
+
+            <div style="color:rgba(255,255,255,0.5); font-size:11px; margin-top:20px; margin-bottom:5px; text-transform:uppercase; letter-spacing:1px; text-align:center;">Role: <span id="settings-role-display" style="color:white; font-weight:bold;">Načítání...</span></div>
+
+            <button type="button" class="glass-close-btn" onclick="window.toggleSettings()">
+                Zavřít nastavení
+            </button>
         </div>
 
         <div id="debug-overlay"><h3 style="color:var(--idpk-yellow); text-align:center; border-bottom:1px solid var(--idpk-yellow);">DIAGNOSTICKÝ LOG</h3><div id="debug-text" style="flex:1; overflow-y:auto; border:1px solid #333; padding:10px; margin-bottom:10px; white-space:pre-wrap; font-size:12px;"></div><button type="button" onclick="document.getElementById('debug-overlay').style.display='none';" style="background:#c0392b; color:white; border:none; padding:15px; font-weight:bold; cursor:pointer; border-radius:5px; margin-top:10px; width:100%;">ZAVŘÍT LOG</button></div>
@@ -254,18 +539,88 @@
 
         <div class="screen-area">
             
-
-
-            <div id="linkospoj-wrapper" style="display:flex; flex-direction:column; height:100%;">
-                <div class="system-header">PALUBNÍ SYSTÉM v1.6 RC-EDITION</div><div style="text-align:center;"><h3 style="margin:0; color:var(--idpk-yellow); font-size:14px;">VÝBĚR SPOJE</h3><div id="display-linkospoj" class="input-display"></div></div><div id="list-toggle" class="list-toggle-row" onclick="window.toggleListMouse()">SEZNAM <span id="checkbox-icon">[ ]</span></div><div id="link-list" class="link-list-container"></div><button type="button" class="db-switch-btn" onclick="window.switchToIdpkMode()">CELÁ DATABÁZE (IDPK)</button>
+            <!-- TOP BAR -->
+            <div style="display: flex; justify-content: space-between; align-items: center; width: 100%; margin-bottom: 15px; flex-shrink: 0; overflow: hidden; gap: 5px;">
+                
+                <div class="star-btn" id="btn-supporters" onclick="window.openSupporters()" title="Podporovatelé" style="display: flex; align-items: center; justify-content: center; cursor: pointer; flex-shrink: 1; gap: 8px; padding: 10px 14px; user-select: none; border-radius: 6px; background: rgba(0,0,0,0.2); border: 1px solid rgba(244,204,23,0.3); animation: none !important;">
+                    <svg viewBox="0 0 24 24" width="20" height="20" stroke="var(--idpk-yellow)" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;">
+                        <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
+                    </svg>
+                    <span style="font-size: 13px; font-weight: bold; color: rgba(255,255,255,0.8); text-transform: uppercase; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Podporovatelé</span>
+                </div>
+                
+                <div class="settings-btn" id="btn-settings-gear" onclick="window.toggleSettings()" style="padding: 10px 16px; border-radius: 8px; background: linear-gradient(135deg, rgba(255,255,255,0.2) 0%, rgba(255,255,255,0.05) 100%); border: 1px solid rgba(255,255,255,0.25); box-shadow: 0 4px 12px rgba(0,0,0,0.2); color: #fff; display: flex; align-items: center; justify-content: center; gap: 8px; cursor: pointer; user-select: none; flex-shrink: 0; white-space: nowrap; font-size: 14px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; transition: all 0.2s ease;">
+                    <svg viewBox="0 0 24 24" width="24" height="24" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;">
+                        <line x1="3" y1="12" x2="21" y2="12"></line>
+                        <line x1="3" y1="6" x2="21" y2="6"></line>
+                        <line x1="3" y1="18" x2="21" y2="18"></line>
+                    </svg>
+                    <span style="font-size: 15px; font-weight: 800; letter-spacing: 0.5px; text-transform: uppercase; white-space: nowrap;">Nastavení</span>
+                </div>
             </div>
 
-            <div id="idpk-db-wrapper" style="display:none; flex-direction:column; height:100%;">
-                <div class="system-header">IDPK DATABÁZE v1.6 RC-EDITION</div><div style="text-align:center;"><h3 style="margin:0; color:#3498db; font-size:14px;">LINKA</h3><div id="display-idpk" class="input-display" style="border-color:#3498db;"></div></div><div id="idpk-list-toggle" class="list-toggle-row" onclick="window.toggleListMouse()">SEZNAM <span id="idpk-checkbox">[ ]</span></div><button type="button" class="db-switch-btn" onclick="window.backToManual()">ZPĚT NA MANUÁLNÍ</button>
+            <div id="linkospoj-wrapper" style="display:flex; flex-direction:column; flex:1; height: 100%; overflow: hidden;">
+                
+                <!-- SEARCH BOX -->
+                <div class="link-search-box">
+                    <span class="link-search-icon"><i class="fas fa-search"></i></span>
+                    <input type="text" id="search-linkospoj-input" placeholder="Napište číslo nebo název linky..." autocomplete="off" autocorrect="off" spellcheck="false">
+                    <span class="link-search-clear" id="search-linkospoj-clear" title="Smazat">×</span>
+                </div>
+
+                <!-- SUGGESTIONS LIST -->
+                <div class="link-suggestions" id="linkospoj-suggestions">
+                    <div class="link-empty-state">
+                        Začněte psát číslo linky nebo ji vyberte níže<br>
+                        ↓
+                    </div>
+                </div>
+
+                <!-- DATABÁZE SWITCH -->
+                <button type="button" class="db-switch-btn" onclick="window.switchToIdpkMode()" style="border-radius: 8px; margin-top: 15px; height: 45px; background: rgba(245, 158, 11, 0.15); border: 1px solid #f59e0b; color: #f59e0b; font-size: 13px; text-transform: uppercase; box-shadow: 0 4px 10px rgba(245, 158, 11, 0.15); transition: all 0.3s; display: flex; align-items: center; justify-content: center; gap: 8px; flex-shrink: 0;">
+                    <i class="fas fa-volume-mute" style="font-size: 16px;"></i>
+                    CELÁ DATABÁZE IDPK (BEZ ZVUKU)
+                </button>
+
+            </div>
+
+
+            <div id="idpk-db-wrapper" style="display:none; flex-direction:column; flex:1; height: 100%; overflow: hidden;">
+
+                <!-- SEARCH BOX -->
+                <div class="link-search-box" style="border-color: rgba(231,76,60,0.8); box-shadow: 0 0 15px rgba(231,76,60,0.2); margin-bottom: 10px;">
+                    <span class="link-search-icon" style="color: #e74c3c;"><i class="fas fa-search"></i></span>
+                    <input type="text" id="search-idpk-input" placeholder="Napište číslo nebo název linky..." autocomplete="off" autocorrect="off" spellcheck="false">
+                    <span class="link-search-clear" id="search-idpk-clear" title="Smazat" style="color: #e74c3c;">×</span>
+                </div>
+                
+                <div style="background: rgba(231,76,60,0.15); border: 1px solid rgba(231,76,60,0.5); color: #e74c3c; padding: 10px; border-radius: 8px; font-size: 11px; font-weight: bold; text-align: center; margin-bottom: 10px; text-transform: uppercase; letter-spacing: 1px; box-shadow: 0 4px 10px rgba(231,76,60,0.1);">
+                    <i class="fas fa-exclamation-triangle" style="margin-right: 5px;"></i> Tato databáze neobsahuje zvuková hlášení
+                </div>
+
+                <!-- SUGGESTIONS LIST -->
+                <div class="link-suggestions" id="idpk-suggestions" style="background: rgba(231,76,60,0.05); border: 1px solid rgba(231,76,60,0.2); border-radius: 12px; padding: 5px;">
+                    <div class="link-empty-state" style="color: rgba(231,76,60,0.7);">
+                        Začněte psát číslo linky nebo ji vyberte níže<br>
+                        👇
+                    </div>
+                </div>
+
+                <!-- DATABÁZE SWITCH -->
+                <button type="button" class="db-switch-btn" onclick="window.backToManual()" style="border-radius: 8px; margin-top: 15px; height: 45px; background: rgba(244, 204, 23, 0.15); border: 1px solid var(--idpk-yellow); color: var(--idpk-yellow); font-size: 13px; text-transform: uppercase; box-shadow: 0 4px 10px rgba(244, 204, 23, 0.15); transition: all 0.3s; display: flex; align-items: center; justify-content: center; gap: 8px;">
+                    <i class="fas fa-undo" style="font-size: 16px;"></i>
+                    ZPĚT NA DATABÁZI SE ZVUKEM
+                </button>
             </div>
             
             <div id="idpk-direction-wrapper" style="display:none; flex-direction:column; height:100%;">
-                <div class="system-header" id="selection-header">VÝBĚR</div><div id="idpk-selected-line" style="text-align:center; font-weight:bold; margin-bottom:5px; color:white;">Linka: ---</div><div id="direction-list" style="flex:1; overflow-y:auto; border:1px solid #3498db; background:rgba(0,0,0,0.5); margin-bottom: 10px; width:100%;"></div><button type="button" class="db-switch-btn" onclick="window.backToIdpkList()">ZPĚT NA LINKU</button>
+                <div class="system-header" id="selection-header" style="background: linear-gradient(135deg, rgba(255,255,255,0.1), rgba(255,255,255,0)); border: 1px solid rgba(255,255,255,0.15); border-radius: 12px; padding: 12px; margin-bottom: 8px; font-weight: bold; text-align: center; color: white; text-transform: uppercase; letter-spacing: 1px; box-shadow: 0 4px 12px rgba(0,0,0,0.1);">VÝBĚR</div>
+                <div id="idpk-selected-line" style="text-align:center; font-weight:900; margin-bottom:12px; color:var(--idpk-yellow); font-size:14px; text-transform:uppercase; letter-spacing:1px; background: rgba(0,0,0,0.2); padding: 8px; border-radius: 8px; border-bottom: 2px solid var(--idpk-yellow);"></div>
+                <div id="direction-list" style="flex:1; overflow-y:auto; display:flex; flex-direction:column; gap:6px; padding: 4px;"></div>
+                <button type="button" class="db-switch-btn" onclick="window.backToIdpkList()" style="border-radius: 8px; margin-top: 15px; height: 45px; background: rgba(245, 158, 11, 0.15); border: 1px solid #f59e0b; color: #f59e0b; font-size: 13px; text-transform: uppercase; display: flex; align-items: center; justify-content: center; gap: 8px;">
+                    <i class="fas fa-arrow-left" style="font-size: 16px;"></i>
+                    ZPĚT NA SEZNAM LINEK
+                </button>
             </div>
 
             <div id="drive-ui-wrapper" style="display:none; flex-direction:column; height:100%; position:relative;">
@@ -273,9 +628,13 @@
                 <div class="drive-header-box"><div class="drive-title-row"><span id="drive-header-code" style="font-weight:bold;"></span></div><div class="drive-dest-row" id="drive-header-dest"></div></div>
                 <div class="drive-main-info">
                     <div id="drive-preview-box" class="stop-preview-box"><div id="drive-preview-text"></div></div>
-                    <div class="drive-label-small">PŘÍŠTÍ ZASTÁVKA</div><div id="drive-next-stop" class="drive-next-stop-val">Načítání...</div>
+                    <div class="drive-label-small">PŘÍŠTÍ ZASTÁVKA</div>
+                    <div id="drive-next-stop" class="drive-next-stop-val">Načítání...</div>
                     <div id="drive-stop-indicator">STOP</div>
-                    <div class="drive-label-small">AKTUÁLNÍ ZASTÁVKA</div><div class="drive-current-box" id="drive-real-stop-container"><span id="drive-real-stop">Načítání...</span></div>
+                    <div class="drive-label-small">AKTUÁLNÍ ZASTÁVKA</div>
+                    <div class="drive-current-box" id="drive-real-stop-container">
+                        <span id="drive-real-stop">Načítání...</span>
+                    </div>
                 </div>
             </div>
         </div>
@@ -288,7 +647,38 @@
             <div style="display:flex; gap:10px;" id="drive-bottom-buttons"><button type="button" class="small-action-btn" id="btn-repeat" onclick="window.handleLeftButton()">OPAKOVAT</button><button type="button" class="small-action-btn" id="btn-terminate" style="background:#c0392b; color:white; box-shadow:0 3px 0 #922b21;" onclick="window.handleTerminate()">UKONČIT</button></div>
         </div>
 
-        <div class="keypad-area" id="main-keypad" style="display:none;">
+        
+<div id="home-action-panel" style="display:flex; flex-direction:column; gap:8px; padding-top:5px; padding-bottom:5px; border-top:1px solid rgba(255,255,255,0.2); width:100%; flex-shrink:0;">
+    <div style="font-size:9px; color:rgba(255,255,255,0.7); text-transform:uppercase; font-weight:bold; letter-spacing:1px; text-align:center; margin-bottom: 2px;">FUNKCE (VÍCE V NASTAVENÍ)</div>
+    <div style="display:grid; grid-template-columns: 1fr 1fr; gap:8px;">
+        <button type="button" class="glass-btn gb-orange" onclick="window.openBusePanel()" style="margin-bottom:0; padding:8px 10px; font-size:11px;">
+            <span class="gb-icon"><i class="fas fa-bus"></i></span> Venkovní panel
+        </button>
+        <button type="button" class="glass-btn gb-yellow" onclick="window.openUserdataFolder()" style="margin-bottom:0; padding:8px 10px; font-size:11px;">
+            <span class="gb-icon"><i class="fas fa-folder-open"></i></span> Moje data
+        </button>
+    </div>
+    <button type="button" class="glass-btn" onclick="if(typeof window.showNotification === 'function') window.showNotification('Tato funkce je momentálně ve fázi vývoje a zatím není dostupná.', 'error', 4000); else alert('Tato funkce je momentálně ve fázi vývoje a zatím není dostupná.');" style="margin-bottom:0; padding:8px 10px; font-size:11px; background: #475569; color: #94a3b8; border-color: #334155;">
+        <span class="gb-icon"><i class="fas fa-edit"></i></span> Editor vlastních linek (Ve vývoji)
+    </button>
+    <button type="button" class="glass-btn gb-blue" onclick="require('electron').shell.openPath(require('path').join(__dirname, 'navod.html'))" style="margin-bottom:0; padding:8px 10px; font-size:11px;">
+        <span class="gb-icon"><i class="fas fa-book"></i></span> Návod k aplikaci
+    </button>
+    
+    <div id="bt-action-panel" style="display:none; flex-direction:column; gap:8px; margin-top:0px; border-top:1px dashed rgba(244,204,23,0.3); padding-top:5px;">
+        <div style="font-size:9px; color:var(--idpk-yellow); text-transform:uppercase; font-weight:bold; letter-spacing:1px; text-align:center; padding-bottom:5px; border-bottom:1px solid rgba(244,204,23,0.3);">BETA TESTER NÁSTROJE</div>
+        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:8px;">
+            <button type="button" class="glass-btn gb-purple" onclick="window.openMobileInfo()" style="margin-bottom:0; padding:8px 10px; font-size:11px;">
+                <span class="gb-icon"><i class="fas fa-mobile-alt"></i></span> Ovladač
+            </button>
+            <button type="button" class="glass-btn gb-red" onclick="window.openStopWindow()" style="margin-bottom:0; padding:8px 10px; font-size:11px;">
+                <span class="gb-icon"><i class="fas fa-tv"></i></span> STOP displej
+            </button>
+        </div>
+    </div>
+</div>
+
+<div class="keypad-area" id="main-keypad" style="display:none;">
             <button type="button" class="btn" style="grid-area:k7;" onclick="window.pressKey('7')">7</button><button type="button" class="btn" style="grid-area:k8;" onclick="window.pressKey('8')">8</button><button type="button" class="btn" style="grid-area:k9;" onclick="window.pressKey('9')">9</button><button type="button" class="btn btn-arrow" id="btn-up" onclick="window.moveArrow('up')">▲</button>
             <button type="button" class="btn" style="grid-area:k4;" onclick="window.pressKey('4')">4</button><button type="button" class="btn" style="grid-area:k5;" onclick="window.pressKey('5')">5</button><button type="button" class="btn" style="grid-area:k6;" onclick="window.pressKey('6')">6</button><button type="button" class="btn btn-dot" id="btn-dot" onclick="window.confirmSelection()">●</button>
             <button type="button" class="btn" style="grid-area:k1;" onclick="window.pressKey('1')">1</button><button type="button" class="btn" style="grid-area:k2;" onclick="window.pressKey('2')">2</button><button type="button" class="btn" style="grid-area:k3;" onclick="window.pressKey('3')">3</button><button type="button" class="btn btn-arrow" id="btn-down" onclick="window.moveArrow('down')">▼</button>
@@ -297,15 +687,58 @@
         </div>
     </div>
 
-    <!-- PREMIUM WATERMARK (zobrazí se pro BT/DEV/SA role) -->
-    <div id="premium-watermark">
-        <div class="pw-inner">
-            <span class="pw-star">★</span>
-            <span class="pw-text">Premium Version</span>
-            <span class="pw-star">★</span>
+    <script src="js/logic-ovladac.js"></script>
+    <script>
+        // Toast notification system
+        let _toastTimer = null;
+        window.showNotification = function(message, type = 'info', duration = 4000) {
+            const toast = document.getElementById('toast-notification');
+            const toastText = document.getElementById('toast-text');
+            const toastIcon = document.getElementById('toast-icon');
+            if (!toast || !toastText) return;
+
+            // Clear existing timer
+            if (_toastTimer) { clearTimeout(_toastTimer); _toastTimer = null; }
+
+            // Set content
+            toastText.textContent = message;
+            toast.className = 'toast-' + type;
+            if (type === 'info') toastIcon.textContent = '⬇️';
+            else if (type === 'success') toastIcon.textContent = '✅';
+            else if (type === 'error') toastIcon.textContent = '❌';
+            else toastIcon.textContent = 'ℹ️';
+
+            // Show
+            requestAnimationFrame(() => { toast.classList.add('toast-show'); });
+
+            // Hide after duration
+            _toastTimer = setTimeout(() => {
+                toast.classList.remove('toast-show');
+            }, duration);
+        };
+    </script>
+
+    <!-- MOBILE INFO MODAL (Ovladač) -->
+    <div id="mobile-info-modal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.85); backdrop-filter:blur(10px); z-index:999999; flex-direction:column; justify-content:center; align-items:center; padding:20px;">
+        <div style="background:#1e272e; padding:30px; border-radius:15px; border:2px solid var(--idpk-yellow); width:90%; max-width:400px; position:relative; box-shadow: 0 10px 40px rgba(0,0,0,0.5); text-align:center;">
+            
+            <i class="fas fa-mobile-alt" style="font-size:40px; color:var(--idpk-yellow); margin-bottom:15px;"></i>
+            <h2 style="color:white; font-size:18px; margin-top:0; margin-bottom:10px; text-transform:uppercase; letter-spacing:1px;">Mobilní Ovladač</h2>
+            
+            <p style="color:rgba(255,255,255,0.7); font-size:12px; margin-bottom:20px; line-height:1.5;">
+                Naskenuj QR kód mobilem, nebo si otevři zobrazený odkaz v prohlížeči pro připojení mobilního ovladače.
+            </p>
+            
+            <img id="mobile-info-qr" src="" alt="QR KÓD" style="width:160px; height:160px; border-radius:10px; border:2px solid rgba(255,255,255,0.2); margin-bottom:20px; display:inline-block;">
+            
+            <div style="background:rgba(255,255,255,0.05); padding:12px; border-radius:8px; border:1px solid rgba(255,255,255,0.1); margin-bottom:20px; display:flex; flex-direction:column; gap:10px; align-items:center;">
+                <span id="mobile-info-url" style="color:var(--idpk-yellow); font-weight:bold; font-size:13px; text-align:center; word-break:break-all; width:100%;">Načítání...</span>
+                <button type="button" onclick="window.copyMobileUrl()" style="background:var(--idpk-yellow); color:black; border:none; border-radius:5px; padding:8px 16px; font-weight:bold; font-size:12px; cursor:pointer; width:100%;"><i class="fas fa-copy"></i> Kopírovat</button>
+            </div>
+            
+            <button type="button" onclick="window.closeMobileInfo()" class="glass-btn gb-red" style="width:100%; margin:0;">ZAVŘÍT</button>
         </div>
     </div>
 
-    <script src="js/logic-ovladac.js"></script>
 </body>
 </html>

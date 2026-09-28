@@ -1,11 +1,15 @@
 {
   "name": "idpk-palubni-pocitac",
-  "version": "1.6.0",
+  "version": "1.6.2",
   "description": "Systém Palubního Počítače OIS pro linky IDPK s plnou kontrolou přes Dashboard",
   "main": "main.js",
   "scripts": {
     "start": "electron .",
-    "build": "electron-builder --win --dir"
+    "build": "electron-builder --win --x64",
+    "build:launcher": "electron-builder --win --x64 --config electron-builder.launcher.json",
+    "build:game": "electron-builder --win --x64 --config electron-builder.game.json",
+    "zip:game": "node scripts/make-game-zip.js",
+    "zip:game-quick": "node scripts/make-game-zip-from-existing.js"
   },
   "author": "Marek",
   "license": "ISC",
@@ -16,15 +20,71 @@
   },
   "build": {
     "appId": "com.marek.idpkpanel",
-    "productName": "Palubní Počítač IDPK",
+    "productName": "OIS IDPK V1.6.2",
+    "files": [
+      "main.js",
+      "launcher.html",
+      "ovladac.html",
+      "panel.html",
+      "navod.html",
+      "buse.html",
+      "stop.html",
+      "icon.ico",
+      "js/**",
+      "css/**",
+      "package.json",
+      "node_modules/**",
+      "!node_modules/.cache/**",
+      "!**/*.map",
+      "!**/electron-packager/**"
+    ],
+    "extraResources": [
+      {
+        "from": "data",
+        "to": "data",
+        "filter": ["**/*"]
+      },
+      {
+        "from": "obraz",
+        "to": "obraz",
+        "filter": ["**/*"]
+      },
+      {
+        "from": "zvuky",
+        "to": "zvuky",
+        "filter": ["**/*", "!old/**"]
+      },
+      {
+        "from": "linky",
+        "to": "linky",
+        "filter": ["**/*", "!OLD/**"]
+      }
+    ],
     "win": {
-      "target": "dir",
+      "target": [
+        {
+          "target": "nsis",
+          "arch": ["x64"]
+        }
+      ],
       "icon": "icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "installerLanguages": ["cs"],
+      "language": "1029",
+      "installerHeaderIcon": "icon.ico",
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "OIS IDPK V1.6.2",
+      "uninstallDisplayName": "OIS IDPK V1.6.2",
+      "deleteAppDataOnUninstall": false
     },
     "directories": {
       "output": "dist"
     },
-    "asar": false,
+    "asar": true,
     "publish": [
       {
         "provider": "github",
@@ -38,6 +98,7 @@
     "electron-log": "^5.4.4",
     "electron-updater": "^6.8.9",
     "extract-zip": "^2.0.1",
+    "sql.js": "^1.12.0",
     "ws": "^8.21.3"
   }
 }

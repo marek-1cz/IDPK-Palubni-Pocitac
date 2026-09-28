@@ -1,3 +1,49 @@
+// Vlastní moderní alert (nahrazuje nativní ošklivý alert)
+window.alert = function(msg) {
+    let modal = document.getElementById('custom-alert-modal');
+    if (!modal) {
+        modal = document.createElement('div');
+        modal.id = 'custom-alert-modal';
+        modal.style.cssText = 'position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.85); display:flex; align-items:center; justify-content:center; z-index:999999; backdrop-filter: blur(4px); font-family: "Inter", sans-serif; opacity: 0; transition: opacity 0.2s ease;';
+        
+        let box = document.createElement('div');
+        box.style.cssText = 'background:#18181b; border:1px solid #3f3f46; border-radius:12px; padding:24px; max-width:400px; width:90%; color:#f4f4f5; text-align:center; box-shadow:0 20px 40px rgba(0,0,0,0.6); transform: scale(0.95); transition: transform 0.2s ease; display:flex; flex-direction:column; gap: 16px;';
+        
+        let icon = document.createElement('div');
+        icon.innerHTML = '<i class="fas fa-exclamation-circle" style="font-size: 32px; color: #facc15;"></i>';
+        
+        let text = document.createElement('div');
+        text.id = 'custom-alert-text';
+        text.style.cssText = 'font-size:15px; line-height:1.5; word-wrap:break-word; color: #e4e4e7; font-weight: 500;';
+        
+        let btn = document.createElement('button');
+        btn.innerText = 'Rozumím';
+        btn.style.cssText = 'background:#3b82f6; border:none; color:white; padding:10px 24px; border-radius:6px; cursor:pointer; font-size:14px; font-weight: bold; align-self: center; transition: background 0.2s;';
+        btn.onmouseover = () => btn.style.background = '#2563eb';
+        btn.onmouseout = () => btn.style.background = '#3b82f6';
+        btn.onclick = () => { 
+            modal.style.opacity = '0'; 
+            box.style.transform = 'scale(0.95)';
+            setTimeout(() => modal.style.display = 'none', 200); 
+        };
+        
+        box.appendChild(icon);
+        box.appendChild(text);
+        box.appendChild(btn);
+        modal.appendChild(box);
+        document.body.appendChild(modal);
+    }
+    
+    document.getElementById('custom-alert-text').innerText = msg;
+    modal.style.display = 'flex';
+    
+    // Animate in
+    setTimeout(() => {
+        modal.style.opacity = '1';
+        modal.querySelector('div').style.transform = 'scale(1)';
+    }, 10);
+};
+
 const { ipcRenderer } = require('electron');
 const { createClient } = require('@supabase/supabase-js');
 const fs = require('fs');
@@ -19,8 +65,7 @@ window.addEventListener('unhandledrejection', function(event) {
 // Křížek a minimalizace
 document.getElementById('btn-close').addEventListener('click', () => ipcRenderer.send('quit-app'));
 document.getElementById('btn-minimize').addEventListener('click', () => {
-    // Musíme přidat ipc handler pro minimalizaci, nebo můžeme odeslat quit-app
-    // Pro jednoduchost zatím jen zavře okno.
+    ipcRenderer.send('minimize-app');
 });
 
 const SUPABASE_URL = 'https://tdonrppusbwhoftdontz.supabase.co';
@@ -67,13 +112,13 @@ const linkShowEmailLogin = document.getElementById('link-show-email-login');
 const linkShowDiscordLogin = document.getElementById('link-show-discord-login');
 const inputEmail = document.getElementById('login-email-input');
 const btnStartEmailAuth = document.getElementById('btn-start-email-auth');
-const inputEmailCode = document.getElementById('login-email-code-input');
-const btnVerifyEmailCode = document.getElementById('btn-verify-email-code');
 const btnCancelEmailAuth = document.getElementById('btn-cancel-email-auth');
+const btnResendEmailAuth = document.getElementById('btn-resend-email-auth');
 
 const inputIdentifier = document.getElementById('login-identifier-input');
 const hwidText = document.getElementById('login-hwid-text');
-const autoLaunchCheckbox = document.getElementById('auto-launch-checkbox');
+
+
 
 // Vylepšení UX - odeslání přes Enter
 inputIdentifier.addEventListener('keydown', (e) => {
@@ -82,14 +127,59 @@ inputIdentifier.addEventListener('keydown', (e) => {
 inputEmail.addEventListener('keydown', (e) => {
     if (e.key === 'Enter') btnStartEmailAuth.click();
 });
-inputEmailCode.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') btnVerifyEmailCode.click();
-});
 
 let authPollInterval = null;
+let denialCount = parseInt(localStorage.getItem('authDenialCount') || '0', 10);
+let lockoutEndTime = parseInt(localStorage.getItem('authLockoutEndTime') || '0', 10);
+let lockoutTimerInterval = null;
+
+// If we started the app and are still locked out, start the timer immediately
+if (lockoutEndTime > Date.now()) {
+    setTimeout(startLockoutTimer, 200);
+}
 let currentHWID = '';
 const API_BASE = 'https://datacorebot.koyeb.app';
-const APP_VERSION = 'V1.6 RC-EDITION';
+const APP_VERSION = 'V1.6.2';
+
+
+function startLockoutTimer() {
+    if (lockoutTimerInterval) clearInterval(lockoutTimerInterval);
+    
+    // Disable inputs
+    inputIdentifier.disabled = true;
+    btnStartAuth.disabled = true;
+    
+    lockoutTimerInterval = setInterval(() => {
+        let remainingMs = lockoutEndTime - Date.now();
+        if (remainingMs <= 0) {
+            clearInterval(lockoutTimerInterval);
+            lockoutTimerInterval = null;
+            inputIdentifier.disabled = false;
+            btnStartAuth.disabled = false;
+            hideLoginError();
+        } else {
+            let minutes = Math.floor(remainingMs / 60000);
+            let seconds = Math.floor((remainingMs % 60000) / 1000);
+            showLoginError(`Zamítnuto na Discordu. Bezpečnostní zámek: zkuste to znovu za ${minutes}m ${seconds}s.`);
+        }
+    }, 1000);
+}
+
+function showLoginError(msg) {
+    const errBox = document.getElementById('login-error-message');
+    const errText = document.getElementById('login-error-text');
+    if (errBox && errText) {
+        errText.innerText = msg;
+        errBox.style.display = 'flex';
+    } else {
+        alert(msg);
+    }
+}
+
+function hideLoginError() {
+    const errBox = document.getElementById('login-error-message');
+    if (errBox) errBox.style.display = 'none';
+}
 
 async function checkAuthAndInit() {
     currentHWID = await getHWID();
@@ -99,9 +189,7 @@ async function checkAuthAndInit() {
     if (config.auto_launch === undefined) {
         config.auto_launch = true;
     }
-    if (config.auto_launch) {
-        autoLaunchCheckbox.checked = true;
-    }
+    
 
     if (config.discord_id) {
         // Uživatel už je přihlášen, pustíme ho dál
@@ -115,24 +203,34 @@ async function checkAuthAndInit() {
 }
 
 function showAuthView(viewName) {
+    hideLoginError();
     loginDiscordView.style.display = 'none';
     loginWaitingView.style.display = 'none';
     loginEmailView.style.display = 'none';
     loginEmailCodeView.style.display = 'none';
+    const vSucc = document.getElementById('login-success-view'); if (vSucc) vSucc.style.display = 'none';
+    const titleElT = document.querySelector('#login-overlay > div > div:first-child'); if (titleElT && viewName !== 'success') titleElT.style.display = 'block';
     if (viewName === 'discord') loginDiscordView.style.display = 'flex';
     if (viewName === 'waiting') loginWaitingView.style.display = 'flex';
     if (viewName === 'email') loginEmailView.style.display = 'flex';
     if (viewName === 'emailCode') loginEmailCodeView.style.display = 'flex';
+    if (viewName === 'success') {
+        const v = document.getElementById('login-success-view');
+        if (v) v.style.display = 'flex';
+        document.querySelector('#login-overlay > div > div:first-child').style.display = 'none'; // hide title PŘIHLÁŠENÍ DO SYSTÉMU
+    }
+    if (viewName === 'emailCodeManual') {
+        const v = document.getElementById('login-email-code-manual-view');
+        if (v) v.style.display = 'flex';
+    }
     
     // Zajištění, že se nezasekne disabled stav (např. při reloadu stránky)
-    inputIdentifier.disabled = false;
-    inputEmail.disabled = false;
-    inputEmailCode.disabled = false;
-    btnStartAuth.disabled = false;
+    let isLocked = (lockoutEndTime > Date.now());
+    inputIdentifier.disabled = isLocked;
+    inputEmail.disabled = false; // email is separate
+    btnStartAuth.disabled = isLocked;
     btnStartEmailAuth.disabled = false;
-    btnStartEmailAuth.innerText = 'ZASLAT KÓD';
-    btnVerifyEmailCode.disabled = false;
-    btnVerifyEmailCode.innerText = 'OVĚŘIT KÓD';
+    btnStartEmailAuth.innerText = 'Odeslat přihlašovací odkaz';
 }
 
 linkShowEmailLogin.addEventListener('click', (e) => {
@@ -148,7 +246,7 @@ linkShowDiscordLogin.addEventListener('click', (e) => {
 btnStartEmailAuth.addEventListener('click', async () => {
     const email = inputEmail.value.trim();
     if (!email || !email.includes('@')) {
-        alert("Zadejte platný e-mail!");
+        showLoginError("Zadejte platný e-mail!");
         return;
     }
     
@@ -165,95 +263,151 @@ btnStartEmailAuth.addEventListener('click', async () => {
         const res = await fetch(`${API_BASE}/api/auth/email/request`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ email: email, intent: 'login' })
+            body: JSON.stringify({ email: email, intent: 'app_login' })
         });
         
         const data = await res.json();
         if (data.success || res.ok) {
+            window.lastEmailSentAt = Date.now();
+            if (window.emailAuthTimeoutTimer) clearTimeout(window.emailAuthTimeoutTimer);
+            window.emailAuthTimeoutTimer = setTimeout(() => {
+                if (window.emailPollInterval) clearInterval(window.emailPollInterval);
+                showAuthView('email');
+                showLoginError("Čas na ověření e-mailu vypršel (10 minut). Zkuste to prosím znovu.");
+            }, 600000); // 10 minut
             showAuthView('emailCode');
+            
+            const retryBtns = document.getElementById('email-retry-buttons');
+            const statusEl = document.getElementById('email-waiting-status');
+            
+            if (retryBtns) {
+                retryBtns.style.display = 'none';
+                if (window.retryBtnsTimeout) clearTimeout(window.retryBtnsTimeout);
+                window.retryBtnsTimeout = setTimeout(() => {
+                    retryBtns.style.display = 'flex';
+                }, 20000);
+            }
+            if (statusEl) {
+                statusEl.style.display = 'block';
+                statusEl.innerHTML = '<i class="fas fa-hourglass-half" style="margin-right: 5px;"></i>Čekám na kliknutí v e-mailu...';
+            }
+
             if (window.emailPollInterval) clearInterval(window.emailPollInterval);
             window.emailPollInterval = setInterval(async () => {
                 let { data: pollData } = await supabase.from('users').select('*').eq('email', email).single();
                 if (pollData && pollData.web_session_token && pollData.web_session_token !== emailAuthOldToken) {
+                    if (window.emailAuthTimeoutTimer) clearTimeout(window.emailAuthTimeoutTimer);
                     clearInterval(window.emailPollInterval);
+                    if (statusEl) statusEl.innerHTML = '<i class="fas fa-check-circle" style="color: #22c55e; margin-right: 5px;"></i>Schváleno! Přihlašuji...';
                     let config = loadConfig();
                     config.discord_id = pollData.discord_id || "email-" + pollData.id;
                     config.discord_nick = pollData.nick || pollData.email;
                     config.email = pollData.email;
                     saveConfig(config);
-                    loginOverlay.style.display = 'none';
-                    initLauncher(config);
+                    setTimeout(() => {
+                        loginOverlay.style.display = 'none';
+                        initLauncher(config);
+                    }, 1500);
                 }
-            }, 3000);
+            }, 8000);
         } else {
-            alert(data.message || "Nepodařilo se odeslat kód na e-mail.");
+            showLoginError(data.message || "Nepodařilo se odeslat odkaz na e-mail.");
         }
     } catch (e) {
-        alert("Chyba spojení s API.");
+        showLoginError("Chyba spojení s API.");
     }
     
     btnStartEmailAuth.disabled = false;
-    btnStartEmailAuth.innerText = 'ZASLAT KÓD';
+    btnStartEmailAuth.innerText = 'Odeslat přihlašovací odkaz';
 });
 
-btnVerifyEmailCode.addEventListener('click', async () => {
-    const code = inputEmailCode.value.trim();
-    const email = inputEmail.value.trim();
-    
-    if (code.length !== 5) {
-        alert("Zadejte platný 5místný kód.");
-        return;
-    }
-    
-    btnVerifyEmailCode.disabled = true;
-    btnVerifyEmailCode.innerText = 'OVĚŘUJI...';
-    
-    try {
-        // Kontrola v Supabase tabulce users
-        let { data, error } = await supabase.from('users').select('*').eq('email', email).eq('login_token', code).single();
-        
-        if (data) {
-            // Smazat token po použití
-            await supabase.from('users').update({ login_token: '' }).eq('id', data.id);
-            if (window.emailPollInterval) clearInterval(window.emailPollInterval);
-            
-            let config = loadConfig();
-            config.discord_id = data.discord_id || "email-" + data.id;
-            config.discord_nick = data.nick || data.email;
-            config.email = data.email;
-            saveConfig(config);
-            
-            loginOverlay.style.display = 'none';
-            initLauncher(config);
-        } else {
-            alert("Neplatný kód nebo vypršela platnost.");
+if (btnResendEmailAuth) {
+    btnResendEmailAuth.addEventListener('click', () => {
+        const elapsed = Date.now() - (window.lastEmailSentAt || 0);
+        if (elapsed < 300000) {
+            showLoginError("Počkejte prosím chvíli. Další e-mail můžeme odeslat až za 5 minut. Pokud se vám nechce čekat, můžete se přihlásit přes Discord.");
+            return;
         }
-    } catch(e) {
-        alert("Chyba při ověřování kódu.");
-    }
-    
-    btnVerifyEmailCode.disabled = false;
-    btnVerifyEmailCode.innerText = 'OVĚŘIT KÓD';
-});
+        btnStartEmailAuth.click();
+    });
+}
+
+const btnManualCode = document.getElementById('btn-manual-code-input');
+if (btnManualCode) {
+    btnManualCode.addEventListener('click', () => {
+        if (window.emailPollInterval) clearInterval(window.emailPollInterval);
+        showAuthView('emailCodeManual');
+    });
+}
+
+const btnVerifyEmailCodeManual = document.getElementById('btn-verify-email-code-manual');
+if (btnVerifyEmailCodeManual) {
+    btnVerifyEmailCodeManual.addEventListener('click', async () => {
+        const inputCode = document.getElementById('login-email-code-manual-input');
+        const code = inputCode ? inputCode.value.trim() : '';
+        const email = inputEmail.value.trim();
+        
+        if (code.length !== 5) {
+            showLoginError("Zadejte platný 5místný kód.");
+            return;
+        }
+        
+        btnVerifyEmailCodeManual.disabled = true;
+        btnVerifyEmailCodeManual.innerText = 'OVĚŘUJI...';
+        
+        try {
+            let { data } = await supabase.from('users').select('*').eq('email', email).eq('login_token', code).single();
+            if (data) {
+                await supabase.from('users').update({ login_token: '' }).eq('id', data.id);
+                let config = loadConfig();
+                config.discord_id = data.discord_id || "email-" + data.id;
+                config.discord_nick = data.nick || data.email;
+                config.email = data.email;
+                saveConfig(config);
+                loginOverlay.style.display = 'none';
+                initLauncher(config);
+            } else {
+                showLoginError("Neplatný kód nebo vypršela platnost.");
+                if (inputCode) inputCode.value = '';
+                showAuthView('emailCode');
+                pollAuthEmail(email);
+            }
+        } catch(e) {
+            showLoginError("Chyba při ověřování kódu.");
+            if (inputCode) inputCode.value = '';
+            showAuthView('emailCode');
+            pollAuthEmail(email);
+        }
+        btnVerifyEmailCodeManual.disabled = false;
+        btnVerifyEmailCodeManual.innerText = 'OVĚŘIT KÓD';
+    });
+}
+
+const btnCancelEmailManual = document.getElementById('btn-cancel-email-manual');
+if (btnCancelEmailManual) {
+    btnCancelEmailManual.addEventListener('click', () => {
+        const inputCode = document.getElementById('login-email-code-manual-input');
+        if (inputCode) inputCode.value = '';
+        showAuthView('emailCode');
+        const email = document.getElementById('login-email-input').value.trim();
+        pollAuthEmail(email);
+    });
+}
 
 btnCancelEmailAuth.addEventListener('click', () => {
     if (window.emailPollInterval) clearInterval(window.emailPollInterval);
-    showAuthView('email');
-    inputEmailCode.value = '';
+    showAuthView('discord');
 });
 
 document.getElementById('btn-logout').addEventListener('click', () => {
-    if (confirm("Opravdu se chcete odhlásit?")) {
+    if (confirm("Opravdu se chcete odhlásit? Aplikace se restartuje.")) {
         let config = loadConfig();
         config.discord_id = "";
         config.discord_nick = "";
         config.email = "";
         saveConfig(config);
         
-        // Znovu zobrazit přihlašovací okno
-        document.getElementById('launcher-overlay').style.display = 'none';
-        loginOverlay.style.display = 'flex';
-        showAuthView('discord');
+        ipcRenderer.send('relaunch-app');
     }
 });
 
@@ -265,13 +419,15 @@ btnCancelAuth.addEventListener('click', () => {
 
 btnStartAuth.addEventListener('click', async () => {
     const val = inputIdentifier.value.trim();
-    if (!val) { alert("Zadejte ID nebo Nick!"); return; }
+    if (!val) { showLoginError("Zadejte ID nebo Nick!"); return; }
     
     inputIdentifier.disabled = true;
+    let titleEl = document.getElementById('login-waiting-title');
+    if (titleEl) titleEl.innerHTML = '<i class="fas fa-paper-plane" style="margin-right: 8px;"></i>Odesílám požadavek...';
     showAuthView('waiting');
 
     try {
-        const fetchTimeout = (url, options, timeout = 6000) => {
+        const fetchTimeout = (url, options, timeout = 20000) => {
             return Promise.race([
                 fetch(url, options),
                 new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), timeout))
@@ -288,28 +444,36 @@ btnStartAuth.addEventListener('click', async () => {
         const fixedText = textData.replace(/"discord_id":\s*(\d+)/g, '"discord_id": "$1"');
         const data = JSON.parse(fixedText);
 
-        const isDevMode = !__dirname.includes('app.asar');
+        const isDevMode = false; // !__dirname.includes('app.asar');
+        
+        let titleEl = document.getElementById('login-waiting-title');
 
         if (data.status === 'waiting' || isDevMode) {
+            if (titleEl) titleEl.innerHTML = '<i class="fas fa-hourglass-half" style="margin-right: 8px; color: #facc15;"></i>Čekám na Vaši reakci...';
             if (isDevMode && data.status !== 'waiting') {
                 data.discord_id = val;
             }
-            authPollInterval = setInterval(() => pollAuth(data.discord_id), 2000);
+            authPollInterval = setInterval(() => pollAuth(data.discord_id), 8000);
         } else {
-            alert(data.message || "Přístup odepřen.");
             showAuthView('discord');
+            let errMsg = data.message ? data.message : "Toto ID neexistuje. Jestli problém přetrvává, jděte na náš Discord.";
+            showLoginError(errMsg);
             inputIdentifier.disabled = false;
         }
     } catch(e) {
-        alert("Chyba spojení.");
         showAuthView('discord');
+        if (e.message === 'timeout') {
+            showLoginError("Ověřování trvá déle než obvykle. Server se zřejmě probouzí ze spánku, zkuste to prosím znovu.");
+        } else {
+            showLoginError("Chyba spojení se serverem nebo neplatná data.");
+        }
         inputIdentifier.disabled = false;
     }
 });
 
 async function pollAuth(discordId) {
     try {
-        const isDevMode = !__dirname.includes('app.asar');
+        const isDevMode = false; // !__dirname.includes('app.asar');
         const res = await fetch(`${API_BASE}/api/app_check`, {
             method: 'POST', 
             headers: { 'Content-Type': 'application/json' },
@@ -318,6 +482,8 @@ async function pollAuth(discordId) {
         const data = await res.json();
         
         if (data.status === 'success' || isDevMode) {
+            let titleEl = document.getElementById('login-waiting-title');
+            if (titleEl) titleEl.innerHTML = '<i class="fas fa-check-circle" style="margin-right: 8px; color: #22c55e;"></i>Schváleno! Přihlašuji...';
             if (isDevMode) {
                 console.log("⚠️ VSC REŽIM: Ignoruji chybu Discord Pollingu.");
             }
@@ -327,13 +493,25 @@ async function pollAuth(discordId) {
             config.discord_nick = data.display_name || (isDevMode ? "VSC-DEV" : "Neznámý");
             saveConfig(config);
             
-            loginOverlay.style.display = 'none';
-            initLauncher(config);
+            showAuthView('success');
+            setTimeout(() => {
+                loginOverlay.style.display = 'none';
+                initLauncher(config);
+            }, 2000);
+        } else if (data.status === 'timeout') {
+            clearInterval(authPollInterval);
+            showAuthView('discord');
+            showLoginError(data.message || "Čas vypršel (nedostatečná reakce). Zkuste to prosím znovu.");
+            inputIdentifier.disabled = false;
         } else if (data.status === 'error') {
             clearInterval(authPollInterval);
-            alert(data.message || "Zamítnuto v Discordu.");
+            denialCount++;
+            let lockoutMinutes = (denialCount === 1) ? 1 : 10;
+            lockoutEndTime = Date.now() + (lockoutMinutes * 60 * 1000);
+            localStorage.setItem('authDenialCount', denialCount);
+            localStorage.setItem('authLockoutEndTime', lockoutEndTime);
             showAuthView('discord');
-            inputIdentifier.disabled = false;
+            startLockoutTimer();
         }
     } catch(e) {}
 }
@@ -394,32 +572,58 @@ async function initLauncher(config) {
 }
 
 async function loadAvailableVersions() {
-    let { data: dbVersions, error } = await supabase.from('software_versions').select('*').eq('is_active', true);
-    if (error) {
-        console.error("Chyba při načítání verzí z DB:", error);
-        dbVersions = [];
+    document.getElementById('initial-loading-overlay').style.display = 'none';
+    let dbVersions = [];
+    try {
+        let cfg = loadConfig();
+        let id_param = cfg.discord_id;
+        if (!id_param && cfg.email) id_param = 'email-' + cfg.email; // Fallback
+        const res = await fetch(`${API_BASE}/api/launcher/versions?discord_id=${id_param}`);
+        const data = await res.json();
+                if (data.status === 'ok') {
+            dbVersions = data.versions;
+            if (data.user_role) currentUserRole = data.user_role;
+        } else if (data.status === 'error') {
+            document.getElementById('initial-loading-overlay').style.display = 'flex';
+            document.getElementById('initial-loading-overlay').innerHTML = `
+                <div style="background: rgba(239, 68, 68, 0.2); padding: 30px; border-radius: 15px; border: 1px solid rgba(239, 68, 68, 0.5); text-align: center; max-width: 400px;">
+                    <i class="fas fa-lock" style="font-size: 40px; color: #ef4444; margin-bottom: 20px;"></i>
+                    <h2 style="color: white; margin-bottom: 10px;">Přístup Zablokován</h2>
+                    <p style="color: #cbd5e1; font-size: 14px; line-height: 1.5;">${data.message || 'Launcher je dočasně uzamčen.'}</p>
+                    <button onclick="window.close()" style="margin-top: 20px; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); color: white; padding: 10px 20px; border-radius: 8px; cursor: pointer;">Zavřít</button>
+                </div>
+            `;
+            return; // Stop initialization
+                } else if (data.status === 'banned') {
+            document.getElementById('initial-loading-overlay').style.display = 'flex';
+            document.getElementById('initial-loading-overlay').innerHTML = `
+                <div style="background: rgba(185, 28, 28, 0.9); padding: 40px; border-radius: 15px; border: 2px solid #ef4444; text-align: center; max-width: 500px; box-shadow: 0 0 40px rgba(239, 68, 68, 0.6); position: relative; overflow: hidden;">
+                    <div style="position: absolute; top: -50%; left: -50%; width: 200%; height: 200%; background: repeating-linear-gradient(45deg, transparent, transparent 10px, rgba(0,0,0,0.1) 10px, rgba(0,0,0,0.1) 20px); z-index: 1;"></div>
+                    <div style="position: relative; z-index: 2;">
+                        <i class="fas fa-ban" style="font-size: 60px; color: white; margin-bottom: 20px; filter: drop-shadow(0 0 10px rgba(255,255,255,0.5));"></i>
+                        <h1 style="color: white; margin-bottom: 15px; font-size: 28px; text-transform: uppercase; letter-spacing: 2px; text-shadow: 0 2px 4px rgba(0,0,0,0.5);">Účet Zablokován</h1>
+                        <p style="color: #fca5a5; font-size: 16px; line-height: 1.6; margin-bottom: 25px;">
+                            Váš účet byl zablokován administrátorem.<br><br>
+                            Pokud se domníváte, že se jedná o omyl a chcete se odvolat, vytvořte si ticket na našem Discordu v kanále <strong>#💁‍♂️・podpora-založení-ticketu</strong>.
+                        </p>
+                        <button onclick="window.close()" style="background: #171717; border: 1px solid #404040; color: white; padding: 12px 30px; border-radius: 8px; cursor: pointer; font-weight: bold; font-size: 16px; transition: all 0.2s; box-shadow: 0 4px 6px rgba(0,0,0,0.3);">UKONČIT LAUNCHER</button>
+                    </div>
+                </div>
+            `;
+            return; // Zastavit načítání
+        } else {
+            console.error("Chyba při načítání verzí z API:", data.message);
+        }
+    } catch(e) {
+        console.error("Síťová chyba při načítání verzí z API:", e);
     }
 
-    const sortedActive = dbVersions.sort((a,b) => b.id - a.id); // Od nejnovější
-    
     let finalVersions = [];
-    
-    sortedActive.forEach(v => {
-        // Zkontrolovat jestli se má zobrazit v launcheru (defaultně ano)
+    dbVersions.forEach(v => {
+        // Pokud je viditelná, nebo pokud není viditelná, ale chceme ji do seznamu jako nedostupnou?
+        // show_in_launcher false = úplně skrýt z roletky (aby se to chovalo čistě)
         if (v.show_in_launcher === false || v.show_in_launcher === "false") return;
-        
-        let targetRole = v.target_role || 'User';
-        let allowed = false;
-        
-        if (targetRole === 'User') {
-            allowed = true;
-        } else if (targetRole === 'BT') {
-            if (currentUserRole.includes('BT') || currentUserRole.includes('DEV') || currentUserRole.includes('SA')) allowed = true;
-        } else if (targetRole === 'DEV_SA') {
-            if (currentUserRole.includes('DEV') || currentUserRole.includes('SA')) allowed = true;
-        }
-        
-        if (allowed) finalVersions.push(v);
+        finalVersions.push(v);
     });
 
     versionSelect.innerHTML = '';
@@ -430,6 +634,7 @@ async function loadAvailableVersions() {
         versionSelect.appendChild(opt);
         launchText.innerText = "NENÍ CO HRÁT";
         launchIcon.className = "fas fa-times";
+        btnLaunch.classList.add('btn-locked');
         return;
     }
 
@@ -437,15 +642,25 @@ async function loadAvailableVersions() {
     finalVersions.forEach(v => {
         const opt = document.createElement('option');
         opt.value = v.db_version;
-        opt.innerText = v.version_name;
+        // Pokud nemá přístup nebo nemá právo stáhnout/spustit a ještě ji nemá
+        if (!v.has_access) {
+            opt.innerText = `${v.version_name} (Nedostupné pro tvoji roli)`;
+            opt.disabled = true;
+        } else {
+            opt.innerText = v.version_name;
+        }
         versionSelect.appendChild(opt);
     });
 
+    // Najdeme první volitelnou, pokud existuje
+    let firstEnabled = Array.from(versionSelect.options).find(o => !o.disabled);
+    if (firstEnabled) {
+        versionSelect.value = firstEnabled.value;
+    }
+
     versionSelect.disabled = false;
-    btnLaunch.disabled = false;
-    
-    document.getElementById('initial-loading-overlay').style.display = 'none';
-    
+    const cs2 = document.getElementById('custom-version-select'); if(cs2) cs2.classList.remove('disabled');
+    updateCustomSelectUI(finalVersions);
     checkLocalVersion(versionSelect.value);
 }
 
@@ -461,24 +676,152 @@ function getVersionFolder(versionName) {
 }
 
 function checkLocalVersion(versionName) {
-    const folder = getVersionFolder(versionName);
-    const exePath = path.join(folder, 'Palubní Počítač IDPK.exe'); // TODO: přesný název .exe
+    const selectedVersion = availableVersions.find(v => v.db_version === versionName);
+    if (!selectedVersion) {
+        btnLaunch.classList.add('btn-locked');
+        launchText.innerText = "ŽÁDNÉ VERZE K DISPOZICI";
+        launchIcon.className = "fas fa-times";
+        return;
+    }
 
-    if (fs.existsSync(exePath) || fs.existsSync(path.join(folder, 'IDPK_OIS.exe'))) {
-        launchText.innerText = "HRÁT";
-        launchIcon.className = "fas fa-play";
+    const folder = getVersionFolder(versionName);
+    let hasLocalCopy = false;
+    
+    // Check main folder for any .exe
+    if (fs.existsSync(folder)) {
+        let files = [];
+        try { files = fs.readdirSync(folder); } catch(e){}
+        let exeFile = files.find(f => f.endsWith('.exe') && !f.toLowerCase().includes('uninstall'));
+        if (exeFile) hasLocalCopy = true;
+        
+        // Check subfolder
+        let subFolder = path.join(folder, 'win-unpacked');
+        if (!hasLocalCopy && fs.existsSync(subFolder)) {
+            let subFiles = [];
+            try { subFiles = fs.readdirSync(subFolder); } catch(e){}
+            let subExe = subFiles.find(f => f.endsWith('.exe') && !f.toLowerCase().includes('uninstall'));
+            if (subExe) hasLocalCopy = true;
+        }
+    }
+
+    if (hasLocalCopy) {
+        // Zabezpečení
+        const versionFolder = path.join(process.env.APPDATA || os.homedir(), 'idpk-palubni-pocitac', 'versions', selectedVersion.db_version, 'win-unpacked');
+        const isBlocked = (!selectedVersion.has_access || !selectedVersion.can_launch);
+        secureExecutable(versionFolder, isBlocked);
+
+        if (!selectedVersion.has_access) {
+            const tr = selectedVersion.target_role ? selectedVersion.target_role.toLowerCase() : '';
+            if (tr === 'bt' || tr.includes('beta') || tr.includes('tester')) {
+                launchText.innerText = "PŘEDPLATITELÉ";
+                launchIcon.className = "fas fa-lock";
+                btnLaunch.classList.add('btn-locked');
+                btnLaunch.title = "Dostupné pouze pro Beta Testery.\nPodpořte mě na BuyMeACoffee nebo HeroHero pro přístup!";
+            } else {
+                launchText.innerText = "NEMÁTE ROLI";
+                launchIcon.className = "fas fa-lock";
+                btnLaunch.classList.add('btn-locked');
+                btnLaunch.title = "Nemáte dostatečnou roli (Vývojář/Admin) pro hraní této verze.";
+            }
+        } else if (!selectedVersion.can_launch) {
+            launchText.innerText = "ZABLOKOVÁNO SPRÁVCEM SYSTÉMU";
+            launchIcon.className = "fas fa-lock";
+            btnLaunch.classList.add('btn-locked');
+            btnLaunch.title = "Administrátor zakázal spouštění této verze.\nPro více informací navštivte Discord.";
+        } else {
+            launchText.innerText = "HRÁT";
+            launchIcon.className = "fas fa-play";
+            btnLaunch.classList.remove('btn-locked'); btnLaunch.disabled = false;
+            btnLaunch.title = "";
+        }
     } else {
-        launchText.innerText = "STÁHNOUT";
-        launchIcon.className = "fas fa-download";
+        if (!selectedVersion.has_access) {
+            const tr = selectedVersion.target_role ? selectedVersion.target_role.toLowerCase() : '';
+            if (tr === 'bt' || tr.includes('beta') || tr.includes('tester')) {
+                launchText.innerText = "PŘEDPLATITELÉ";
+                launchIcon.className = "fas fa-lock";
+                btnLaunch.classList.add('btn-locked');
+                btnLaunch.title = "Dostupné pouze pro Beta Testery.\nPodpořte mě na BuyMeACoffee nebo HeroHero pro přístup!";
+            } else {
+                launchText.innerText = "NEMÁTE ROLI";
+                launchIcon.className = "fas fa-ban";
+                btnLaunch.classList.add('btn-locked');
+                btnLaunch.title = "Nemáte dostatečnou roli (Vývojář/Admin) pro stažení této verze.";
+            }
+        } else if (!selectedVersion.can_download) {
+            launchText.innerText = "ZABLOKOVÁNO SPRÁVCEM SYSTÉMU";
+            launchIcon.className = "fas fa-ban";
+            btnLaunch.classList.add('btn-locked');
+            btnLaunch.title = "Administrátor zakázal stahování této verze.\nPro více informací navštivte Discord.";
+        } else {
+            launchText.innerText = "STÁHNOUT";
+            launchIcon.className = "fas fa-download";
+            btnLaunch.classList.remove('btn-locked'); btnLaunch.disabled = false;
+            btnLaunch.title = "";
+        }
     }
 }
 
 let isLaunchingApp = false;
+
+let lockedClickCount = 0;
+let lockedClickTimer = null;
+
 btnLaunch.addEventListener('click', async () => {
+    if (btnLaunch.classList.contains('btn-locked')) {
+        lockedClickCount++;
+        clearTimeout(lockedClickTimer);
+        lockedClickTimer = setTimeout(() => { lockedClickCount = 0; }, 2000);
+        
+        if (lockedClickCount >= 1) {
+            alert('Spuštění nebo stažení této verze máte aktuálně zablokované.\nPokud si myslíte, že je to chyba, obraťte se prosím na náš Discord.');
+            lockedClickCount = 0;
+        }
+        return;
+    }
+
     if (isLaunchingApp) return;
     isLaunchingApp = true;
-    btnLaunch.disabled = true;
-    
+    btnLaunch.classList.add('btn-locked');
+
+    // Blesková ověřovací kontrola
+    try {
+        let cfg = loadConfig();
+        let id_param = cfg.discord_id;
+        if (!id_param && cfg.email) id_param = 'email-' + cfg.email;
+        const resCheck = await fetch(`${API_BASE}/api/launcher/versions?discord_id=${id_param}`);
+        const dataCheck = await resCheck.json();
+        if (dataCheck.status === 'ok') {
+            const currentV = dataCheck.versions.find(v => v.db_version === versionName);
+            if (currentV) {
+                // Aktualizace lokálního pole pro správný refresh
+                let localV = availableVersions.find(v => v.db_version === versionName);
+                if (localV) {
+                    localV.can_launch = currentV.can_launch;
+                    localV.can_download = currentV.can_download;
+                    localV.has_access = currentV.has_access;
+                }
+                
+                // Pokud už ztratil právo
+                if (!currentV.has_access) {
+                    alert("Ztratil jsi oprávnění k této verzi.");
+                    isLaunchingApp = false;
+                    checkLocalVersion(versionName);
+                    return;
+                }
+                
+                // Je stažená, ale nelze spustit? (Pokud se teprve bude stahovat, to řešíme níž)
+            }
+        } else if (dataCheck.status === 'error') {
+            alert(dataCheck.message || "Launcher je dočasně uzamčen.");
+            isLaunchingApp = false;
+            btnLaunch.classList.add('btn-locked');
+            return;
+        }
+    } catch (e) {
+        console.error("Nepodařilo se ověřit oprávnění", e);
+    }
+        
     const versionName = versionSelect.value;
     const folder = getVersionFolder(versionName);
     // Budeme hledat jakýkoliv .exe soubor v adresáři
@@ -489,18 +832,52 @@ btnLaunch.addEventListener('click', async () => {
         let exeFile = files.find(f => f.endsWith('.exe') && !f.toLowerCase().includes('uninstall'));
         
         if (exeFile) {
+            const vInfo1 = availableVersions.find(v => v.db_version === versionName);
+            if (vInfo1 && !vInfo1.can_launch) {
+                alert("Spuštění této verze je aktuálně zakázáno.\nPro více informací se prosím obraťte na náš Discord.");
+                isLaunchingApp = false;
+                checkLocalVersion(versionName);
+                return;
+            }
             launchApp(path.join(folder, exeFile));
             return;
+        }
+
+        // Check inside win-unpacked
+        let subFolder = path.join(folder, 'win-unpacked');
+        if (fs.existsSync(subFolder)) {
+            let subFiles = [];
+            try { subFiles = fs.readdirSync(subFolder); } catch(e){}
+            let subExe = subFiles.find(f => f.endsWith('.exe') && !f.toLowerCase().includes('uninstall'));
+            if (subExe) {
+                const vInfo2 = availableVersions.find(v => v.db_version === versionName);
+                if (vInfo2 && !vInfo2.can_launch) {
+                    alert("Spuštění této verze je aktuálně zakázáno.\nPro více informací se prosím obraťte na náš Discord.");
+                    isLaunchingApp = false;
+                    checkLocalVersion(versionName);
+                    return;
+                }
+                launchApp(path.join(subFolder, subExe));
+                return;
+            }
         }
     }
 
     // Potřebujeme stáhnout!
+    const vInfo3 = availableVersions.find(v => v.db_version === versionName);
+    if (vInfo3 && !vInfo3.can_download) {
+        alert("Stahování této verze máte aktuálně zablokované.\nPokud si myslíte, že je to chyba, obraťte se prosím na náš Discord.");
+        isLaunchingApp = false;
+        checkLocalVersion(versionName);
+        return;
+    }
     await downloadVersion(versionName, folder);
 });
 
 async function downloadVersion(versionName, folder) {
-    btnLaunch.disabled = true;
+    btnLaunch.classList.add('btn-locked');
     versionSelect.disabled = true;
+const cs1 = document.getElementById('custom-version-select'); if(cs1) cs1.classList.add('disabled');
     launchText.innerText = "STAHOVÁNÍ...";
     launchIcon.className = "fas fa-spinner fa-spin";
     progressContainer.style.display = 'block';
@@ -561,28 +938,71 @@ function downloadAndExtract(url, folder, versionName) {
             });
             
             response.pipe(file);
-            file.on('finish', async () => {
-                file.close();
-                progressText.innerText = 'Rozbalování... (může trvat minutu)';
-                launchText.innerText = 'ROZBALOVÁNÍ...';
-                
-                try {
-                    await extract(zipPath, { dir: folder });
-                    fs.unlinkSync(zipPath); // Smazat zip
+            file.on('finish', () => {
+                file.close(async () => {
+                    progressText.innerText = 'Rozbalování... (může trvat minutu)';
+                    launchText.innerText = 'ROZBALOVÁNÍ...';
+                    
+                    try {
+                        // Smazat existující soubory před rozbalením (kromě ZIPu) pro prevenci chyb ENOENT
+                        if (fs.existsSync(folder)) {
+                            let existingFiles = await fs.promises.readdir(folder);
+                            for (let f of existingFiles) {
+                                if (f !== 'app_download.zip') {
+                                    try {
+                                        await fs.promises.rm(path.join(folder, f), { recursive: true, force: true, maxRetries: 3, retryDelay: 300 });
+                                    } catch (err) {
+                                        console.warn("Nemohu smazat soubor před rozbalením (je pravděpodobně uzamčen):", f, err);
+                                    }
+                                }
+                            }
+                            // Dáme Windows 2.5 vteřiny na dokončení smazání složek na pozadí, abychom předešli ENOENT
+                            await new Promise(r => setTimeout(r, 2500));
+                        }
+                        let originalNoAsar = process.noAsar;
+                        process.noAsar = true;
+                        await extract(zipPath, { dir: folder });
+                        process.noAsar = originalNoAsar;
+
+                        await fs.promises.unlink(zipPath); // Smazat zip
                     
                     // Najít EXE
-                    let files = fs.readdirSync(folder);
+                    let files = await fs.promises.readdir(folder);
                     let exeFile = files.find(f => f.endsWith('.exe') && !f.toLowerCase().includes('uninstall'));
                     
                     if (exeFile) {
-                        launchApp(path.join(folder, exeFile));
+                        const selectedVersion = availableVersions.find(v => v.db_version === versionName);
+                        if (selectedVersion && selectedVersion.can_launch && selectedVersion.has_access) {
+                            launchApp(path.join(folder, exeFile));
+                        } else {
+                            // Je zablokovaná, po stažení nespouštět!
+                            const isBlocked = (!selectedVersion || !selectedVersion.has_access || !selectedVersion.can_launch);
+                            secureExecutable(folder, isBlocked);
+                            progressContainer.style.display = 'none';
+                            launchText.innerText = "STAŽENO";
+                            launchIcon.className = "fas fa-check";
+                            btnLaunch.classList.add('btn-locked');
+                            checkLocalVersion(versionName);
+                        }
                     } else {
                         // Možná je to o složku níž v win-unpacked?
                         if(fs.existsSync(path.join(folder, 'win-unpacked'))) {
-                            let subFiles = fs.readdirSync(path.join(folder, 'win-unpacked'));
+                            let subFiles = await fs.promises.readdir(path.join(folder, 'win-unpacked'));
                             let subExe = subFiles.find(f => f.endsWith('.exe') && !f.toLowerCase().includes('uninstall'));
                             if(subExe) {
-                                launchApp(path.join(folder, 'win-unpacked', subExe));
+                                const selectedVersion = availableVersions.find(v => v.db_version === versionName);
+                                if (selectedVersion && selectedVersion.can_launch && selectedVersion.has_access) {
+                                    launchApp(path.join(folder, 'win-unpacked', subExe));
+                                } else {
+                                    // Zablokovaná
+                                    const isBlocked = (!selectedVersion || !selectedVersion.has_access || !selectedVersion.can_launch);
+                                    secureExecutable(path.join(folder, 'win-unpacked'), isBlocked);
+                                    progressContainer.style.display = 'none';
+                                    launchText.innerText = "STAŽENO";
+                                    launchIcon.className = "fas fa-check";
+                                    btnLaunch.classList.add('btn-locked');
+                                    checkLocalVersion(versionName);
+                                }
                                 return;
                             }
                         }
@@ -592,6 +1012,7 @@ function downloadAndExtract(url, folder, versionName) {
                     showError("Chyba při rozbalování: " + e.message);
                 }
             });
+        });
         }).on('error', (e) => {
             fs.unlinkSync(zipPath);
             showError("Chyba sítě: " + e.message);
@@ -609,8 +1030,7 @@ function launchApp(exePath) {
     // Uložíme konfiguraci
     let config = loadConfig();
     config.last_version = versionSelect.value;
-    config.auto_launch = autoLaunchCheckbox.checked;
-    
+        
     // Získáme cestu k aktuálnímu Launcheru (pokud není balen, tak použijeme process.execPath electronu,
     // ale pokud chceme spouštět zástupce, udržíme process.execPath)
     config.launcher_path = process.execPath;
@@ -629,19 +1049,31 @@ function launchApp(exePath) {
     }, 1000);
 }
 
+// V Electronu je inline skript ve <body> spuštěn až PO DOMContentLoaded,
+// proto stačí přímé volání bez listeneru.
 checkAuthAndInit();
 
 function showError(msg) {
-    alert(msg);
+    const errBox = document.getElementById('launcher-error-message');
+    const errText = document.getElementById('launcher-error-text');
+    if (errBox && errText) {
+        errText.innerText = msg;
+        errBox.style.display = 'block';
+    } else {
+        alert(msg);
+    }
+    
     isLaunchingApp = false;
-    btnLaunch.disabled = false;
+    btnLaunch.classList.remove('btn-locked'); btnLaunch.disabled = false;
     versionSelect.disabled = false;
+const cs2 = document.getElementById('custom-version-select'); if(cs2) cs2.classList.remove('disabled');
     launchText.innerText = "CHYBA";
     launchIcon.className = "fas fa-exclamation-triangle";
     progressContainer.style.display = 'none';
     checkLocalVersion(versionSelect.value);
     
     // Odeslání logu o chybě do Discordu
+    let config = loadConfig();
     if (config && config.discord_id) {
         fetch('https://datacorebot.koyeb.app/api/report_error', {
             method: 'POST',
@@ -702,8 +1134,13 @@ function updateSettingsVersionList() {
     const appVerEl = document.getElementById('settings-app-version');
     if (!listEl) return;
     
-    const cfg = loadConfig();
-    if (appVerEl && cfg.last_version) appVerEl.textContent = `Verze hry: ${cfg.last_version}`;
+    // Zjistit nejnovější verzi z načtených (největší ID, pole je už seřazené od nejnovější v loadAvailableVersions)
+    if (appVerEl && availableVersions && availableVersions.length > 0) {
+        const latest = availableVersions[0];
+        appVerEl.innerHTML = `Nejnovější verze ke stažení: <strong style="color:white;">${latest.version_name}</strong>`;
+    } else if (appVerEl) {
+        appVerEl.textContent = `Zjišťuji nejnovější verzi...`;
+    }
 
     if (!availableVersions || availableVersions.length === 0) {
         listEl.textContent = 'Přihlaste se pro zobrazení dostupných verzí.';
@@ -755,34 +1192,104 @@ if (btnOpenUserdata) {
 
 // Vyčistit staré verze
 const btnCleanOldVersions = document.getElementById('btn-clean-old-versions');
-if (btnCleanOldVersions) {
+const deleteModal = document.getElementById('delete-versions-modal');
+const deleteList = document.getElementById('delete-versions-list');
+const btnCloseDeleteModal = document.getElementById('btn-close-delete-modal');
+const btnConfirmDelete = document.getElementById('btn-confirm-delete-versions');
+
+async function forceDeleteFolderAsync(folderPath) {
+    return new Promise((resolve) => {
+        // Na Windows použijeme rmdir /s /q, což je mnohem rychlejší na tisíce souborů než fs.promises.rm
+        if (os.platform() === 'win32') {
+            exec(`rmdir /s /q "${folderPath}"`, (error) => {
+                // Tiše ignorujeme chyby (např. uzamčené soubory), složka se promaže co nejvíc
+                resolve(true);
+            });
+        } else {
+            fs.promises.rm(folderPath, { recursive: true, force: true }).then(() => resolve(true)).catch(() => resolve(true));
+        }
+    });
+}
+
+if (btnCleanOldVersions && deleteModal) {
     btnCleanOldVersions.addEventListener('click', () => {
-        const cfg = loadConfig();
-        const currentVersion = cfg.last_version;
-        if (!currentVersion) {
-            alert('Nejdříve spusťte hru, aby se zaznamenala aktuální verze.');
+        const versionsDir = path.join(process.env.APPDATA || os.homedir(), 'idpk-palubni-pocitac', 'versions');
+        if (!fs.existsSync(versionsDir)) {
+            alert('Žádné verze k odstranění nenalezeny.');
             return;
         }
-        const confirmed = confirm(
-            `Tato akce smaže všechny stažené verze kromě aktuální "${currentVersion}".\n\nChcete pokračovat?`
-        );
-        if (!confirmed) return;
-        try {
-            const versionsDir = path.join(process.env.APPDATA || os.homedir(), 'idpk-palubni-pocitac', 'versions');
-            if (!fs.existsSync(versionsDir)) { alert('Složka verzí neexistuje.'); return; }
-            const dirs = fs.readdirSync(versionsDir);
-            let deleted = 0;
-            dirs.forEach(d => {
-                if (d !== currentVersion) {
-                    const fullPath = path.join(versionsDir, d);
-                    fs.rmSync(fullPath, { recursive: true, force: true });
-                    deleted++;
-                }
-            });
-            alert(`Hotovo! Smazáno ${deleted} starých verzí.`);
-        } catch(e) {
-            alert('Chyba při mazání: ' + e.message);
+        const dirs = fs.readdirSync(versionsDir);
+        if (dirs.length === 0) {
+            alert('Složka verzí je prázdná.');
+            return;
         }
+        
+        let htmlContent = '';
+        dirs.forEach(d => {
+            const isCurrent = (d === versionSelect.value);
+            htmlContent += `
+                <div style="display:flex; align-items:center; margin-bottom:8px; background:rgba(255,255,255,0.05); padding:8px; border-radius:6px;">
+                    <input type="checkbox" id="chk-del-${d}" class="del-ver-chk" value="${d}" style="margin-right:10px; cursor:pointer;">
+                    <label for="chk-del-${d}" style="color:white; cursor:pointer; flex:1;">
+                        ${d} ${isCurrent ? '<span style="color:#f59e0b; font-size:11px; margin-left:10px;">(Právě vybráno)</span>' : ''}
+                    </label>
+                </div>
+            `;
+        });
+        deleteList.innerHTML = htmlContent;
+        deleteModal.style.display = 'flex';
+    });
+
+    btnCloseDeleteModal.addEventListener('click', () => {
+        deleteModal.style.display = 'none';
+    });
+
+    btnConfirmDelete.addEventListener('click', () => {
+        const checkboxes = document.querySelectorAll('.del-ver-chk:checked');
+        const toDelete = Array.from(checkboxes).map(chk => chk.value);
+        
+        if (toDelete.length === 0) {
+            alert("Nebyly vybrány žádné verze ke smazání.");
+            return;
+        }
+        
+        const confirmed = confirm(`Opravdu chcete smazat ${toDelete.length} verzí?`);
+        if (!confirmed) return;
+        
+        btnConfirmDelete.disabled = true;
+        btnConfirmDelete.innerHTML = '<i class="fas fa-spinner fa-spin" style="margin-right:8px;"></i>Mažu...';
+        
+        setTimeout(async () => {
+            const versionsDir = path.join(process.env.APPDATA || os.homedir(), 'idpk-palubni-pocitac', 'versions');
+            let success = 0;
+            
+            try {
+                for (const d of toDelete) {
+                    const fullPath = path.join(versionsDir, d);
+                    // Voláme asynchronní mazání
+                    await forceDeleteFolderAsync(fullPath);
+                    success++;
+                }
+                
+                alert(`Smazáno (nebo promazáno) ${success} vybraných verzí.`);
+            } catch(e) {
+                console.error(e);
+                alert("Došlo k nečekané chybě: " + e.message);
+            } finally {
+                btnConfirmDelete.disabled = false;
+                btnConfirmDelete.innerHTML = "Smazat vybrané";
+                deleteModal.style.display = 'none';
+                
+                // Re-render the dropdown
+                const val = versionSelect.value;
+                versionSelect.innerHTML = '';
+                loadAvailableVersions();
+                setTimeout(() => {
+                    versionSelect.value = val;
+                    checkLocalVersion(val);
+                }, 500);
+            }
+        }, 100);
     });
 }
 
@@ -801,7 +1308,10 @@ if (btnDeleteAllData) {
         try {
             const versionsDir = path.join(process.env.APPDATA || os.homedir(), 'idpk-palubni-pocitac', 'versions');
             if (fs.existsSync(versionsDir)) {
-                fs.rmSync(versionsDir, { recursive: true, force: true });
+                // Smažeme přímo přes cmd, aby nedošlo k zamrznutí nebo ENOTEMPTY
+                const { execSync } = require('child_process');
+                execSync(`rmdir /s /q "${versionsDir}"`);
+                fs.mkdirSync(versionsDir, {recursive: true});
             }
             alert('Hotovo! Všechna stažená data byla smazána. Při příštím spuštění se hra stáhne znovu.');
             checkLocalVersion(versionSelect.value);
@@ -813,10 +1323,177 @@ if (btnDeleteAllData) {
 
 // Discord odkaz
 const settingsDiscordLink = document.getElementById('settings-discord-link');
-if (settingsDiscordLink) {
-    settingsDiscordLink.addEventListener('click', (e) => {
-        e.preventDefault();
-        const { shell } = require('electron');
-        shell.openExternal('https://discord.gg/idpk');
+
+// Smazat Cache
+const btnCleanCache = document.getElementById('btn-clean-cache');
+if (btnCleanCache) {
+    btnCleanCache.addEventListener('click', () => {
+        const confirmed = confirm('Tato akce smaže dočasné soubory prohlížeče (Cache, mezipaměť), aby se uvolnilo místo.\n\nVaše nastavení, uživatelská data ani samotná hra se nesmažou.\n\nPokračovat?');
+        if (!confirmed) return;
+        
+        const appData = path.join(process.env.APPDATA || os.homedir(), 'idpk-palubni-pocitac');
+        const foldersToClean = ['Cache', 'Code Cache', 'GPUCache', 'DawnCache', 'blob_storage', 'Network', 'logs'];
+        
+        btnCleanCache.disabled = true;
+        let oldText = btnCleanCache.innerHTML;
+        btnCleanCache.innerHTML = '<i class="fas fa-spinner fa-spin" style="margin-right:8px;"></i>Čištění...';
+
+        setTimeout(async () => {
+            let deleted = 0;
+            let errors = [];
+            
+            for (const f of foldersToClean) {
+                const fPath = path.join(appData, f);
+                if (fs.existsSync(fPath)) {
+                    try {
+                        // Smažeme to asynchronně. Bez opakování, protože cache soubory drží Electron napořád.
+                        await fs.promises.rm(fPath, { recursive: true, force: true });
+                        deleted++;
+                    } catch (err) {
+                        errors.push(`${f}: ${err.message}`);
+                    }
+                }
+            }
+            
+            btnCleanCache.disabled = false;
+            btnCleanCache.innerHTML = oldText;
+
+            alert('Mezipaměť vyčištěna.');
+        }, 50);
     });
+}
+
+
+// Custom select – přímá inicializace (DOM je již připraven)
+(function initCustomSelect() {
+    const customSelect = document.getElementById('custom-version-select');
+    const customTrigger = document.getElementById('custom-select-trigger');
+
+    if (!customSelect || !customTrigger) return;
+
+    customTrigger.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (!customSelect.classList.contains('disabled')) {
+            customSelect.classList.toggle('open');
+        }
+    });
+
+    document.addEventListener('click', (e) => {
+        if (!customSelect.contains(e.target)) {
+            customSelect.classList.remove('open');
+        }
+    });
+})();
+
+
+function updateCustomSelectUI(versions) {
+    const customOptions = document.getElementById('custom-options-container');
+    const customText = document.getElementById('custom-select-text');
+    const customSelect = document.getElementById('custom-version-select');
+    if (!customOptions) return;
+    customOptions.innerHTML = '';
+    
+    versions.forEach(v => {
+        const div = document.createElement('div');
+        div.className = 'custom-option';
+        
+        let txt = v.db_version;
+        let desc = '';
+        let isBeta = false;
+        if (!v.has_access) {
+            const tr = v.target_role ? v.target_role.toLowerCase() : '';
+            if (tr === 'bt' || tr.includes('beta') || tr.includes('tester') || tr.includes('předplatitel') || tr.includes('predplatitel')) {
+                desc = "(Pouze pro předplatitele a Beta testery)";
+                isBeta = true;
+            } else {
+                desc = "(Nedostupné pro tvojí roli)";
+            }
+        }
+        
+        const tDiv = document.createElement('div');
+        tDiv.className = 'custom-option-title';
+        tDiv.innerText = txt;
+        div.appendChild(tDiv);
+        
+        if (desc) {
+            const dDiv = document.createElement('div');
+            dDiv.className = 'custom-option-desc';
+            
+            if (isBeta) {
+                dDiv.innerHTML = '(Pouze pro předplatitele a Beta testery) <a href="#" class="coffee-link" style="color: #fbbf24; text-decoration: underline; margin-left: 5px; font-weight: bold;">Získat přístup</a>';
+                const link = dDiv.querySelector('.coffee-link');
+                if (link) {
+                    link.addEventListener('click', (e) => {
+                        e.stopPropagation(); // Zabránit vybrání verze
+                        require('electron').shell.openExternal('https://buymeacoffee.com/marekk_czz');
+                    });
+                }
+            } else {
+                dDiv.innerText = desc;
+            }
+            
+            div.appendChild(dDiv);
+        }
+        
+        div.addEventListener('click', () => {
+            versionSelect.value = v.db_version;
+            customText.innerText = v.db_version;
+            customSelect.classList.remove('open');
+            
+            // Highlight selected
+            Array.from(customOptions.children).forEach(c => c.classList.remove('selected'));
+            div.classList.add('selected');
+            
+            // Trigger change
+            const event = new Event('change');
+            versionSelect.dispatchEvent(event);
+        });
+        
+        customOptions.appendChild(div);
+    });
+    
+    // Set active
+    if (versionSelect.value) {
+        customText.innerText = versionSelect.value;
+        const opts = Array.from(customOptions.children);
+        const idx = versionSelect.selectedIndex;
+        if (idx >= 0 && opts[idx]) {
+            opts[idx].classList.add('selected');
+        }
+    }
+}
+
+// Verze launcheru a Discord – přímá inicializace
+(function initSettings() {
+    try {
+        const pkg = require(path.join(__dirname, '..', 'package.json'));
+        const verEl = document.getElementById('settings-app-version');
+        if (verEl) verEl.innerText = 'Verze Launcheru: v' + pkg.version;
+    } catch(e) {}
+    
+    const discLink = document.getElementById('settings-discord-link');
+    if (discLink) {
+        discLink.addEventListener('click', (e) => {
+            e.preventDefault();
+            const { shell } = require('electron');
+            shell.openExternal('https://discord.com/invite/vmTagbC9mF');
+        });
+    }
+})();
+
+// Funkce pro zabezpečení .exe
+function secureExecutable(versionFolder, isBlocked) {
+    const exeNormal = path.join(versionFolder, 'Palubní Počítač IDPK.exe');
+    const exeBlocked = path.join(versionFolder, 'Palubní Počítač IDPK.exe.blocked');
+    try {
+        if (isBlocked) {
+            // Chceme zablokovat
+            if (fs.existsSync(exeNormal)) fs.renameSync(exeNormal, exeBlocked);
+        } else {
+            // Chceme odblokovat
+            if (fs.existsSync(exeBlocked)) fs.renameSync(exeBlocked, exeNormal);
+        }
+    } catch (e) {
+        console.error("Chyba při zabezpečování exe:", e);
+    }
 }

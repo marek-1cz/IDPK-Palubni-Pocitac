@@ -12,6 +12,11 @@ const extract = require('extract-zip');
 const https = require('https');
 const os = require('os');
 
+// Zamezení chyb "Unable to move the cache" / "Gpu Cache Creation failed"
+app.commandLine.appendSwitch('disable-gpu-cache');
+app.commandLine.appendSwitch('disable-http-cache');
+app.commandLine.appendSwitch('disable-disk-cache');
+
 log.info('App starting...');
 
 const SUPABASE_URL = 'https://tdonrppusbwhoftdontz.supabase.co';
@@ -41,8 +46,42 @@ const PATH_EXE = path.dirname(process.execPath);
 const PATH_DEV = __dirname;
 // Cesta k permanentním uživatelským datům (nepřepsána updatem)
 const PATH_USERDATA = path.join(process.env.APPDATA || os.homedir(), 'idpk-palubni-pocitac', 'userdata');
+try {
+    const fsRef = require('fs');
+    const customDataPath = path.join(PATH_USERDATA, 'data');
+    if (!fsRef.existsSync(customDataPath)) fsRef.mkdirSync(customDataPath, { recursive: true });
+    
+    const sablonaPath = path.join(customDataPath, '_sablona_vlastni_linky.json');
+    if (!fsRef.existsSync(sablonaPath)) {
+        const sablona = [
+            {
+                "spoj": 1,
+                "zastavky": [
+                    { "name": "Plzeň, Terminál Hlavní nádraží", "zone": "001", "time": "12:00" },
+                    { "name": "Plzeň, Mrakodrap", "zone": "001", "time": "12:05" },
+                    { "name": "Plzeň, Náměstí Republiky", "zone": "001", "time": "12:10" }
+                ]
+            }
+        ];
+        fsRef.writeFileSync(sablonaPath, JSON.stringify(sablona, null, 4));
+    }
+} catch(e) {}
 
-const cleanStr = (s) => s ? s.replace(/["'\r\n]+/g, '').trim() : "";
+const cleanStr = (s) => (s === null || s === undefined) ? "" : String(s).replace(/["'\r\n]+/g, '').trim();
+
+function shortenStopName(stopName) {
+    if (!stopName) return stopName;
+    stopName = stopName.replace(/autobusov[aá]\s+stanice/gi, "aut. st.");
+    stopName = stopName.replace(/autobusov[eé]\s+n[aá]dra[zž][ií]/gi, "aut. nádr.");
+    stopName = stopName.replace(/[zž]elezni[cč]n[ií]\s+stanice/gi, "žel. st.");
+    stopName = stopName.replace(/\brestaurace\b/gi, "rest.");
+    stopName = stopName.replace(/\brozcest[ií]\b/gi, "rozc.");
+    stopName = stopName.replace(/\bpr[uů]myslov[aá]\s+z[oó]na\b/gi, "prům. zóna");
+    stopName = stopName.replace(/\bn[aá]m[eě]st[ií]\b/gi, "nám.");
+    stopName = stopName.replace(/\bnemocnice\b/gi, "nem.");
+    stopName = stopName.replace(/\bz[aá]vod\b/gi, "záv.");
+    return stopName;
+}
 
 function getUniversalPath(folder, filename) {
     // 0. Priorita: uživatelská data (zvuky, obraz, linky) – NIKDY nepřepsáno updatem
@@ -60,6 +99,10 @@ function getUniversalPath(folder, filename) {
     // 3. Zkontrolujeme vývojářskou složku
     let p2 = path.join(PATH_DEV, folder, filename);
     if (fs.existsSync(p2)) return p2;
+
+    // 4. Zkontrolujeme resources (zabalené)
+    let p3 = path.join(process.resourcesPath, folder, filename);
+    if (fs.existsSync(p3)) return p3;
 
     return null;
 }
@@ -82,7 +125,7 @@ function getUnlockedCustomRoutes() {
                     if (match && match[1]) {
                         customRoutes.add(match[1]);
                     }
-                } catch(e) {}
+                } catch(e) { console.error(e); }
             });
         }
     });
@@ -111,8 +154,7 @@ function loadWindowFile(window, filename) {
 }
 
 function initExternalFolders() {
-    const jsonFile = getUniversalPath('data', '1651.json');
-    if (!jsonFile) console.log("Info: Složka data se prohledává dynamicky.");
+    console.log("Info: Složka data se prohledává dynamicky.");
 }
 
 ipcMain.handle('get-hwid', async () => {
@@ -134,7 +176,7 @@ ipcMain.handle('get-hwid', async () => {
 
 function createDebugWindow() {
     debugWindow = new BrowserWindow({
-        width: 600, height: 400, title: "Diagnostický Log V1.5 RC", autoHideMenuBar: true,
+        width: 600, height: 400, title: "Diagnostický Log OIS IDPK V1.6.2", autoHideMenuBar: true,
         webPreferences: { nodeIntegration: true, contextIsolation: false }
     });
     loadWindowFile(debugWindow, 'diagnostika.html');
@@ -159,7 +201,7 @@ ipcMain.on('broadcast-stop-state', (event, isStopPressed) => {
 
 function createController() {
     controllerWindow = new BrowserWindow({
-        width: 380, height: 750, resizable: false, autoHideMenuBar: true, title: "Palubní počítač V1.5 RC",
+        width: 380, height: 750, resizable: false, autoHideMenuBar: true, title: "OIS IDPK V1.6.2",
         webPreferences: { nodeIntegration: true, contextIsolation: false, autoplayPolicy: 'no-user-gesture-required', webSecurity: false },
         icon: path.join(__dirname, 'icon.ico')
     });
@@ -167,12 +209,9 @@ function createController() {
     controllerWindow.on('closed', () => { app.quit(); });
 }
 
-ipcMain.on('resize-controller', (event, width) => {
-    if (controllerWindow && !controllerWindow.isDestroyed()) {
-        const bounds = controllerWindow.getBounds();
-        controllerWindow.setSize(width, bounds.height, true);
-    }
-});
+// resize-controller byl odstraněn – nastavení nyní používá overlay, ne zvětšení okna
+
+
 
 ipcMain.on('open-panel-window', () => {
     if (panelWindow) return;
@@ -285,8 +324,20 @@ ipcMain.on('panel-boot', () => { if (panelWindow) panelWindow.webContents.send('
 ipcMain.on('panel-idle', () => { if (panelWindow) panelWindow.webContents.send('reset-panel-ui'); });
 ipcMain.on('quit-app', () => { app.quit(); });
 ipcMain.on('relaunch-app', () => { app.relaunch(); app.exit(); });
+ipcMain.on('minimize-app', () => { 
+    if (launcherWindow && !launcherWindow.isDestroyed()) {
+        launcherWindow.minimize();
+    }
+    // Also support minimizing controller if that sends it
+    if (controllerWindow && !controllerWindow.isDestroyed() && !launcherWindow) {
+        controllerWindow.minimize();
+    }
+});
 ipcMain.on('fallback-to-launcher', () => {
-    if (controllerWindow && !controllerWindow.isDestroyed()) controllerWindow.close();
+    if (controllerWindow && !controllerWindow.isDestroyed()) {
+        controllerWindow.removeAllListeners('closed');
+        controllerWindow.close();
+    }
     createLauncher();
 });
 ipcMain.on('open-userdata-folder', () => {
@@ -299,17 +350,61 @@ function getDataFilePath(filename) { return getUniversalPath('data', filename) |
 
 ipcMain.handle('get-link-files', async () => {
     try {
+        const routeNameMap = new Map();
+        try {
+            await ensureGtfsCache();
+            if (idpkDb) {
+                let stmt = idpkDb.prepare('SELECT route_short_name, route_long_name FROM routes');
+                while (stmt.step()) {
+                    let row = stmt.getAsObject();
+                    let rShort = cleanStr(row.route_short_name);
+                    let rLong = cleanStr(row.route_long_name);
+                    
+                    if (rLong) {
+                        rLong = rLong.replace(/(^|[\s-])([a-zěščřžýáíéóúůďťň])/g, (match) => match.toUpperCase());
+                    }
+                    
+                    let rNum = parseInt(rShort);
+                    if (!isNaN(rNum) && rShort.length >= 5) {
+                        const inRange = (rNum >= 400621 && rNum <= 405611) || 
+                                        (rNum >= 430432 && rNum <= 440649) || 
+                                        (rNum >= 450411 && rNum <= 475211) || 
+                                        (rNum >= 490722 && rNum <= 496711);
+                        if (inRange) {
+                            let endStr = rShort.slice(-3).replace(/^0+/, '');
+                            if (endStr.length > 0) routeNameMap.set(endStr, rLong);
+                        }
+                    }
+                }
+                stmt.free();
+            }
+        } catch(e) { console.error(e); }
+
         let files = new Set();
-        let dir1 = path.join(PATH_EXE, 'linky');
-        if (fs.existsSync(dir1)) { fs.readdirSync(dir1).filter(f => f.endsWith('.txt')).forEach(f => files.add(f.replace('.txt', ''))); }
-        let dir2 = path.join(PATH_DEV, 'linky');
-        if (fs.existsSync(dir2)) { fs.readdirSync(dir2).filter(f => f.endsWith('.txt')).forEach(f => files.add(f.replace('.txt', ''))); }
+        function processDir(dir) {
+            if (!fs.existsSync(dir)) return;
+            let fileList = fs.readdirSync(dir).filter(f => f.endsWith('.txt'));
+            fileList.forEach(f => {
+                let name = f.replace('.txt', '');
+                let routeNum = name.replace(/\D/g, ''); // Extract just the number e.g. 739
+                let dest = routeNameMap.get(routeNum) || "";
+                
+                if (dest) {
+                    files.add(name + ' | ' + dest);
+                } else {
+                    files.add(name);
+                }
+            });
+        }
+        processDir(path.join(PATH_EXE, 'linky'));
+        processDir(path.join(PATH_DEV, 'linky'));
+        processDir(path.join(process.resourcesPath, 'linky'));
         return Array.from(files).sort();
     } catch (error) { return []; }
 });
 
 ipcMain.handle('read-route-file', async (event, filename) => {
-    let cleanName = filename.toLowerCase().replace('.txt', '').replace(/[\r\n]+/g, '').trim();
+    let cleanName = filename.split('|')[0].toLowerCase().replace('.txt', '').replace(/[\r\n]+/g, '').trim();
     let p = getUniversalPath('linky', `${cleanName}.txt`); if (p) return fs.readFileSync(p, 'utf-8');
     let pAuto = getUniversalPath('linky', `${cleanName}_auto.txt`); if (pAuto) return fs.readFileSync(pAuto, 'utf-8');
     let pOde = getUniversalPath('linky', `${cleanName}_ode.txt`); if (pOde) return fs.readFileSync(pOde, 'utf-8');
@@ -330,14 +425,32 @@ function parseCSV(str) {
     arr.push(col.replace(/[\r\n]+/g, '').trim()); return arr;
 }
 
-function normalizeName(str) { return str.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]/g, ""); }
+function normalizeName(str) { 
+    let s = str.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase(); 
+    s = s.replace(/\bhaj\./g, "hajenka").replace(/\bhajovna\b/g, "hajenka").replace(/\bhaj\b/g, "hajenka"); 
+    return s.replace(/[^a-z0-9]/g, ""); 
+}
 function parseTextFileStopsToMap(lines) { let map = {}; for(let line of lines) { if(line.includes('=')) { let parts = line.split('='); map[normalizeName(parts[0].trim())] = parts[1].trim(); } } return map; }
-function findBestMatch(normGtfs, stopMap) { if (stopMap[normGtfs]) return stopMap[normGtfs]; for (const txtKey in stopMap) { if (normGtfs.includes(txtKey) || txtKey.includes(normGtfs)) return stopMap[txtKey]; } return null; }
-function loadJsonData(jsonId) { try { let p = getUniversalPath('data', `${jsonId}.json`); if (p) { const content = fs.readFileSync(p, 'utf-8'); return JSON.parse(content); } } catch(e) {} return []; }
+function findBestMatch(normGtfs, stopMap) { 
+    if (stopMap[normGtfs]) return stopMap[normGtfs]; 
+    let best = null; 
+    let maxLen = 0; 
+    for (const txtKey in stopMap) { 
+        if (normGtfs.includes(txtKey) || txtKey.includes(normGtfs)) { 
+            if (txtKey.length > maxLen) { 
+                best = stopMap[txtKey]; 
+                maxLen = txtKey.length; 
+            } 
+        } 
+    } 
+    return best; 
+}
+
+function loadJsonData(jsonId) { try { let p = getUniversalPath('data', `${jsonId}.json`); if (p) { const content = fs.readFileSync(p, 'utf-8'); return JSON.parse(content); } } catch(e) { console.error(e); } return []; }
 
 function extractSpojNumber(tripId, routeId) {
     let cleanTrip = cleanStr(tripId);
-    let routeNumeric = cleanStr(routeId).replace(/\D/g, '');
+    let routeNumeric = routeId.trim().replace(/\D/g, '');
     let parts = cleanTrip.split(/[-_]/);
     for (let i = 0; i < parts.length - 1; i++) {
         let pClean = parts[i].replace(/\D/g, '');
@@ -363,38 +476,100 @@ function extractSpojNumber(tripId, routeId) {
     return numericTrip.slice(-1) || '1';
 }
 
+function getActiveServiceIds(db) {
+    if (!db) return [];
+    try {
+        const today = new Date();
+        const yyyymmdd = today.getFullYear() + String(today.getMonth() + 1).padStart(2, '0') + String(today.getDate()).padStart(2, '0');
+        const dayOfWeekStr = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'][today.getDay()];
+        
+        let query = `
+            SELECT service_id FROM calendar 
+            WHERE start_date <= ? AND end_date >= ? AND ${dayOfWeekStr} = 1
+        `;
+        let stmt = db.prepare(query);
+        stmt.bind([yyyymmdd, yyyymmdd]);
+        let active = new Set();
+        while(stmt.step()) active.add(stmt.getAsObject().service_id);
+        stmt.free();
+        
+        let exQuery = `SELECT service_id, exception_type FROM calendar_dates WHERE date = ?`;
+        let stmt2 = db.prepare(exQuery);
+        stmt2.bind([yyyymmdd]);
+        while(stmt2.step()) {
+            let row = stmt2.getAsObject();
+            if (row.exception_type === 1) active.add(row.service_id);
+            else if (row.exception_type === 2) active.delete(row.service_id);
+        }
+        stmt2.free();
+        
+        return Array.from(active);
+    } catch(e) {
+        return [];
+    }
+}
+
+function getRouteIdsForShortName(routeId, db) {
+    if (!db) return [routeId];
+    try {
+        let stmt1 = db.prepare("SELECT route_short_name FROM routes WHERE route_id = ?");
+        stmt1.bind([routeId]);
+        let shortName = null;
+        if (stmt1.step()) shortName = stmt1.getAsObject().route_short_name;
+        stmt1.free();
+        
+        if (!shortName) return [routeId];
+        
+        let stmt2 = db.prepare("SELECT route_id FROM routes WHERE route_short_name = ?");
+        stmt2.bind([shortName]);
+        let rIds = [];
+        while(stmt2.step()) {
+            rIds.push(stmt2.getAsObject().route_id);
+        }
+        stmt2.free();
+        return rIds.length > 0 ? rIds : [routeId];
+    } catch(e) {
+        return [routeId];
+    }
+}
+
 async function findRouteId(shortName, exactRouteId = null) {
     let jsonId = getJsonRouteId(shortName);
     if (jsonId) return jsonId;
 
     let customRoutes = getUnlockedCustomRoutes();
-
-    const filePath = getDataFilePath('routes.txt'); if (!fs.existsSync(filePath)) return null;
-    const stream = fs.createReadStream(filePath);
-    const rl = readline.createInterface({ input: stream, crlfDelay: Infinity });
-    let first = true;
-    for await (const line of rl) {
-        if (first) { first = false; continue; }
-        const p = parseCSV(line);
-        let routeShort = cleanStr(p[2]); 
-        let routeExact = cleanStr(p[0]);
-        
-        if (exactRouteId && (routeShort === exactRouteId || routeExact === exactRouteId)) {
-            return routeExact; 
-        }
-
-        let num = parseInt(routeShort);
+    
+    await ensureGtfsCache();
+    let query = "SELECT route_id, route_short_name FROM routes";
+    
+    const checkRow = (rId, rShort) => {
+        if (exactRouteId && (rShort === exactRouteId || rId === exactRouteId)) return rId;
+        let num = parseInt(rShort);
         if (!isNaN(num)) {
             const inRange = (num >= 400621 && num <= 405611) || 
                             (num >= 430432 && num <= 440649) || 
                             (num >= 450411 && num <= 475211) || 
                             (num >= 490722 && num <= 496711) ||
-                            customRoutes.has(routeShort) || customRoutes.has(routeExact); 
+                            customRoutes.has(rShort) || customRoutes.has(rId); 
             if (inRange) { 
-                if (routeShort === shortName || routeShort.endsWith(shortName) || routeExact === exactRouteId || routeExact === shortName) return routeExact; 
+                if (rShort === shortName || rShort.endsWith(shortName) || rId === exactRouteId || rId === shortName) return rId; 
             }
         }
+        return null;
+    };
+    
+    if (idpkDb) {
+        try {
+            let stmt = idpkDb.prepare(query);
+            while(stmt.step()) {
+                let row = stmt.getAsObject();
+                let match = checkRow(row.route_id, row.route_short_name);
+                if (match) { stmt.free(); return match; }
+            }
+            stmt.free();
+        } catch(e) { console.error(e); }
     }
+    
     return null;
 }
 
@@ -415,8 +590,13 @@ ipcMain.handle('process-hybrid-file', async (event, fileContent) => {
         
         let customRoutes = getUnlockedCustomRoutes();
         let linkaNum = exactRouteId;
+        let forcedRouteId = null;
         
-        if (exactRouteId.length >= 5 && !customRoutes.has(exactRouteId)) {
+        if (exactRouteId.includes('|')) {
+            let parts = exactRouteId.split('|');
+            forcedRouteId = parts[2] ? parts[2].trim() : null;
+            linkaNum = parts[0].trim();
+        } else if (exactRouteId.length >= 5 && !customRoutes.has(exactRouteId)) {
             linkaNum = exactRouteId.slice(-3).replace(/^0+/, ''); 
         } else {
             linkaNum = exactRouteId.replace(/^0+/, ''); 
@@ -432,6 +612,8 @@ ipcMain.handle('process-hybrid-file', async (event, fileContent) => {
         let routeId = null;
         if (isJsonMatch) {
             routeId = linkaNum;
+        } else if (forcedRouteId) {
+            routeId = forcedRouteId;
         } else {
             routeId = await findRouteId(linkaNum, exactRouteId);
             if (!routeId) return { error: `Linka ${exactRouteId} nenalezena v GTFS` };
@@ -491,19 +673,23 @@ function mergeStops(gtfsStops, textFileLines) {
 async function findTripId(routeId, cleanSpojNum) {
     if (getJsonRouteId(routeId)) return `json_${routeId}_${cleanSpojNum}`;
 
-    const filePath = getDataFilePath('trips.txt'); if (!fs.existsSync(filePath)) return null;
-    const stream = fs.createReadStream(filePath);
-    const rl = readline.createInterface({ input: stream, crlfDelay: Infinity });
-    let first = true;
-    for await (const line of rl) {
-        if (first) { first = false; continue; }
-        const p = parseCSV(line); 
-        if (cleanStr(p[0]) === cleanStr(routeId)) {
-            let tid = cleanStr(p[2]);
-            let actualSpoj = extractSpojNumber(tid, routeId);
-            if (actualSpoj === cleanSpojNum) return tid;
-        }
+    await ensureGtfsCache();
+    let query = "SELECT trip_id FROM trips WHERE route_id = $r";
+    let tidList = [];
+    
+    if (idpkDb) {
+        try {
+            let stmt = idpkDb.prepare(query);
+            stmt.bind({$r: routeId.trim()});
+            while(stmt.step()) tidList.push(stmt.getAsObject().trip_id);
+            stmt.free();
+        } catch(e) { log.error(e); }
     }
+    
+    for (let tid of tidList) {
+        if (extractSpojNumber(tid, routeId) === cleanSpojNum) return tid;
+    }
+
     return null;
 }
 
@@ -512,132 +698,100 @@ async function getHeadsign(tripId) {
         let lNum = tripId.split('_')[1]; const spojNum = parseInt(tripId.split('_')[2]);
         const data = loadJsonData(lNum); const trip = data.find(t => t.spoj === spojNum); return trip ? trip.smer : "";
     }
-    const filePath = getDataFilePath('trips.txt'); const stream = fs.createReadStream(filePath); const rl = readline.createInterface({ input: stream, crlfDelay: Infinity });
-    for await (const line of rl) { const p = parseCSV(line); if (cleanStr(p[2]) === cleanStr(tripId)) return cleanStr(p[3]); }
+    
+    await ensureGtfsCache();
+    let query = "SELECT CASE WHEN trip_headsign = '' OR trip_headsign IS NULL THEN (SELECT s2.name FROM stop_times st2 JOIN stops s2 ON st2.stop_id = s2.stop_id WHERE st2.trip_id = trips.trip_id ORDER BY st2.stop_sequence DESC LIMIT 1) ELSE trip_headsign END as headsign FROM trips WHERE trip_id = $t";
+    
+    if (idpkDb) {
+        try {
+            let stmt = idpkDb.prepare(query);
+            stmt.bind({$t: tripId.trim()});
+            if (stmt.step()) { let res = stmt.getAsObject().headsign; stmt.free(); return res; }
+            stmt.free();
+        } catch(e) { console.error(e); }
+    }
+    
     return "";
 }
 
 // ============================================================
-// GTFS IN-MEMORY CACHE – soubory se čtou jednou, pak z RAM
+// GTFS SQLITE (sql.js)
 // ============================================================
-let gtfsCache = null;
-let gtfsCacheLoading = false;
-let gtfsCacheWaiters = [];
+const initSqlJs = require('sql.js');
+let idpkDb = null;
 
+let sqlJsPromise = null;
+async function getSqlJs() {
+    if (global.SQL) return global.SQL;
+    if (sqlJsPromise) return sqlJsPromise;
+    sqlJsPromise = (async () => {
+        global.SQL = await initSqlJs({ locateFile: file => path.join(__dirname, 'node_modules', 'sql.js', 'dist', file) });
+        return global.SQL;
+    })();
+    return sqlJsPromise;
+}
+
+let gtfsCachePromise = null;
 async function ensureGtfsCache() {
-    if (gtfsCache) return gtfsCache;
-    if (gtfsCacheLoading) {
-        // Čekáme až jiný volající dokončí načítání
-        return new Promise((resolve) => gtfsCacheWaiters.push(resolve));
-    }
-    gtfsCacheLoading = true;
-    log.info('[GTFS Cache] Zahajuji načítání GTFS dat do RAM...');
-    const t0 = Date.now();
-
-    const routesPath = getDataFilePath('routes.txt');
-    const tripsPath = getDataFilePath('trips.txt');
-    const stopTimesPath = getDataFilePath('stop_times.txt');
-    const stopsPath = getDataFilePath('stops.txt');
-
-    const cache = {
-        routes: [],           // [{ routeId, routeShort, routeLong }]
-        trips: new Map(),     // tripId → { routeId, headsign }
-        routeTrips: new Map(),// routeId → [tripId, ...]
-        stopTimes: new Map(), // tripId → [{ seq, time, stopId, pickupType }]
-        stops: new Map(),     // stopId → { name, zone }
-        stopsByName: new Map()// stopName → [stopId, ...]
-    };
-
-    try {
-        // 1. routes.txt
-        if (routesPath && fs.existsSync(routesPath)) {
-            const rl = readline.createInterface({ input: fs.createReadStream(routesPath), crlfDelay: Infinity });
-            let first = true;
-            for await (const line of rl) {
-                if (first) { first = false; continue; }
-                const p = parseCSV(line);
-                const routeId = cleanStr(p[0]);
-                const routeShort = cleanStr(p[2]);
-                const routeLong = cleanStr(p[3]);
-                if (routeId) cache.routes.push({ routeId, routeShort, routeLong });
+    if (idpkDb) return idpkDb;
+    if (gtfsCachePromise) return gtfsCachePromise;
+    gtfsCachePromise = (async () => {
+        try {
+            log.info('[GTFS DB] Načítám IDPK DB do paměti...');
+            const SQL = await getSqlJs();
+            const dbPath = getDataFilePath('gtfs_stops_idpk.db');
+            if (fs.existsSync(dbPath)) {
+                const fileBuffer = fs.readFileSync(dbPath);
+                idpkDb = new SQL.Database(fileBuffer);
             }
+            return idpkDb;
+        } finally {
+            gtfsCachePromise = null;
         }
-
-        // 2. trips.txt
-        if (tripsPath && fs.existsSync(tripsPath)) {
-            const rl = readline.createInterface({ input: fs.createReadStream(tripsPath), crlfDelay: Infinity });
-            let first = true;
-            for await (const line of rl) {
-                if (first) { first = false; continue; }
-                const p = parseCSV(line);
-                const routeId = cleanStr(p[0]);
-                const tripId = cleanStr(p[2]);
-                const headsign = cleanStr(p[3]);
-                if (tripId) {
-                    cache.trips.set(tripId, { routeId, headsign });
-                    if (!cache.routeTrips.has(routeId)) cache.routeTrips.set(routeId, []);
-                    cache.routeTrips.get(routeId).push(tripId);
-                }
-            }
-        }
-
-        // 3. stops.txt
-        if (stopsPath && fs.existsSync(stopsPath)) {
-            const sContent = fs.readFileSync(stopsPath, 'utf-8').split('\n');
-            sContent.forEach((line, idx) => {
-                if (idx === 0 || !line.trim()) return;
-                const p = parseCSV(line);
-                const stopId = cleanStr(p[0]);
-                const name = cleanStr(p[2]);
-                let zone = p.length > 6 ? p[6] : (p.length > 5 ? p[5] : "");
-                if (zone.includes('.')) zone = "";
-                zone = cleanZones(zone);
-                if (stopId) {
-                    cache.stops.set(stopId, { name, zone });
-                    if (!cache.stopsByName.has(name)) cache.stopsByName.set(name, []);
-                    cache.stopsByName.get(name).push(stopId);
-                }
-            });
-        }
-
-        // 4. stop_times.txt (největší soubor – čteme streamem)
-        if (stopTimesPath && fs.existsSync(stopTimesPath)) {
-            const rl = readline.createInterface({ input: fs.createReadStream(stopTimesPath), crlfDelay: Infinity });
-            let first = true;
-            for await (const line of rl) {
-                if (first) { first = false; continue; }
-                const p = line.split(',').map(s => s.replace(/["'\r\n]+/g, '').trim());
-                const tripId = p[0];
-                if (!tripId) continue;
-                if (!cache.stopTimes.has(tripId)) cache.stopTimes.set(tripId, []);
-                cache.stopTimes.get(tripId).push({
-                    seq: parseInt(p[4]) || 0,
-                    time: p[1] ? p[1].substring(0, 5) : "",
-                    stopId: p[3],
-                    pickupType: p[5] || '0'
-                });
-            }
-        }
-
-    } catch(e) {
-        log.error('[GTFS Cache] Chyba při načítání: ' + e.message);
-    }
-
-    gtfsCache = cache;
-    gtfsCacheLoading = false;
-    log.info(`[GTFS Cache] Načteno za ${Date.now() - t0}ms | routes:${cache.routes.length} trips:${cache.trips.size} stops:${cache.stops.size}`);
-
-    // Odblokujeme čekající volající
-    gtfsCacheWaiters.forEach(r => r(cache));
-    gtfsCacheWaiters = [];
-    return cache;
+    })();
+    return gtfsCachePromise;
 }
 
 function invalidateGtfsCache() {
-    gtfsCache = null;
-    log.info('[GTFS Cache] Cache invalidována (nová GTFS data).');
+    if (idpkDb) { idpkDb.close(); idpkDb = null; }
+    log.info('[GTFS Cache] DB invalidována.');
 }
 
+async function interpolateMissingTimes(stops) {
+    let lastTimeInMins = 0;
+    for (let i = 0; i < stops.length; i++) {
+        if (stops[i].time) {
+            let parts = stops[i].time.split(':');
+            lastTimeInMins = parseInt(parts[0]) * 60 + parseInt(parts[1]);
+        } else {
+            let nextTimeInMins = null;
+            let nextIndex = i;
+            for (let j = i + 1; j < stops.length; j++) {
+                if (stops[j].time) {
+                    let parts = stops[j].time.split(':');
+                    nextTimeInMins = parseInt(parts[0]) * 60 + parseInt(parts[1]);
+                    nextIndex = j;
+                    break;
+                }
+            }
+            if (nextTimeInMins !== null && lastTimeInMins > 0) {
+                let diff = nextTimeInMins - lastTimeInMins;
+                let steps = nextIndex - i + 1;
+                let stepSize = diff / steps;
+                let currentMins = Math.round(lastTimeInMins + stepSize);
+                lastTimeInMins = currentMins;
+                let h = Math.floor(currentMins / 60);
+                let m = currentMins % 60;
+                stops[i].time = (h < 10 ? '0' : '') + h + ':' + (m < 10 ? '0' : '') + m;
+            } else {
+                lastTimeInMins += 2; // Arbitrary 2 mins if no data
+                let h = Math.floor(lastTimeInMins / 60);
+                let m = lastTimeInMins % 60;
+                stops[i].time = (h < 10 ? '0' : '') + h + ':' + (m < 10 ? '0' : '') + m;
+            }
+        }
+    }
+}
 async function getGtfsStopsForTrip(tripId) {
     if (tripId.startsWith('json_')) {
         let lNum = tripId.split('_')[1]; const spojNum = parseInt(tripId.split('_')[2]);
@@ -646,16 +800,138 @@ async function getGtfsStopsForTrip(tripId) {
         return [];
     }
 
-    const cache = await ensureGtfsCache();
-    const stopTimesForTrip = cache.stopTimes.get(tripId) || [];
-    const result = stopTimesForTrip.map(st => {
-        const info = cache.stops.get(st.stopId) || { name: 'Neznámá', zone: '' };
-        let type = 'n';
-        if (st.pickupType === '2' || st.pickupType === '3') type = 'z';
-        return { name: info.name, zone: info.zone, time: st.time, type, seq: st.seq };
-    });
-    return result.sort((a, b) => a.seq - b.seq);
+    await ensureGtfsCache();
+    let query = "SELECT st.arrival_time as time, st.pickup_type, s.name, st.stop_sequence as seq, s.zone_id, s.cisjr_id FROM stop_times st JOIN stops s ON st.stop_id = s.stop_id WHERE st.trip_id = $tripId ORDER BY st.stop_sequence";
+    let fallbackQuery = "SELECT st.arrival_time as time, st.pickup_type, s.name, st.stop_sequence as seq, '' as zone_id, '' as cisjr_id FROM stop_times st JOIN stops s ON st.stop_id = s.stop_id WHERE st.trip_id = $tripId ORDER BY st.stop_sequence";
+    let results = [];
+    
+    let zonesOverride = {};
+    try {
+        const overridePath = path.join(app.getPath('userData'), 'data', 'zones_override.json');
+        if (fs.existsSync(overridePath)) {
+            zonesOverride = JSON.parse(fs.readFileSync(overridePath, 'utf8'));
+        }
+    } catch (e) { log.error("Failed to load zones_override.json: " + e); }
+    
+    const processRow = (row) => {
+        let type = (row.pickup_type === '2' || row.pickup_type === '3') ? 'z' : 'n';
+        let timeStr = row.time ? row.time.substring(0, 5) : "";
+        
+        let stopName = row.name;
+        stopName = stopName.replace(/autobusov[aá]\s+stanice/gi, "aut. st.");
+        stopName = stopName.replace(/autobusov[eé]\s+n[aá]dra[zž][ií]/gi, "aut. nádr.");
+        stopName = stopName.replace(/[zž]elezni[cč]n[ií]\s+stanice/gi, "žel. st.");
+        stopName = stopName.replace(/restaurace/gi, "rest.");
+        
+        let rawZone = row.zone_id || "";
+        if (row.cisjr_id && zonesOverride[row.cisjr_id]) {
+            rawZone = zonesOverride[row.cisjr_id];
+        }
+        
+        let zonesList = rawZone.split(",").map(z => z.trim().replace(/^P/i, "")).filter(z => z !== "");
+        let finalZone = zonesList.join("<br>");
+        let isPhoneDemand = (row.pickup_type == 2 || row.pickup_type == 3);
+        results.push({ name: stopName, zone: finalZone, time: timeStr, type: type, seq: row.seq, isPhoneDemand: isPhoneDemand });
+    };
+
+    if (idpkDb) {
+        try {
+            let stmt = idpkDb.prepare(query);
+            stmt.bind({$tripId: tripId.trim()});
+            while(stmt.step()) processRow(stmt.getAsObject());
+            stmt.free();
+        } catch(e) { 
+            try {
+                let stmt = idpkDb.prepare(fallbackQuery);
+                stmt.bind({$tripId: tripId.trim()});
+                while(stmt.step()) processRow(stmt.getAsObject());
+                stmt.free();
+            } catch(e2) {
+                console.error("Fallback query also failed:", e2);
+            }
+        }
+    }
+    
+    await interpolateMissingTimes(results);
+    return results;
 }
+
+ipcMain.on('open-editor', () => {
+    let editorWin = new BrowserWindow({
+        width: 1000, height: 700, frame: true, title: "Editor vlastních linek",
+        webPreferences: { nodeIntegration: true, contextIsolation: false },
+        icon: path.join(__dirname, 'icon.ico'),
+        backgroundColor: '#0f172a'
+    });
+    loadWindowFile(editorWin, 'editor.html');
+});
+
+ipcMain.handle('editor-get-routes', () => {
+    let routes = [];
+    const customDataPath = path.join(PATH_USERDATA, 'data');
+    if (fs.existsSync(customDataPath)) {
+        fs.readdirSync(customDataPath).filter(f => f.endsWith('.json')).forEach(f => {
+            try {
+                const content = JSON.parse(fs.readFileSync(path.join(customDataPath, f), 'utf8'));
+                routes.push({ id: f.replace('.json', ''), data: content });
+            } catch(e) {}
+        });
+    }
+    return routes;
+});
+
+ipcMain.handle('editor-save-route', (e, id, data) => {
+    const customDataPath = path.join(PATH_USERDATA, 'data');
+    if (!fs.existsSync(customDataPath)) fs.mkdirSync(customDataPath, { recursive: true });
+    fs.writeFileSync(path.join(customDataPath, id + '.json'), JSON.stringify(data, null, 4));
+    return true;
+});
+
+ipcMain.handle('editor-delete-route', (e, id) => {
+    const p = path.join(PATH_USERDATA, 'data', id + '.json');
+    if (fs.existsSync(p)) fs.unlinkSync(p);
+    return true;
+});
+
+ipcMain.handle('editor-export-gtfs', async (e, routeId) => {
+    await ensureGtfsCache();
+    if (!idpkDb) return { success: false, msg: "Databáze není načtena" };
+    
+    // Získání spojů pro danou linku z tabulky trips, které jedou dnes
+    const dz = idpkDb.prepare("SELECT trip_id FROM trips WHERE route_id = $r LIMIT 1");
+    dz.bind({$r: routeId});
+    let trip = null;
+    if (dz.step()) trip = dz.getAsObject().trip_id;
+    dz.free();
+    
+    if (!trip) return { success: false, msg: "Nebyl nalezen žádný spoj pro export" };
+    
+    // Získat zastávky spojů
+    let stops = [];
+    try {
+        let stmt = idpkDb.prepare("SELECT st.arrival_time as time, st.pickup_type, s.name, s.zone_id FROM stop_times st JOIN stops s ON st.stop_id = s.stop_id WHERE st.trip_id = $tripId ORDER BY st.stop_sequence");
+        stmt.bind({$tripId: trip});
+        while(stmt.step()) {
+            let row = stmt.getAsObject();
+            let timeStr = row.time ? row.time.substring(0, 5) : "";
+            stops.push({
+                name: row.name,
+                zone: row.zone_id || "",
+                time: timeStr,
+                na_znameni: (row.pickup_type == 2 || row.pickup_type == 3)
+            });
+        }
+        stmt.free();
+    } catch(err) { return { success: false, msg: "Chyba dotazu: " + err.message }; }
+    
+    const sablona = [{ "spoj": 1, "zastavky": stops }];
+    
+    const customDataPath = path.join(PATH_USERDATA, 'data');
+    if (!fs.existsSync(customDataPath)) fs.mkdirSync(customDataPath, { recursive: true });
+    fs.writeFileSync(path.join(customDataPath, routeId + '_export.json'), JSON.stringify(sablona, null, 4));
+    
+    return { success: true, id: routeId + '_export', msg: "Exportováno jako " + routeId + "_export.json" };
+});
 
 ipcMain.handle('gtfs-load-routes', async () => {
     const results = [];
@@ -663,7 +939,7 @@ ipcMain.handle('gtfs-load-routes', async () => {
 
     // JSON linky ze složky data
     try {
-        let dirsToScan = [path.join(PATH_EXE, 'data'), path.join(PATH_DEV, 'data')];
+        let dirsToScan = [path.join(PATH_USERDATA, 'data'), path.join(PATH_EXE, 'data'), path.join(PATH_DEV, 'data')];
         dirsToScan.forEach(dir => {
             if (fs.existsSync(dir)) {
                 fs.readdirSync(dir).filter(f => f.endsWith('.json')).forEach(f => {
@@ -672,28 +948,42 @@ ipcMain.handle('gtfs-load-routes', async () => {
                 });
             }
         });
-    } catch(e) {}
+    } catch(e) { console.error(e); }
 
-    // GTFS routes z cache
-    const routesPath = getDataFilePath('routes.txt');
-    if (routesPath && fs.existsSync(routesPath)) {
-        const cache = await ensureGtfsCache();
-        for (const r of cache.routes) {
-            const { routeId, routeShort, routeLong } = r;
-            if (customRoutes.has(routeShort) || customRoutes.has(routeId)) {
-                results.push(`${routeShort} | ${routeLong} | ${routeId}`);
-                continue;
+    await ensureGtfsCache();
+    if (idpkDb) {
+        try {
+            let res = idpkDb.exec("SELECT route_id, route_short_name, route_long_name FROM routes");
+            if (res.length > 0) {
+                let seenNames = new Set();
+                res[0].values.forEach(v => {
+                    let routeId = v[0].trim();
+                    let routeShortOrig = v[1] ? v[1].trim() : "";
+                    let routeLongOrig = v[2] ? v[2].trim() : "";
+                    
+                    let routeShortClean = cleanStr(routeShortOrig);
+                    let routeLongClean = cleanStr(routeLongOrig);
+                    
+                    let key = `${routeShortClean} | ${routeLongClean}`;
+                    if (seenNames.has(key)) return;
+                    seenNames.add(key);
+                    
+                    if (customRoutes.has(routeShortClean) || customRoutes.has(routeId)) {
+                        results.push(`${routeShortOrig} | ${routeLongOrig} | ${routeId}`);
+                        return;
+                    }
+                    const num = parseInt(routeShortClean);
+                    if (!isNaN(num)) {
+                        if (num === 440424 || num === 424) return;
+                        const inRange = (num >= 400621 && num <= 405611) ||
+                                        (num >= 430432 && num <= 440649) ||
+                                        (num >= 450411 && num <= 475211) ||
+                                        (num >= 490722 && num <= 496711);
+                        if (inRange) results.push(`${routeShortOrig} | ${routeLongOrig} | ${routeId}`);
+                    }
+                });
             }
-            const num = parseInt(routeShort);
-            if (!isNaN(num)) {
-                if (num === 440424 || num === 424) continue;
-                const inRange = (num >= 400621 && num <= 405611) ||
-                                (num >= 430432 && num <= 440649) ||
-                                (num >= 450411 && num <= 475211) ||
-                                (num >= 490722 && num <= 496711);
-                if (inRange) results.push(`${routeShort} | ${routeLong} | ${routeId}`);
-            }
-        }
+        } catch(e) { console.error(e); }
     }
     return [...new Set(results)].sort();
 });
@@ -707,19 +997,44 @@ ipcMain.handle('gtfs-get-start-stops', async (event, routeId) => {
         return Array.from(starts).sort();
     }
 
-    const cache = await ensureGtfsCache();
-    const tripIds = (cache.routeTrips.get(cleanStr(routeId)) || []);
-    if (tripIds.length === 0) return [];
-
-    const uniqueStartNames = new Set();
-    for (const tid of tripIds) {
-        const times = cache.stopTimes.get(tid) || [];
-        if (times.length === 0) continue;
-        const firstStop = times.reduce((min, s) => s.seq < min.seq ? s : min, times[0]);
-        const stopInfo = cache.stops.get(firstStop.stopId);
-        if (stopInfo) uniqueStartNames.add(stopInfo.name);
+    await ensureGtfsCache();
+    let rIds = getRouteIdsForShortName(routeId.trim(), idpkDb);
+    let placeholders = rIds.map(() => '?').join(',');
+    let activeServices = []; // getActiveServiceIds(idpkDb); // disabled to show all weekend/weekday trips
+    let serviceFilter = "";
+    let bindValues = [...rIds];
+    
+    if (activeServices.length > 0) {
+        let sPlaceholders = activeServices.map(() => '?').join(',');
+        serviceFilter = `AND t.service_id IN (${sPlaceholders})`;
+        bindValues = bindValues.concat(activeServices);
     }
-    return Array.from(uniqueStartNames).sort();
+
+    let query = `
+        SELECT s.name 
+        FROM trips t
+        JOIN stop_times st ON t.trip_id = st.trip_id
+        JOIN stops s ON st.stop_id = s.stop_id
+        WHERE t.route_id IN (${placeholders}) ${serviceFilter}
+        AND st.stop_sequence = (
+            SELECT MIN(stop_sequence) FROM stop_times WHERE trip_id = t.trip_id
+        )
+    `;
+    let starts = new Set();
+    
+    const runQuery = (db) => {
+        console.log('[DEBUG] gtfs-get-start-stops routeId:', routeId, 'rIds:', rIds, 'bindValues:', bindValues);
+        try {
+            let stmt = db.prepare(query);
+            stmt.bind(bindValues);
+            while(stmt.step()) starts.add(shortenStopName(stmt.getAsObject().name));
+            stmt.free();
+        } catch(e) { console.error(e); }
+    };
+
+    if (idpkDb) runQuery(idpkDb);
+    
+    return Array.from(starts).sort();
 });
 
 ipcMain.handle('gtfs-get-destinations-from-start', async (event, {routeId, startStopName}) => {
@@ -731,25 +1046,51 @@ ipcMain.handle('gtfs-get-destinations-from-start', async (event, {routeId, start
         return Array.from(dests).sort();
     }
 
-    const cache = await ensureGtfsCache();
-    const targetStopIds = cache.stopsByName.get(startStopName) || [];
-    const tripIds = (cache.routeTrips.get(cleanStr(routeId)) || []);
-    const validHeadsigns = new Set();
-
-    for (const tid of tripIds) {
-        const tripInfo = cache.trips.get(tid);
-        if (!tripInfo) continue;
-        const times = cache.stopTimes.get(tid) || [];
-        if (times.length === 0) continue;
-        const firstStop = times.reduce((min, s) => s.seq < min.seq ? s : min, times[0]);
-        if (targetStopIds.includes(firstStop.stopId)) {
-            validHeadsigns.add(tripInfo.headsign);
-        }
+    await ensureGtfsCache();
+    let rIds = getRouteIdsForShortName(routeId.trim(), idpkDb);
+    let placeholders = rIds.map(() => '?').join(',');
+    let activeServices = []; // getActiveServiceIds(idpkDb); // disabled to show all weekend/weekday trips
+    let serviceFilter = "";
+    let bindValues = [...rIds];
+    
+    if (activeServices.length > 0) {
+        let sPlaceholders = activeServices.map(() => '?').join(',');
+        serviceFilter = `AND t.service_id IN (${sPlaceholders})`;
+        bindValues = bindValues.concat(activeServices);
     }
-    return Array.from(validHeadsigns).sort();
+    bindValues.push(startStopName);
+
+    let query = `
+        SELECT DISTINCT CASE WHEN t.trip_headsign = '' OR t.trip_headsign IS NULL THEN 
+            (SELECT s2.name FROM stop_times st2 JOIN stops s2 ON st2.stop_id = s2.stop_id WHERE st2.trip_id = t.trip_id ORDER BY st2.stop_sequence DESC LIMIT 1)
+        ELSE t.trip_headsign END as trip_headsign
+        FROM trips t
+        JOIN stop_times st ON t.trip_id = st.trip_id
+        JOIN stops s ON st.stop_id = s.stop_id
+        WHERE t.route_id IN (${placeholders}) ${serviceFilter}
+        AND s.name = ?
+        AND st.stop_sequence = (
+            SELECT MIN(stop_sequence) FROM stop_times WHERE trip_id = t.trip_id
+        )
+    `;
+    let dests = new Set();
+    
+    const runQuery = (db) => {
+        try {
+            let stmt = db.prepare(query);
+            stmt.bind(bindValues);
+            while(stmt.step()) dests.add(shortenStopName(stmt.getAsObject().trip_headsign));
+            stmt.free();
+        } catch(e) { console.error(e); }
+    };
+
+    if (idpkDb) runQuery(idpkDb);
+    
+    return Array.from(dests).sort();
 });
 
 ipcMain.handle('gtfs-get-final-trips', async (event, {routeId, startStopName, headsign}) => {
+    console.log('gtfs-get-final-trips called with:', routeId, startStopName, headsign);
     let jsonId = getJsonRouteId(routeId);
     if (jsonId) {
         const data = loadJsonData(jsonId);
@@ -762,36 +1103,131 @@ ipcMain.handle('gtfs-get-final-trips', async (event, {routeId, startStopName, he
         return results.sort((a, b) => a.time.localeCompare(b.time));
     }
 
-    const cache = await ensureGtfsCache();
+    await ensureGtfsCache();
     let customRoutes = getUnlockedCustomRoutes();
+    let rIdStr = routeId.trim();
 
-    // Najít routeShortName z cache
-    const routeInfo = cache.routes.find(r => r.routeId === cleanStr(routeId));
-    const routeShortName = routeInfo ? routeInfo.routeShort : cleanStr(routeId);
+    let routeShortName = rIdStr;
+    let queryR = "SELECT route_short_name FROM routes WHERE route_id = $r";
+    if (idpkDb) {
+        try {
+            let stmt = idpkDb.prepare(queryR);
+            stmt.bind({$r: rIdStr});
+            if (stmt.step()) routeShortName = stmt.getAsObject().route_short_name;
+            stmt.free();
+        } catch(e) { console.error(e); }
+    }
+
     let lineNumber = routeShortName;
-    if (!customRoutes.has(routeId) && !customRoutes.has(routeShortName)) {
+    if (!customRoutes.has(rIdStr) && !customRoutes.has(routeShortName)) {
         lineNumber = routeShortName.replace(/\D/g, '').slice(-3);
     }
 
-    const targetStopIds = cache.stopsByName.get(startStopName) || [];
-    const tripIds = cache.routeTrips.get(cleanStr(routeId)) || [];
+    let rIds = getRouteIdsForShortName(routeId.trim(), idpkDb);
+    let placeholders = rIds.map(() => '?').join(',');
+    let activeServices = []; // getActiveServiceIds(idpkDb); // disabled to show all weekend/weekday trips
+    let serviceFilter = "";
+    let bindValues = [...rIds];
+    
+    if (activeServices.length > 0) {
+        let sPlaceholders = activeServices.map(() => '?').join(',');
+        serviceFilter = `AND t.service_id IN (${sPlaceholders})`;
+        bindValues = bindValues.concat(activeServices);
+    }
+    bindValues.push(startStopName);
+
+    // Today's date in YYYYMMDD format for calendar filtering
+    const todayDate = new Date();
+    const todayStr = todayDate.getFullYear().toString() +
+        (todayDate.getMonth()+1).toString().padStart(2,'0') +
+        todayDate.getDate().toString().padStart(2,'0');
+    const todayDow = todayDate.getDay(); // 0=Sunday
+    const dowMap = ['sunday','monday','tuesday','wednesday','thursday','friday','saturday'];
+    const todayDowCol = dowMap[todayDow];
+
     const finalResults = [];
     const seenCombos = new Set();
 
-    for (const tid of tripIds) {
-        const tripInfo = cache.trips.get(tid);
-        if (!tripInfo || tripInfo.headsign !== cleanStr(headsign)) continue;
-        const times = cache.stopTimes.get(tid) || [];
-        if (times.length === 0) continue;
-        const firstStop = times.reduce((min, s) => s.seq < min.seq ? s : min, times[0]);
-        if (!targetStopIds.includes(firstStop.stopId)) continue;
-        if (seenCombos.has(tid)) continue;
-        seenCombos.add(tid);
-        const cleanSpoj = extractSpojNumber(tid, routeId);
-        const spojNum = parseInt(cleanSpoj) || 0;
-        const formattedName = `${lineNumber}/${cleanSpoj}`;
-        finalResults.push({ tripId: tid, time: firstStop.time, formattedName, spojNum, headsign: tripInfo.headsign, tripNumber: formattedName });
-    }
+    function processTrips(dbObj, bVals) {
+        if (!dbObj) return;
+        try {
+            let query = `
+                SELECT * FROM (
+                    SELECT t.trip_id, t.spoj_cislo, t.service_id, st.arrival_time as time,
+                    cal.start_date, cal.end_date,
+                    cal.monday, cal.tuesday, cal.wednesday, cal.thursday, cal.friday, cal.saturday, cal.sunday,
+                    (
+                        (
+                            cal.start_date <= ? AND cal.end_date >= ?
+                            AND cal.${todayDowCol} = 1
+                            AND t.service_id NOT IN (
+                                SELECT service_id FROM calendar_dates WHERE date = ? AND exception_type = 2
+                            )
+                        )
+                        OR
+                        t.service_id IN (
+                            SELECT service_id FROM calendar_dates WHERE date = ? AND exception_type = 1
+                        )
+                    ) as is_running_today,
+                    CASE WHEN t.trip_headsign = '' OR t.trip_headsign IS NULL THEN 
+                        (SELECT s2.name FROM stop_times st2 JOIN stops s2 ON st2.stop_id = s2.stop_id WHERE st2.trip_id = t.trip_id ORDER BY st2.stop_sequence DESC LIMIT 1)
+                    ELSE t.trip_headsign END as headsign
+                    FROM trips t
+                    JOIN stop_times st ON t.trip_id = st.trip_id
+                    JOIN stops s ON st.stop_id = s.stop_id
+                    LEFT JOIN calendar cal ON t.service_id = cal.service_id
+                    WHERE t.route_id IN (${placeholders}) ${serviceFilter}
+                    AND s.name = ?
+                    AND st.stop_sequence = (
+                        SELECT MIN(stop_sequence) FROM stop_times WHERE trip_id = t.trip_id
+                    )
+                ) WHERE headsign = ?
+            `;
+            let fullBVals = [todayStr, todayStr, todayStr, todayStr, ...bVals, headsign];
+            let stmt = dbObj.prepare(query);
+            stmt.bind(fullBVals);
+            while(stmt.step()) {
+                let obj = stmt.getAsObject();
+                let tid = obj.trip_id;
+                let dbHeadsign = obj.headsign ? obj.headsign : headsign;
+                if (seenCombos.has(tid)) continue;
+                seenCombos.add(tid);
+                let spojNum = obj.spoj_cislo || 0;
+                let cleanSpoj = spojNum.toString();
+                const formattedName = `${lineNumber}/${cleanSpoj}`;
+                let timeStr = obj.time ? obj.time.substring(0, 5) : "";
+                const validFrom = obj.start_date ? `${obj.start_date.substring(6,8)}.${obj.start_date.substring(4,6)}.${obj.start_date.substring(0,4)}` : "?";
+                const validTo = obj.end_date ? `${obj.end_date.substring(6,8)}.${obj.end_date.substring(4,6)}.${obj.end_date.substring(0,4)}` : "?";
+                
+                // Determine if this trip is active in the current calendar period (season)
+                let isInSeason = false;
+                if (obj.start_date && obj.end_date && todayStr >= obj.start_date && todayStr <= obj.end_date) {
+                    isInSeason = true;
+                }
+                
+                finalResults.push({ 
+                    tripId: tid, 
+                    time: timeStr, 
+                    formattedName, 
+                    spojNum, 
+                    headsign: cleanStr(shortenStopName(dbHeadsign)), 
+                    tripNumber: formattedName, 
+                    serviceValidFrom: validFrom, 
+                    serviceValidTo: validTo,
+                    isInSeason: isInSeason,
+                    isRunningToday: (obj.is_running_today == 1),
+                    dow: [obj.monday, obj.tuesday, obj.wednesday, obj.thursday, obj.friday, obj.saturday, obj.sunday],
+                    rawStartDate: obj.start_date,
+                    rawEndDate: obj.end_date
+                });
+            }
+            stmt.free();
+        } catch(e) { console.error('processTrips error:', e); }
+    };
+
+    if (idpkDb) processTrips(idpkDb, bindValues);
+    
+    console.log(`[GTFS] gtfs-get-final-trips: nalezeno ${finalResults.length} spojů pro dnešek (${todayStr})`);
     return finalResults.sort((a, b) => a.time.localeCompare(b.time));
 });
 
@@ -834,106 +1270,203 @@ app.whenReady().then(() => {
 
 async function syncGtfsData() {
     return new Promise((resolve) => {
-        log.info("Zahajuji kontrolu aktualizací GTFS dat...");
+        log.info("Zahajuji kontrolu aktualizací GTFS dat (SQLite)...");
         const options = {
             hostname: 'api.github.com',
-            path: '/repos/marek-1cz/IDPK-GTFS-Data/releases/latest',
+            path: '/repos/marek-1cz/DataCoreBot/releases/latest',
             method: 'GET',
             headers: { 'User-Agent': 'IDPK-Palubni-Pocitac' }
         };
+
+        const dataDir = path.join(PATH_USERDATA, 'data');
+        if (!fs.existsSync(dataDir)) {
+            fs.mkdirSync(dataDir, { recursive: true });
+        }
 
         const req = https.request(options, (res) => {
             let data = '';
             res.on('data', (chunk) => { data += chunk; });
             res.on('end', async () => {
                 if (res.statusCode !== 200) {
-                    log.error("Nepodařilo se ověřit GTFS data: " + res.statusCode);
+                    log.error("Nepodařilo se ověřit GTFS data na GitHubu: " + res.statusCode);
                     return resolve();
                 }
                 try {
                     const release = JSON.parse(data);
-                    const latestVersion = release.tag_name;
-                    const versionFile = path.join(app.getPath('userData'), 'gtfs_version.json');
                     
-                    let currentVersion = "";
+                    // Extrakce hashe z body
+                    const bodyText = release.body || "";
+                    const hashMatch = bodyText.match(/Hash:.*?([a-f0-9]{40,})/i);
+                    const latestHash = hashMatch ? hashMatch[1] : null;
+                    
+                    const validityMatch = bodyText.match(/Platnost dat:\s*(.*)/i);
+                    const gtfsValidity = validityMatch ? validityMatch[1].trim() : "";
+
+                    if (!latestHash) {
+                        log.error("Nenalezen Hash v popisu releasu.");
+                        return resolve();
+                    }
+
+                    const versionFile = path.join(dataDir, 'gtfs_version.json');
+                    const dbFileIdpk = path.join(dataDir, 'gtfs_stops_idpk.db');
+                    
+                    let currentHash = "";
+                    let currentValidity = "";
                     if (fs.existsSync(versionFile)) {
-                        currentVersion = JSON.parse(fs.readFileSync(versionFile, 'utf-8')).version;
+                        try {
+                            const verData = JSON.parse(fs.readFileSync(versionFile, 'utf-8'));
+                            currentHash = verData.hash;
+                            currentValidity = verData.validity || "";
+                        } catch(e) { console.error(e); }
                     }
 
-                    if (currentVersion === latestVersion) {
-                        log.info("GTFS data jsou aktuální (" + currentVersion + ")");
+                    if (currentHash === latestHash && fs.existsSync(dbFileIdpk)) {
+                        log.info("GTFS DB je aktuální (Hash: " + currentHash + ")");
+                        if (controllerWindow) controllerWindow.webContents.send('gtfs-update-status', { status: 'ok', validity: currentValidity || gtfsValidity });
                         return resolve();
                     }
 
-                    log.info("Nalezena nová verze GTFS: " + latestVersion + ". Stahuji...");
-                    const asset = release.assets.find(a => a.name === 'gtfs.zip');
-                    if (!asset) {
-                        log.error("V release chybí gtfs.zip!");
+                    const assetIdpk = release.assets.find(a => a.name === 'gtfs_stops_idpk.db');
+                    if (!assetIdpk) {
+                        log.error("V releasu chybí asset gtfs_stops_idpk.db");
                         return resolve();
                     }
 
-                    const zipPath = path.join(app.getPath('userData'), 'gtfs.zip');
-                    const targetDir = path.join(app.getPath('userData'), 'data');
+                    log.info("Nalezena nová verze GTFS DB. Stahuji z GitHubu...");
+                    if (controllerWindow) controllerWindow.webContents.send('gtfs-update-status', { status: 'downloading' });
                     
-                    if (!fs.existsSync(targetDir)) fs.mkdirSync(targetDir, { recursive: true });
-
-                    const file = fs.createWriteStream(zipPath);
-                    https.get(asset.browser_download_url, (response) => {
-                        // GitHub releases usually redirect to a CDN
-                        if (response.statusCode === 302 || response.statusCode === 301) {
-                            https.get(response.headers.location, (redirectResponse) => {
-                                redirectResponse.pipe(file);
-                                file.on('finish', async () => {
-                                    file.close();
-                                    log.info("GTFS stahování dokončeno, rozbaluji...");
-                                    try {
-                                        await extract(zipPath, { dir: targetDir });
-                                        fs.writeFileSync(versionFile, JSON.stringify({ version: latestVersion }));
-                                        log.info("GTFS úspěšně aktualizováno na " + latestVersion);
-                                    } catch (err) {
-                                        log.error("Chyba při rozbalování GTFS: " + err);
-                                    }
-                                    resolve();
-                                });
-                            });
-                        } else {
-                            response.pipe(file);
-                            file.on('finish', async () => {
-                                file.close();
-                                try {
-                                    await extract(zipPath, { dir: targetDir });
-                                    fs.writeFileSync(versionFile, JSON.stringify({ version: latestVersion }));
-                                    log.info("GTFS úspěšně aktualizováno na " + latestVersion);
-                                } catch (err) {
-                                    log.error("Chyba při rozbalování GTFS: " + err);
+                    const downloadAsset = (asset, destFile) => {
+                        return new Promise((dlResolve, dlReject) => {
+                            const downloadOptions = {
+                                hostname: 'api.github.com',
+                                path: '/repos/marek-1cz/DataCoreBot/releases/assets/' + asset.id,
+                                method: 'GET',
+                                headers: { 
+                                    'User-Agent': 'IDPK-Palubni-Pocitac',
+                                    'Accept': 'application/octet-stream'
                                 }
-                                resolve();
-                            });
-                        }
-                    }).on('error', (err) => {
-                        log.error("Chyba při stahování GTFS: " + err.message);
-                        fs.unlink(zipPath, () => {});
+                            };
+
+                            const handleDownload = (resDl) => {
+                                if (resDl.statusCode === 301 || resDl.statusCode === 302) {
+                                    https.get(resDl.headers.location, handleDownload).on('error', dlReject);
+                                    return;
+                                }
+                                if (resDl.statusCode !== 200) {
+                                    return dlReject(new Error("HTTP status " + resDl.statusCode));
+                                }
+                                
+                                const file = fs.createWriteStream(destFile);
+                                resDl.pipe(file);
+                                file.on('finish', () => {
+                                    file.close();
+                                    dlResolve();
+                                });
+                            };
+                            https.get(downloadOptions, handleDownload).on('error', dlReject);
+                        });
+                    };
+
+                    try {
+                        await downloadAsset(assetIdpk, dbFileIdpk);
+                        fs.writeFileSync(versionFile, JSON.stringify({ hash: latestHash, validity: gtfsValidity }));
+                        log.info("GTFS DB úspěšně aktualizována.");
+                        invalidateGtfsCache();
+                        if (controllerWindow) controllerWindow.webContents.send('gtfs-update-status', { status: 'done', validity: gtfsValidity });
                         resolve();
-                    });
+                    } catch (err) {
+                        log.error("Chyba při stahování DB: " + err.message);
+                        if (!fs.existsSync(dbFileIdpk)) {
+                            log.error("Lokální kopie DB neexistuje!");
+                        }
+                        if (controllerWindow) controllerWindow.webContents.send('gtfs-update-status', { status: 'error' });
+                        resolve();
+                    }
                 } catch (e) {
-                    log.error("Chyba při zpracování verze GTFS: " + e.message);
+                    log.error("Chyba při zpracování verze z GitHubu: " + e.message);
                     resolve();
                 }
             });
         });
         
         req.on('error', (e) => {
-            log.error("Chyba spojení s GitHubem (GTFS): " + e.message);
+            log.error("Chyba spojení s GitHubem: " + e.message);
+            const dbFileIdpk = path.join(dataDir, 'gtfs_stops_idpk.db');
+            if (!fs.existsSync(dbFileIdpk)) {
+                log.error("Lokální kopie GTFS DB chybí — aplikace nemusí fungovat správně!");
+            } else {
+                log.info("Bude použita poslední lokální kopie GTFS DB.");
+            }
             resolve();
         });
         req.end();
     });
 }
 
+const { autoUpdater } = require('electron-updater');
+
+// Setup AutoUpdater
+autoUpdater.autoDownload = true;
+autoUpdater.autoInstallOnAppQuit = true;
+
+autoUpdater.on('update-available', (info) => {
+    log.info('Aktualizace nalezena: ' + info.version);
+    // Pokud máme zobrazený launcher, můžeme mu to poslat
+    // V budoucnu můžeme do launcher.html přidat naslouchátko na 'update-available'
+});
+autoUpdater.on('update-downloaded', (info) => {
+    log.info('Aktualizace stažena, připravuji instalaci při ukončení aplikace.');
+    // Můžeme natvrdo aplikaci zavřít a nainstalovat, ale autoInstallOnAppQuit=true to udělá při zavření Launcheru uživatelem.
+});
+autoUpdater.on('error', (err) => {
+    log.error('Chyba AutoUpdateru: ' + err);
+});
+
 app.on('ready', async () => {
+    // Check for updates
+    try {
+        if (app.isPackaged) {
+            autoUpdater.checkForUpdatesAndNotify();
+        }
+    } catch(e) {
+        log.error("Chyba při kontrole aktualizací:", e);
+    }
     if (process.argv.includes('--no-launcher')) {
-        createController();
-        await syncGtfsData();
+        let allowGame = false;
+        try {
+            const userDataPath = process.env.APPDATA ? path.join(process.env.APPDATA, 'idpk-palubni-pocitac') : os.homedir();
+            const configPath = path.join(userDataPath, 'config.json');
+            if (fs.existsSync(configPath)) {
+                const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+                let id_param = config.discord_id;
+                if (!id_param && config.email) id_param = 'email-' + config.email;
+                if (id_param) {
+                    const response = await fetch(`https://datacorebot.koyeb.app/api/launcher/versions?discord_id=${id_param}`);
+                    const data = await response.json();
+                    
+                    if (data.status !== 'banned' && data.status !== 'error' && data.versions) {
+                        const myVer = "V" + app.getVersion();
+                        const targetVer = data.versions.find(v => v.db_version === myVer || v.version_name === myVer || myVer.startsWith(v.db_version) || (config.last_version && v.db_version === config.last_version));
+                        if (targetVer && targetVer.has_access && targetVer.can_launch) {
+                            allowGame = true;
+                        } else {
+                            console.log(`Security check failed: No access or can_launch is false for version ${myVer}`);
+                            allowGame = false;
+                        }
+                    }
+                }
+            }
+        } catch (err) {
+            console.error("Security check failed:", err);
+        }
+
+        if (allowGame) {
+            createController();
+            await syncGtfsData();
+        } else {
+            // Pokud je ban nebo chyba, spadneme do Launcheru, který ukáže červenou BAN obrazovku
+            createLauncher();
+        }
     } else {
         const userDataPath = process.env.APPDATA ? path.join(process.env.APPDATA, 'idpk-palubni-pocitac') : os.homedir();
         const configPath = path.join(userDataPath, 'config.json');
@@ -942,20 +1475,7 @@ app.on('ready', async () => {
         if (fs.existsSync(configPath)) {
             try {
                 const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
-                if (config.auto_launch && config.last_version && config.discord_id) {
-                    const versionFolder = path.join(userDataPath, 'versions', config.last_version, 'win-unpacked');
-                    const exePath = path.join(versionFolder, 'Palubní Počítač IDPK.exe');
-                    if (fs.existsSync(exePath)) {
-                        const { spawn } = require('child_process');
-                        const child = spawn(exePath, ['--no-launcher'], { detached: true, stdio: 'ignore' });
-                        child.unref();
-                        autoLaunched = true;
-                        app.quit();
-                    }
-                }
-            } catch (e) {
-                console.error("Chyba při čtení config.json", e);
-            }
+                } catch (e) { console.error("Chyba při čtení config.json", e); }
         }
         
         if (!autoLaunched) {
@@ -967,7 +1487,7 @@ app.on('ready', async () => {
 let launcherWindow;
 function createLauncher() {
     launcherWindow = new BrowserWindow({
-        width: 800, height: 600, resizable: false, frame: false, title: "IDPK Launcher",
+        width: 800, height: 600, resizable: false, frame: false, title: "Lancher OIS IDPK",
         webPreferences: { nodeIntegration: true, contextIsolation: false },
         icon: path.join(__dirname, 'icon.ico'),
         backgroundColor: '#0f172a'
@@ -977,9 +1497,12 @@ function createLauncher() {
     launcherWindow.on('closed', () => { app.quit(); });
 }
 
-ipcMain.on('launch-dev-build', () => {
+ipcMain.on('launch-dev-build', async () => {
     if (launcherWindow && !launcherWindow.isDestroyed()) {
         launcherWindow.removeAllListeners('closed');
+    }
+    await syncGtfsData();
+    if (launcherWindow && !launcherWindow.isDestroyed()) {
         launcherWindow.close();
     }
     createController();
@@ -1211,6 +1734,48 @@ if (process.argv.includes('--no-launcher')) {
 
 ipcMain.on('sync-dom', (event, html) => {
     sseClients.forEach(client => {
-        try { client.write(`data: ${JSON.stringify(html)}\n\n`); } catch(e) {}
+        try { client.write(`data: ${JSON.stringify(html)}\n\n`); } catch(e) { console.error(e); }
     });
+});
+
+ipcMain.handle('get-gtfs-version', async () => {
+    try {
+        // Prefer data/ folder (new system with hash+validity)
+        let dataDir = path.join(PATH_USERDATA, 'data');
+        const versionFileNew = path.join(dataDir, 'gtfs_version.json');
+        if (fs.existsSync(versionFileNew)) {
+            const d = JSON.parse(fs.readFileSync(versionFileNew, 'utf-8'));
+            if (d.validity) {
+                const stat = fs.statSync(versionFileNew);
+                const dDate = new Date(stat.mtime);
+                const dateStr = dDate.getDate().toString().padStart(2, '0') + "." + (dDate.getMonth() + 1).toString().padStart(2, '0') + "." + dDate.getFullYear() + " " + dDate.getHours().toString().padStart(2, '0') + ":" + dDate.getMinutes().toString().padStart(2, '0');
+                return `Staženo ${dateStr} (Spoje: ${d.validity})`;
+            }
+        }
+        // Fallback: old AppData system
+        const versionFile = path.join(app.getPath('userData'), 'gtfs_version.json');
+        if (fs.existsSync(versionFile)) {
+            return JSON.parse(fs.readFileSync(versionFile, 'utf-8')).version || "Neznámá verze";
+        }
+    } catch(e) { console.error(e); }
+    return "Neznámá verze";
+});
+
+ipcMain.handle('get-gtfs-validity', async () => {
+    try {
+        let dataDir = path.join(app.getPath('userData'), 'data');
+        const versionFile = path.join(dataDir, 'gtfs_version.json');
+        if (fs.existsSync(versionFile)) {
+            const verData = JSON.parse(fs.readFileSync(versionFile, 'utf-8'));
+            return verData.validity || "";
+        }
+    } catch(e) { console.error(e); }
+    return "";
+});
+ipcMain.on('force-buse-window-fix', () => {
+    if (buseWindow && !buseWindow.isDestroyed()) {
+        buseWindow.setResizable(true);
+        buseWindow.setSize(1400, 380);
+        buseWindow.setTitle('BUSE_PANEL_FIX');
+    }
 });

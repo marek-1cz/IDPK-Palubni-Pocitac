@@ -1,5 +1,8 @@
-
 window.onerror = function(message, source, lineno, colno, error) {
+    if (typeof state !== 'undefined' && state.dom) {
+        console.log("Current state.dom size:", state.dom.length, "bytes");
+    }
+
     let errBox = document.getElementById('fatal-error-box');
     if (!errBox) {
         errBox = document.createElement('div');
@@ -37,7 +40,7 @@ process.on('unhandledRejection', (reason) => {
     window.onerror("Unhandled Promise: " + reason, "", 0, 0, null); 
 });
 
-console.log("== PALUBNÍ SYSTÉM V1.6 - INICIALIZACE ==");
+console.log("== PALUBNÍ SYSTÉM V1.6.2 - INICIALIZACE ==");
 
 const { ipcRenderer } = require('electron');
 const path = require('path');
@@ -46,7 +49,7 @@ const processCore = require('process');
 const API_BASE = 'https://datacorebot.koyeb.app';
 
 // ZDE NASTAV PŘESNÝ NÁZEV VERZE, KTERÝ MÁŠ ZADANÝ NA WEBU V DASHBOARDU!
-const APP_VERSION = "V1.6"; 
+const APP_VERSION = "V1.6.2"; 
 
 // Bezpečná detekce VSC (aby to nevadilo kompilátoru při buildu)
 let isDevMode = false;
@@ -115,6 +118,7 @@ let filteredFiles = [];
 let databaseFiles = []; 
 let selectedListIndex = -1; 
 let selectedIdpkRouteId = ""; 
+window.selectedIdpkRouteName = "";
 let selectedStartStop = ""; 
 let selectedDestination = "";
 
@@ -235,8 +239,8 @@ async function zanalyzujPripojeni() {
         try {
             await fetchBlesk("https://1.1.1.1", { mode: 'no-cors' }, 3000);
             return { 
-                status: "BLOCKED_BY_FIREWALL", 
-                zprava: "Váš internet funguje, ale spojení aplikace bylo <b>ZABLOKOVÁNO!</b><br><br>Pravděpodobně vaši hru blokuje <b>Antivirus (např. Avast)</b> nebo <b>Windows Firewall</b>. <br><br><i>Tip: Pro plnou funkčnost přidejte hru do výjimek antiviru, nebo ji zkuste spustit jako Administrátor. Nyní pokračujete v omezeném offline režimu.</i>" 
+                status: "KOYEB_ERROR", 
+                zprava: "Váš internet funguje, ale spojení na náš server selhalo. Server se buď restartuje (např. probíhá aktualizace), nebo jej něco blokuje.<br><br>Hrajete v <b>OFFLINE režimu</b>. Zkuste aplikaci restartovat za minutu." 
             };
         } catch (cloudflareError) {
             return { 
@@ -627,18 +631,23 @@ window.requestAdminBypass = async function() {
 
 document.addEventListener('DOMContentLoaded', async () => {
     debugLog("DOM Načten, startuji IPC komunikaci a otevírám bootovací obrazovku.");
+
+    try {
+        if (typeof require !== 'undefined') {
+            const { ipcRenderer } = require('electron');
+            ipcRenderer.invoke('get-gtfs-version').then(version => {
+                const el = document.getElementById('gtfs-update-date');
+                if (el) el.innerText = version;
+            }).catch(() => {
+                const el = document.getElementById('gtfs-update-date');
+                if (el) el.innerText = "Chyba načítání";
+            });
+        }
+    } catch(e) {}
     
-    // --- VIZUÁLNÍ INJEKCE PRO IDPK (BEZ ZVUKU) ---
+    // --- VIZUÁLNÍ INJEKCE PRO IDPK (BEZ ZVUKU) --- ODSTRANĚNA (TLAČÍTKO UŽ JE UPRAVENO V HTML)
+
     setTimeout(() => {
-        let allEls = document.querySelectorAll('*');
-        allEls.forEach(el => {
-            if(el.getAttribute('onclick') && el.getAttribute('onclick').includes('switchToIdpkMode')) {
-                if(!el.innerHTML.includes('bez zvuku')) {
-                    el.innerHTML += " <span style='font-size:10px; color:#f59e0b;'>(bez zvuku)</span>";
-                }
-            }
-        });
-        
         // --- INJEKCE TLAČÍTKA NA KOPÍROVÁNÍ LOGU ---
         let debugWrap = document.getElementById('debug-overlay');
         if (debugWrap && !document.getElementById('copy-log-btn')) {
@@ -670,11 +679,11 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     ipcRenderer.invoke('get-link-files').then(files => { 
         availableFiles = files; 
-        filteredFiles = files; 
+        if (typeof listMode !== 'undefined' && listMode === 'JSON') { filteredFiles = files; renderLinesList(); } 
     }).catch(()=>{});
     
     ipcRenderer.invoke('gtfs-load-routes').then(db => { 
-        databaseFiles = db; 
+        databaseFiles = db; if (typeof listMode === 'undefined' || listMode === 'IDPK') { filteredFiles = db; renderLinesList(); } 
     }).catch(()=>{});
 
     ipcRenderer.on('trigger-key-action', (event, payload) => {
@@ -696,6 +705,27 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     ipcRenderer.on('force-sync-dom', () => { 
         window.syncDom(); 
+    });
+
+    ipcRenderer.on('gtfs-update-status', (event, data) => {
+        if (data.status === 'downloading') {
+            window.showNotification && window.showNotification("Stahuji aktualizaci JŘ (GTFS)...", "info", 5000);
+        } else if (data.status === 'done') {
+            window.showNotification && window.showNotification("GTFS JŘ úspěšně aktualizován!", "success", 5000);
+            window.gtfsValidity = data.validity;
+            // Reload routes now that DB is ready
+            ipcRenderer.invoke('gtfs-load-routes').then(db => {
+                databaseFiles = db; 
+                if (typeof listMode === 'undefined' || listMode === 'IDPK') { 
+                    filteredFiles = db; 
+                    if(typeof renderLinesList === 'function') renderLinesList(); 
+                }
+            }).catch(()=>{});
+        } else if (data.status === 'ok') {
+            window.gtfsValidity = data.validity;
+        } else if (data.status === 'error') {
+            window.showNotification && window.showNotification("Chyba při stahování aktualizace JŘ.", "error", 5000);
+        }
     });
 
     document.addEventListener('click', (e) => {
@@ -904,7 +934,6 @@ window.refreshPanel = function() {
 window.openStopWindow = function() { 
     window.playClick(); 
     ipcRenderer.send('open-stop-window'); 
-    window.toggleSettings(); 
 };
 
 // ==========================================
@@ -915,8 +944,8 @@ window.openStopWindow = function() {
 window.openBusePanel = function() {
     window.playClick();
     window.open('buse.html', 'BUSE_PANEL', 'width=1200,height=300,menubar=no,toolbar=no,location=no,status=no');
-    window.toggleSettings(); // Zavře menu po kliknutí
 };
+
 
 // ==========================================
 // POKRAČOVÁNÍ PŮVODNÍHO KÓDU...
@@ -1066,14 +1095,20 @@ window.initAppFlow = async function(isServerOnline = true) {
         return;
     }
 
-    // === PREMIUM WATERMARK – zobrazit pro BT / DEV / SA ===
+    // === PREMIUM BADGE – zobrazit pro BT / DEV / SA ===
     try {
         const userRole = config.user_role || "";
         const isPremium = userRole.includes('BT') || userRole.includes('DEV') || userRole.includes('SA') || isDevMode;
         window.isPremiumUser = isPremium;
         if (isPremium) {
             const pwEl = document.getElementById('premium-watermark');
-            if (pwEl) pwEl.style.display = 'block';
+            if (pwEl) {
+                pwEl.style.display = 'block';
+                // Po 10 secách se zmenshí na hvhzdičku
+                setTimeout(() => {
+                    pwEl.classList.add('pw-collapsed');
+                }, 10000);
+            }
         }
     } catch(e) {}
     // =====================================================
@@ -1137,6 +1172,10 @@ window.initAppFlow = async function(isServerOnline = true) {
                         const { ipcRenderer } = require('electron');
                         ipcRenderer.send('fallback-to-launcher');
                         return;
+                    }
+                    
+                    if (data.roles) {
+                        localStorage.setItem('userRoles', JSON.stringify(data.roles));
                     }
                     if(data.session_id) {
                         currentSessionId = data.session_id;
@@ -1235,7 +1274,7 @@ window.startDiscordAuth = async function() {
             window.switchLoginView('login-setup-view');
         } else if (data.status === 'waiting') {
             storedDiscordId = data.discord_id;
-            discordPollInterval = setInterval(() => window.pollDiscordAuth(), 2000);
+            discordPollInterval = setInterval(() => window.pollDiscordAuth(), 8000);
         } else if (data.status === 'error') {
             let isVerError = data.message && (data.message.toLowerCase().includes('verz') || data.message.toLowerCase().includes('podporována') || data.message.includes('VYPNUT'));
             window.showErrorModal("PŘÍSTUP ODEPŘEN", data.message, isVerError, 'error');
@@ -1276,7 +1315,11 @@ window.pollDiscordAuth = async function() {
             clearInterval(discordPollInterval);
             window.showErrorModal("OVĚŘENÍ SELHALO", data.message || "Zamítnuto v aplikaci Discord.", false, 'error');
         }
-    } catch(e) {}
+    } catch(e) {
+        console.error('[POLL NETWORK ERROR]', e);
+    } finally {
+        isKoyebSyncing = false;
+    }
 }
 
 window.selectLoginMethod = function(mode) {
@@ -1380,7 +1423,11 @@ window.finalizeLogin = function() {
                 headers: { 'Content-Type': 'application/json' }, 
                 body: JSON.stringify({ discord_id: storedDiscordId, action: 'start', app_version: APP_VERSION }) 
             }).then(r => r.json()).then(data => {
-                if(data.session_id) {
+                
+                    if (data.roles) {
+                        localStorage.setItem('userRoles', JSON.stringify(data.roles));
+                    }
+                    if(data.session_id) {
                     currentSessionId = data.session_id;
                     localStorage.setItem('currentSessionId', currentSessionId);
                     window.startPingLoop(); 
@@ -1452,6 +1499,12 @@ window.syncTimeWithCurrentStop = function() {
     }
 };
 
+const DOM = {};
+window.getEl = function(id) {
+    if (!DOM[id]) DOM[id] = document.getElementById(id);
+    return DOM[id];
+};
+
 window.timeLoop = function() {
     let now = new Date();
     if (useFictionalTime) { 
@@ -1461,7 +1514,7 @@ window.timeLoop = function() {
     let timeStr = window.padTime(now.toLocaleTimeString('cs-CZ', { hour: '2-digit', minute: '2-digit' }));
     let timeStrSec = window.padTime(now.toLocaleTimeString('cs-CZ', { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
     
-    let liveClockEl = document.getElementById('live-clock-display');
+    let liveClockEl = window.getEl('live-clock-display');
     if(liveClockEl) {
         liveClockEl.textContent = timeStrSec;
     }
@@ -1484,8 +1537,11 @@ window.timeLoop = function() {
         if (currentGlobalDelay > 720) currentGlobalDelay -= 1440;
     }
 
-    window.sendDataToPanel(drivePhase === 1); 
-    
+    if (window.stopFlashInterval && window.stopFlashState !== undefined) {
+        window.sendDataToPanel(window.stopFlashState);
+    } else {
+        window.sendDataToPanel(drivePhase === 1); 
+    }    
     if (!routeStartupWait) {
         window.checkAutoAnnounce(now, s1);
     }
@@ -1519,26 +1575,98 @@ window.sendDataToPanel = function(showBig = false) {
         if (s2 && s2.time) est2 = window.padTime(window.minsToTime(window.timeToMins(s2.time) + visualDelay));
         if (s3 && s3.time) est3 = window.padTime(window.minsToTime(window.timeToMins(s3.time) + visualDelay));
     }
-
-    ipcRenderer.send('update-panel-data', { 
-        line: routeData.line, 
-        destination: routeData.destination, 
-        stop1: s1, 
-        stop2: s2, 
-        stop3: s3, 
-        est1: est1, 
-        est2: est2, 
-        est3: est3,
-        showBigStop: showBig, 
-        isMuted: routeData.isMuted, 
-        stopPressed: stopPressed 
-    });
-
+    let isDriving = (typeof appState !== 'undefined' && appState === 'DRIVE');
+    if (isDriving) {
+        ipcRenderer.send('update-panel-data', { 
+            line: routeData.line, 
+            destination: routeData.destination, 
+            stop1: s1, 
+            stop2: s2, 
+            stop3: s3, 
+            est1: est1, 
+            est2: est2, 
+            est3: est3,
+            showBigStop: showBig, 
+            isMuted: routeData.isMuted, 
+            stopPressed: stopPressed 
+        });
+    }
     // --- Zápis do lokálního úložiště pro BUSE Panel ---
     try {
+        let displayLine = routeData.line || '';
+        if (displayLine.length > 3 && !isNaN(parseInt(displayLine))) displayLine = displayLine.slice(-3);
+        else displayLine = displayLine.replace(/^0+/, '').replace(/0+$/, '');
+
+        let buseDest = routeData.destination;
+        let viaStops = [];
+        let isLastStop = false;
+
+        if (routeData.stops && routeData.stops.length > 0) {
+            isLastStop = routeData.realStopIndex >= routeData.stops.length;
+
+            if (isLastStop) {
+                buseDest = 'KONEČNÁ';
+            } else {
+                let candidates = [];
+                for (let i = routeData.realStopIndex + 1; i < routeData.stops.length - 1; i++) {
+                    let st = routeData.stops[i];
+                    if (!st) continue;
+                    let n = st.name.toLowerCase();
+                    let isX = n.includes(' x ') || n.includes(' x,') || n.endsWith(' x') || n === 'x';
+                    if (isX) continue;
+
+                    let score = 0;
+                    // Keyword scoring
+                    if (n.includes('aut. st.') || n.includes('aut.st') || n.includes('aut.nádr') || n.includes('aut. nádr')) score += 100;
+                    if (n.includes('žel. st.') || n.includes('žel.st') || n.includes('nádraží')) score += 90;
+                    if (n.includes('nám.') || n.includes('náměstí')) score += 80;
+                    if (n.includes('nemocnice') || n.includes('poliklinika')) score += 70;
+                    if (n.includes('škola') || n.includes('zš')) score += 60;
+                    if (n.includes('rozcestí') || n.includes('rozc.')) score -= 10;
+                    // Special stops
+                    if (n.includes('tachov, u rybeny')) score += 100;
+                    if (n.includes('kladruby, zadní')) score += 100;
+                    if (n.includes('plzeň, can') || n.includes('plzeň can')) score += 100;
+                    if (n.includes('plzeň, slovany')) score += 100;
+                    // GTFS importance score (normalize: ~2340 max -> ~90 bonus)
+                    if (window._stopImportance) {
+                        let imp = window._stopImportance[n];
+                        if (imp) score += Math.round(imp.score / 26);
+                    }
+
+                    let shortName = st.name.trim();
+                    if (!candidates.find(c => c.name === shortName)) {
+                        candidates.push({name: shortName, score: score, index: i});
+                    }
+                }
+
+                candidates.sort((a, b) => b.score - a.score);
+                // Only stops with significant score (>=50), in route order, max 10
+                let positiveStops = candidates.filter(c => c.score >= 50);
+                positiveStops.sort((a, b) => a.index - b.index);
+                let topStops = positiveStops.slice(0, 10);
+                viaStops = topStops.map(c => c.name);
+            }
+        }
+
+        let isDriving = (typeof appState !== 'undefined' && appState === 'DRIVE');
+        if (!isDriving) {
+            displayLine = 'INV_X';
+            buseDest = 'SLUŽEBNÍ JÍZDA';
+            viaStops = [];
+            isLastStop = true;
+        }
+        while (viaStops.length < 10) viaStops.push('');
+
         localStorage.setItem('buse_data', JSON.stringify({
-            line: routeData.line, 
-            dest: routeData.destination
+            pm: 'side',
+            lineNum: displayLine,
+            row1: buseDest,
+            row2: (isLastStop && isDriving) ? 'NENASTUPOVAT' : '',
+            via: !isLastStop && viaStops.some(s => s.trim().length > 0),
+            viaStops: viaStops,
+            isLastStop: isLastStop,
+            delay: currentGlobalDelay
         }));
     } catch(e) {}
 };
@@ -1793,10 +1921,20 @@ window.manualContinueTrip = function() {
     let d3 = document.getElementById('idpk-direction-wrapper'); 
     if(d3) d3.style.display = 'flex';
     let d4 = document.getElementById('idpk-selected-line'); 
-    if(d4) d4.textContent = "Linka: " + inputValues.idpk;
+    if(d4) {
+        let valStr = window.gtfsValidity ? ` <span style="font-size:12px; color:rgba(255,255,255,0.4); font-weight:normal; margin-left: 10px;">(Data platná: ${window.gtfsValidity})</span>` : "";
+        d4.innerHTML = "Linka: " + inputValues.idpk + valStr;
+        if (!window.gtfsValidity) {
+            ipcRenderer.invoke('get-gtfs-validity').then(val => {
+                if (val) {
+                    window.gtfsValidity = val;
+                    d4.innerHTML = "Linka: " + inputValues.idpk + ` <span style="font-size:12px; color:rgba(255,255,255,0.4); font-weight:normal; margin-left: 10px;">(Data platná: ${val})</span>`;
+                }
+            }).catch(e => console.error(e));
+        }
+    }
     
-    let mk = document.getElementById('main-keypad'); 
-    if(mk) mk.style.display = 'grid'; 
+    
     let kd = document.getElementById('key-del'); 
     if(kd) kd.style.display = 'flex';
     let kf = document.getElementById('key-funk'); 
@@ -2092,6 +2230,7 @@ window.submitAction = function() {
                 });
                 if(found) {
                     selectedIdpkRouteId = found.split('|')[2] ? found.split('|')[2].trim() : ""; 
+                    window.selectedIdpkRouteName = found.split('|')[1] ? found.split('|')[1].trim() : "";
                 } else { 
                     window.showErrorModal("CHYBA", "LINKA NENALEZENA V DB"); 
                     window.syncDom(); 
@@ -2155,16 +2294,7 @@ window.updateLinkospojDisplay = function() {
 };
 
 window.updateLinkospojUI = function() { 
-    const listEl = document.getElementById('link-list'); 
-    let wrapper = null;
-    
-    if (appState === 'IDPK_LINE') { 
-        wrapper = document.getElementById('idpk-db-wrapper'); 
-    } else { 
-        wrapper = document.getElementById('linkospoj-wrapper'); 
-    }
-    if (listEl && wrapper) wrapper.appendChild(listEl);
-
+    // update legacy toggle/checkbox elements if they exist
     const check = document.getElementById(appState === 'IDPK_LINE' ? 'idpk-checkbox' : 'checkbox-icon'); 
     const toggle = document.getElementById(appState === 'IDPK_LINE' ? 'idpk-list-toggle' : 'list-toggle'); 
     
@@ -2174,10 +2304,7 @@ window.updateLinkospojUI = function() {
         if(toggle) toggle.classList.remove('selected'); 
     }
     
-    if(check) check.textContent = isListOpen ? "[x]" : "[ ]"; 
-    
-    if(listEl) listEl.style.display = isListOpen ? 'block' : 'none'; 
-    if (isListOpen) window.renderLinkList(); 
+    if(check) check.textContent = isListOpen ? "[x]" : "[ ]";
     
     window.syncDom();
 };
@@ -2187,6 +2314,7 @@ window.selectListItem = function(index) {
         let parts = filteredFiles[index].split('|'); 
         inputValues.idpk = parts[0].trim(); 
         selectedIdpkRouteId = parts[2] ? parts[2].trim() : "";
+        window.selectedIdpkRouteName = parts[1] ? parts[1].trim() : "";
         
         let disp = document.getElementById('display-idpk'); 
         if (disp) disp.textContent = inputValues.idpk;
@@ -2215,32 +2343,20 @@ window.renderLinkList = function() {
     const listEl = document.getElementById('link-list'); 
     if(!listEl) return;
     
-    listEl.innerHTML = ""; 
+    let html = "";
     filteredFiles.forEach((file, index) => { 
-        const div = document.createElement('div'); 
-        div.className = 'link-item'; 
+        let isSelected = (index === selectedListIndex) ? "selected" : "";
+        let parts = file.split('|');
+        let cleanName = parts[0].trim().replace(/_auto-BETA/i, '').replace(/_auto/i, '').replace(/-BETA/i, '');
+        let isBeta = file.toUpperCase().includes('BETA');
+        let routeName = parts[1] ? parts[1].trim() : "";
         
-        if (index === selectedListIndex) {
-            div.classList.add('selected'); 
-        }
-        
-        if (appState === 'IDPK_LINE') {
-            let parts = file.split('|');
-            div.textContent = parts[0].trim() + " | " + (parts[1] ? parts[1].trim() : "");
-        } else {
-            let isBeta = file.toUpperCase().includes('BETA'); 
-            let cleanName = file.replace(/_auto-BETA/i, '').replace(/_auto/i, '').replace(/-BETA/i, ''); 
-            
-            if (isBeta) { 
-                div.classList.add('beta-item'); 
-                div.innerHTML = `<span class="beta-badge">BETA</span><span class="beta-text">${cleanName}</span>`; 
-            } else { 
-                div.textContent = cleanName; 
-            } 
-        }
-        div.setAttribute('onclick', `window.selectListItem(${index})`);
-        listEl.appendChild(div); 
+        html += `<div class="link-suggestion-item ${isSelected}" onclick="window.selectListItem(${index})">`;
+        html += `<span class="lsi-badge${isBeta ? ' beta' : ''}">${cleanName.toUpperCase()}</span>`;
+        if(routeName) html += `<span class="lsi-name">${routeName}${isBeta ? ' BETA' : ''}</span>`;
+        html += `</div>`;
     }); 
+    listEl.innerHTML = html;
     window.syncDom();
 };
 
@@ -2255,13 +2371,13 @@ window.getResolvedFile = function(inputStr) {
     if (!searchNum) return null; 
     
     let betaMatch = availableFiles.find(f => { 
-        let fNums = f.replace(/\D/g, ''); 
+        let fNums = f.split('|')[0].replace(/\D/g, ''); 
         return fNums.startsWith(searchNum) && f.toUpperCase().includes('BETA'); 
     }); 
     if (betaMatch) return betaMatch; 
     
     let fuzzy = availableFiles.find(f => { 
-        let fNums = f.replace(/\D/g, ''); 
+        let fNums = f.split('|')[0].replace(/\D/g, ''); 
         return fNums.startsWith(searchNum); 
     }); 
     return fuzzy || null; 
@@ -2322,16 +2438,26 @@ window.updateSelectionHeader = function(title, backActionStr) {
     window.syncDom();
 };
 
-window.switchToIdpkMode = function() { 
+window.switchToIdpkMode = function() {
+
+    const mk = document.getElementById('main-keypad');
+    if (mk) mk.style.display = 'none';
+    const hp = document.getElementById('home-action-panel');
+    if (hp) hp.style.display = 'flex';
+    if (typeof window.updateActionPanelRoles === 'function') window.updateActionPanelRoles();
+ 
+    window.playClick(); 
     appState = 'IDPK_LINE'; 
     inputValues.idpk = ""; 
     selectedIdpkRouteId = ""; 
     currentHybridTemplate = null; 
 
     ipcRenderer.invoke('gtfs-load-routes').then(db => { 
-        databaseFiles = db; 
+        databaseFiles = db; if (typeof listMode === 'undefined' || listMode === 'IDPK') { filteredFiles = db; renderLinesList(); } 
         if (appState === 'IDPK_LINE') {
-            filteredFiles = databaseFiles; 
+            const searchIdpkEl = document.getElementById('search-idpk-input');
+            if (searchIdpkEl) searchIdpkEl.value = '';
+            window.renderSmartLinkList('', 'IDPK');
             window.updateLinkospojUI(); 
         }
     }).catch(()=>{});
@@ -2342,19 +2468,7 @@ window.switchToIdpkMode = function() {
     let idpkWrap = document.getElementById('idpk-db-wrapper'); 
     if(idpkWrap) {
         idpkWrap.style.display = 'flex'; 
-        
-        let warn = document.getElementById('idpk-no-sound-warn');
-        if(!warn) {
-            warn = document.createElement('div');
-            warn.id = 'idpk-no-sound-warn';
-            warn.innerHTML = "⚠️ <b style='text-transform:uppercase;'>Tyto linky jsou bez zvuku</b>";
-            warn.style.cssText = "color: #f59e0b; font-size: 14px; text-align: center; margin-bottom: 10px; width: 100%; border: 1px solid #f59e0b; padding: 5px; border-radius: 5px; background: rgba(245, 158, 11, 0.1);";
-            idpkWrap.insertBefore(warn, idpkWrap.firstChild);
-        }
     }
-    
-    let keypad = document.getElementById('main-keypad'); 
-    if(keypad) keypad.style.display = 'grid'; 
     
     let delK = document.getElementById('key-del'); 
     if(delK) delK.style.display = 'flex';
@@ -2374,7 +2488,14 @@ window.switchToIdpkMode = function() {
     window.syncDom();
 };
 
-window.backToManual = function() { 
+window.backToManual = function() {
+
+    const mk = document.getElementById('main-keypad');
+    if (mk) mk.style.display = 'none';
+    const hp = document.getElementById('home-action-panel');
+    if (hp) hp.style.display = 'flex';
+    if (typeof window.updateActionPanelRoles === 'function') window.updateActionPanelRoles();
+ 
     appState = 'LINKOSPOJ'; 
     inputValues.linkospoj = ""; 
     
@@ -2387,8 +2508,7 @@ window.backToManual = function() {
     let d3 = document.getElementById('linkospoj-wrapper'); 
     if (d3) d3.style.display = 'flex'; 
     
-    let k = document.getElementById('main-keypad'); 
-    if(k) k.style.display = 'grid';
+    
     
     let del = document.getElementById('key-del'); 
     if(del) del.style.display = 'flex';
@@ -2401,7 +2521,7 @@ window.backToManual = function() {
 
     ipcRenderer.invoke('get-link-files').then(files => { 
         availableFiles = files; 
-        filteredFiles = files; 
+        if (typeof listMode !== 'undefined' && listMode === 'JSON') { filteredFiles = files; renderLinesList(); } 
         if (appState === 'LINKOSPOJ') {
             window.updateLinkospojUI(); 
         }
@@ -2409,6 +2529,7 @@ window.backToManual = function() {
     
     window.updateLinkospojUI(); 
     window.syncDom();
+    window.sendDataToPanel();
 };
 
 window.backToIdpkList = function() { 
@@ -2426,6 +2547,7 @@ window.backToIdpkList = function() {
     if(fnk) fnk.style.display = 'none';
     
     window.syncDom();
+    window.sendDataToPanel();
 };
 
 window.backToIdpkMode = function() {
@@ -2443,6 +2565,7 @@ window.backToIdpkMode = function() {
     if(fnk) fnk.style.display = 'none';
     
     window.syncDom();
+    window.sendDataToPanel();
 };
 
 window.selectStartStop = function(s) { 
@@ -2463,14 +2586,35 @@ window.showStartStopSelection = function(starts) {
     if(w3) w3.style.display = 'flex'; 
     
     let sl = document.getElementById('idpk-selected-line'); 
-    if(sl) sl.textContent = "Linka: " + inputValues.idpk; 
+    if(sl) {
+        let valStr = window.gtfsValidity ? ` <span style="font-size:12px; color:rgba(255,255,255,0.4); font-weight:normal; margin-left: 10px;">(${window.gtfsValidity})</span>` : "";
+        if (window.selectedIdpkRouteName) {
+            sl.innerHTML = "Linka: " + inputValues.idpk + " " + window.selectedIdpkRouteName + valStr;
+        } else {
+            sl.innerHTML = "Linka: " + inputValues.idpk + valStr;
+        }
+        if (!window.gtfsValidity) {
+            ipcRenderer.invoke('get-gtfs-validity').then(val => {
+                if (val) {
+                    window.gtfsValidity = val;
+                    let vStr = ` <span style="font-size:12px; color:rgba(255,255,255,0.4); font-weight:normal; margin-left: 10px;">(${val})</span>`;
+                    if (window.selectedIdpkRouteName) {
+                        sl.innerHTML = "Linka: " + inputValues.idpk + " " + window.selectedIdpkRouteName + vStr;
+                    } else {
+                        sl.innerHTML = "Linka: " + inputValues.idpk + vStr;
+                    }
+                }
+            }).catch(e => console.error(e));
+        }
+    }
     
-    window.updateSelectionHeader("VÝCHOZÍ ZASTÁVKA", "window.backToIdpkMode()"); 
+    const backAction = (appState === 'IDPK_LINE') ? "window.backToIdpkMode()" : "window.backToManual()";
+    window.updateSelectionHeader("OD — Výchozí zastávka", backAction); 
     
     const container = document.getElementById('direction-list'); 
-    if(!container) return;
+    if(!container) return; 
     
-    container.innerHTML = ""; 
+    container.innerHTML = '<div class="link-select-section-title" style="padding:4px 2px 8px;">Vyberte odkud jedete</div>';
     if (starts.length === 0) { 
         window.showErrorModal("CHYBA", "Žádná data zastávek"); 
         return;
@@ -2478,13 +2622,15 @@ window.showStartStopSelection = function(starts) {
     
     starts.forEach(s => { 
         const div = document.createElement('div'); 
-        div.style.padding = "15px"; 
-        div.style.borderBottom = "1px solid #555"; 
-        div.style.cursor = "pointer"; 
-        div.style.color = "white"; 
-        div.style.fontWeight = "bold"; 
-        div.textContent = s; 
-        div.setAttribute('onclick', `window.selectStartStop('${s}')`); 
+        div.className = 'link-suggestion-item';
+        div.style.cssText = 'margin-bottom: 4px;';
+        const firstWord = s.split(',')[0].trim();
+        div.innerHTML = `<span class="lsi-badge" style="font-size:14px; min-width:40px; background:rgba(4,142,86,0.25); border-color:rgba(4,142,86,0.6); color:#2ecc71;"><i class="fas fa-map-marker-alt"></i></span>
+                         <div style="display:flex; flex-direction:column; justify-content:center; align-items:flex-start;">
+                             <span class="lsi-name" style="font-size:14px; font-weight:bold; color:white;">${s}</span>
+                             <span style="font-size:10px; color:rgba(255,255,255,0.4); text-transform:uppercase; letter-spacing:1px; margin-top:2px;">Výchozí zastávka (OD)</span>
+                         </div>`;
+        div.setAttribute('onclick', `window.selectStartStop(${JSON.stringify(s)})`); 
         container.appendChild(div); 
     }); 
     window.syncDom();
@@ -2494,7 +2640,7 @@ window.reloadStartStops = function() {
     isSystemLoading = true; 
     let l = document.getElementById('loadingScreen'); 
     if(l) l.style.display = 'flex'; 
-    window.syncDom();
+    window.syncDom(); 
     
     ipcRenderer.invoke('gtfs-get-start-stops', selectedIdpkRouteId).then(starts => { 
         isSystemLoading = false; 
@@ -2522,21 +2668,21 @@ window.loadDestinationsForStart = function() {
         isSystemLoading = false; 
         if(l) l.style.display = 'none'; 
         
-        window.updateSelectionHeader("CÍLOVÁ STANICE", "window.reloadStartStops()"); 
+        window.updateSelectionHeader("DO — Cílová zastávka", "window.reloadStartStops()"); 
         const container = document.getElementById('direction-list'); 
         if(!container) return; 
-        container.innerHTML = ""; 
+        container.innerHTML = `<div class="link-select-section-title" style="padding:10px; background:rgba(0,0,0,0.2); border-radius:10px; margin-bottom:12px; color:#fff; font-size:12px; text-transform:uppercase; border:1px solid rgba(255,255,255,0.1);">Z: <b style="color:var(--idpk-yellow); font-size:15px; display:block; margin-top:4px;">${selectedStartStop}</b></div>`; 
         
         dests.forEach(d => { 
             const div = document.createElement('div'); 
-            div.style.padding = "15px"; 
-            div.style.borderBottom = "1px solid #555"; 
-            div.style.cursor = "pointer"; 
-            div.style.color = "white"; 
-            div.style.display = "flex"; 
-            div.style.alignItems = "center"; 
-            div.innerHTML = `<span style="color:var(--idpk-yellow); font-size:20px; margin-right:10px;">➔</span><span style="font-weight:bold; font-size:14px;">${d}</span>`; 
-            div.setAttribute('onclick', `window.selectDestination('${d}')`); 
+            div.className = 'link-suggestion-item';
+            div.style.cssText = 'margin-bottom: 4px;';
+            div.innerHTML = `<span class="lsi-badge" style="font-size:14px; min-width:40px; background:rgba(231,76,60,0.2); border-color:rgba(231,76,60,0.6); color:#e74c3c;"><i class="fas fa-flag-checkered"></i></span>
+                             <div style="display:flex; flex-direction:column; justify-content:center; align-items:flex-start;">
+                                 <span class="lsi-name" style="font-size:14px; font-weight:bold; color:white;">${d}</span>
+                                 <span style="font-size:10px; color:rgba(255,255,255,0.4); text-transform:uppercase; letter-spacing:1px; margin-top:2px;">Cílová zastávka (DO)</span>
+                             </div>`;
+            div.setAttribute('onclick', `window.selectDestination('${d.replace(/'/g, "\\'")}')`); 
             container.appendChild(div); 
         }); 
         window.syncDom(); 
@@ -2556,35 +2702,110 @@ window.loadTimesForTrip = function() {
         isSystemLoading = false; 
         if(l) l.style.display = 'none'; 
         
-        window.updateSelectionHeader("VÝBĚR ČASU", "window.loadDestinationsForStart()"); 
+        window.updateSelectionHeader("ČAS — Výběr spoje", "window.loadDestinationsForStart()"); 
         const container = document.getElementById('direction-list'); 
         if(!container) return; 
         
-        container.innerHTML = `<div style="padding:10px; color:#aaa; font-size:12px;">Z: ${selectedStartStop}<br>DO: ${selectedDestination}</div>`; 
+        container.innerHTML = `<div class="link-select-section-title" style="padding:4px 2px 8px;">Z: <b style="color:rgba(255,255,255,0.8)">${selectedStartStop}</b> → <b style="color:rgba(255,255,255,0.8)">${selectedDestination}</b></div>`; 
         
         if (trips.length === 0) { 
             window.showErrorModal("CHYBA", "Žádné spoje nenalezeny"); 
             return; 
         } 
         
-        trips.forEach(trip => { 
-            let displayName = trip.formattedName; 
-            let badgeClass = "badge-yellow"; 
-            if (trip.spojNum >= 100) badgeClass = "badge-green"; 
+        const spojCounts = {};
+        trips.forEach(t => {
+            spojCounts[t.spojNum] = (spojCounts[t.spojNum] || 0) + 1;
+        });
+
+        const activeTrips = trips.filter(t => t.isInSeason !== false);
+        const inactiveTrips = trips.filter(t => t.isInSeason === false);
+
+        const renderTrip = (trip, isInactive) => {
+            const spojNum = trip.spojNum || 0;
+            const isWeekend = spojNum >= 100;
+            
+            // Default styling
+            let bgStyle = isWeekend 
+                ? 'background:rgba(4,142,86,0.05); border-color:rgba(4,142,86,0.3);'
+                : 'background:rgba(255,255,255,0.04); border-color:rgba(255,255,255,0.06);';
+            let badgeStyle = isWeekend 
+                ? 'background:rgba(4,142,86,0.25); border-color:rgba(4,142,86,0.6); color:#2ecc71;'
+                : 'background:rgba(244,204,23,0.2); border-color:rgba(244,204,23,0.4); color:var(--idpk-yellow);';
+            
+            let extraLabel = '';
+            
+            let dowReason = "";
+            if (trip.dow) {
+                const [mo, tu, we, th, fr, sa, su] = trip.dow;
+                const isWork = (mo && tu && we && th && fr && !sa && !su);
+                const isWkend = (!mo && !tu && !we && !th && !fr && sa && su);
+                if (isWkend) dowReason = "JEDE POUZE O VÍKENDU";
+                else if (!mo && !tu && !we && !th && !fr && !sa && su) dowReason = "JEDE POUZE V NEDĚLI";
+                else if (!mo && !tu && !we && !th && !fr && sa && !su) dowReason = "JEDE POUZE V SOBOTU";
+                else if (isWork) dowReason = "JEDE POUZE V PRACOVNÍ DNY";
+            }
+
+            // Detour styling (výluka)
+            if (!isInactive && spojCounts[spojNum] > 1 && trip.isRunningToday) {
+                bgStyle = `
+                    background: repeating-linear-gradient(45deg, rgba(244,204,23,0.05), rgba(244,204,23,0.05) 10px, rgba(244,204,23,0.15) 10px, rgba(244,204,23,0.15) 20px);
+                    border-color: rgba(244,204,23,0.6);
+                `;
+                extraLabel = '<span style="background:var(--idpk-yellow); color:black; font-size:9px; font-weight:bold; padding:2px 4px; border-radius:3px; margin-left:5px;">🚧 ZMĚNA / VÝLUKA</span>';
+            } else if (!isInactive && !trip.isRunningToday && dowReason) {
+                extraLabel = `<span style="background:rgba(255,255,255,0.1); color:#ccc; font-size:9px; font-weight:bold; padding:2px 4px; border-radius:3px; margin-left:5px;">ℹ️ ${dowReason}</span>`;
+            }
+            
+            if (isInactive) {
+                let todayDt = new Date();
+                let todayStr = todayDt.getFullYear() + String(todayDt.getMonth()+1).padStart(2,'0') + String(todayDt.getDate()).padStart(2,'0');
+                let inactiveReason = "⏳ SEZÓNNÍ / MIMO PLATNOST";
+                if (trip.rawEndDate && trip.rawEndDate < todayStr) inactiveReason = "❌ ZASTARALÝ SPOJ";
+                else if (trip.rawStartDate && trip.rawStartDate > todayStr) inactiveReason = "📅 BUDOUCÍ SPOJ";
+                
+                bgStyle = 'background:rgba(0,0,0,0.3); border-color:rgba(255,255,255,0.1); opacity:0.65; filter: grayscale(60%);';
+                extraLabel = `<span style="background:rgba(255,255,255,0.15); color:white; font-size:9px; font-weight:bold; padding:2px 4px; border-radius:3px; margin-left:5px;">${inactiveReason}</span>`;
+            }
+
+            const spojLabel = String(spojNum).padStart(2, '0');
+            const typeLabel = isWeekend ? '🟢 VÍKEND' : '📅 PRACOVNÍ';
+            
+            // Service validity badge
+            let validityBadge = '';
+            if (trip.serviceValidFrom && trip.serviceValidTo) {
+                validityBadge = `<span style="font-size:9px; color:rgba(255,255,255,0.4); letter-spacing:0.5px; margin-top:2px; display:block;">📋 JŘ ${trip.serviceValidFrom}–${trip.serviceValidTo}</span>`;
+            }
             
             const div = document.createElement('div'); 
-            div.style.padding = "15px"; 
-            div.style.borderBottom = "1px solid #555"; 
-            div.style.cursor = "pointer"; 
-            div.style.color = "white"; 
-            div.style.display = "flex"; 
-            div.style.alignItems = "center"; 
-            div.style.justifyContent = "space-between"; 
-            div.style.width = "90%"; 
-            div.innerHTML = `<span style="color:white; font-weight:bold; font-size:20px;">${window.padTime(trip.time)}</span><span class="trip-badge ${badgeClass}">${displayName}</span>`; 
-            div.setAttribute('onclick', `window.finalizeTripSelection('${trip.tripId}', '${trip.headsign}', '${trip.tripNumber}')`); 
+            div.className = 'link-suggestion-item';
+            div.style.cssText = `margin-bottom: 4px; align-items: center; ${bgStyle}`;
+            div.innerHTML = `
+                <span class="lsi-badge" style="font-size:20px; min-width:55px; ${badgeStyle}">${spojLabel}</span>
+                <span class="lsi-name" style="flex-direction:column; align-items:flex-start; gap:0;">
+                    <span style="display:flex; align-items:center; width:100%;">
+                        <span style="font-size:20px; font-weight:900; color:white;">${window.padTime(trip.time)}</span>
+                        ${extraLabel}
+                    </span>
+                    <span style="font-size:10px; color:rgba(255,255,255,0.45); letter-spacing:1px; margin-top:1px;">${typeLabel}</span>
+                    ${validityBadge}
+                </span>
+            `;
+            div.setAttribute('onclick', `window.finalizeTripSelection(${JSON.stringify(trip.tripId)}, ${JSON.stringify(trip.headsign)}, ${JSON.stringify(trip.tripNumber)})`);
             container.appendChild(div); 
-        }); 
+        };
+
+        activeTrips.forEach(t => renderTrip(t, false));
+        
+        if (inactiveTrips.length > 0) {
+            const sep = document.createElement('div');
+            sep.className = 'link-select-section-title';
+            sep.style.cssText = 'padding:15px 2px 8px; margin-top:10px; border-top:1px solid rgba(255,255,255,0.1);';
+            sep.innerHTML = 'Ostatní / Sezónní spoje';
+            container.appendChild(sep);
+            inactiveTrips.forEach(t => renderTrip(t, true));
+        }
+
         window.syncDom(); 
     }).catch(e=>{ 
         isSystemLoading = false; 
@@ -2674,7 +2895,14 @@ window.startIdpkRide = function(tripId, destination, tripNumber) {
     }); 
 };
 
-window.switchToLinkospojScreen = function() { 
+window.switchToLinkospojScreen = function() {
+
+    const mk = document.getElementById('main-keypad');
+    if (mk) mk.style.display = 'none';
+    const hp = document.getElementById('home-action-panel');
+    if (hp) hp.style.display = 'flex';
+    if (typeof window.updateActionPanelRoles === 'function') window.updateActionPanelRoles();
+ 
     appState = 'LINKOSPOJ'; 
     inputValues.linkospoj = ""; 
     
@@ -2701,8 +2929,7 @@ window.switchToLinkospojScreen = function() {
     let d5 = document.getElementById('idpk-direction-wrapper'); 
     if(d5) d5.style.display = 'none'; 
     
-    let k = document.getElementById('main-keypad'); 
-    if(k) k.style.display = 'grid'; 
+     
     
     let key1 = document.getElementById('key-del'); 
     if(key1) key1.style.display = 'flex'; 
@@ -2712,9 +2939,16 @@ window.switchToLinkospojScreen = function() {
     
     window.updateLinkospojDisplay(); 
     window.syncDom(); 
+    window.sendDataToPanel();
 };
 
-window.switchToDriveScreen = function() { 
+window.switchToDriveScreen = function() {
+
+    const mk = document.getElementById('main-keypad');
+    if (mk) mk.style.display = 'grid';
+    const hp = document.getElementById('home-action-panel');
+    if (hp) hp.style.display = 'none';
+ 
     appState = 'DRIVE'; 
     stopSelectionBuffer = ""; 
     
@@ -2733,8 +2967,7 @@ window.switchToDriveScreen = function() {
     let d5 = document.getElementById('drive-controls-area'); 
     if(d5) d5.style.display = 'block'; 
     
-    let k = document.getElementById('main-keypad'); 
-    if(k) k.style.display = 'grid';
+    
     
     let key1 = document.getElementById('key-del'); 
     if(key1) key1.style.display = 'none';
@@ -2959,19 +3192,19 @@ window.updateDriveUI = function() {
     let rawCode = routeData.linkospojCode || "";
     let lkCode = rawCode.toString().replace(/_auto-BETA/i, '').replace(/_auto/i, '').replace(/-BETA/i, '').replace(/_BETA/i, '');
     
-    let headerCode = document.getElementById('drive-header-code'); 
+    let headerCode = window.getEl('drive-header-code'); 
     if(headerCode) headerCode.textContent = lkCode; 
     
-    let headerDest = document.getElementById('drive-header-dest'); 
+    let headerDest = window.getEl('drive-header-dest'); 
     if(headerDest) headerDest.textContent = "➔ " + routeData.destination; 
     
-    const btnMain = document.getElementById('btn-announce'); 
-    const btnSub = document.getElementById('smart-btn-sub'); 
-    const btnMainTxt = document.getElementById('smart-btn-main'); 
-    const btnLeft = document.getElementById('btn-repeat'); 
-    const btnRight = document.getElementById('btn-terminate'); 
-    const btnManualContinue = document.getElementById('btn-manual-continue'); 
-    const btnRandomContinue = document.getElementById('btn-random-continue-trigger');
+    const btnMain = window.getEl('btn-announce'); 
+    const btnSub = window.getEl('smart-btn-sub'); 
+    const btnMainTxt = window.getEl('smart-btn-main'); 
+    const btnLeft = window.getEl('btn-repeat'); 
+    const btnRight = window.getEl('btn-terminate'); 
+    const btnManualContinue = window.getEl('btn-manual-continue'); 
+    const btnRandomContinue = window.getEl('btn-random-continue-trigger');
     
     if (window.isAtEndOfRoute()) { 
         if(btnMain) btnMain.style.display = 'none'; 
@@ -2984,13 +3217,13 @@ window.updateDriveUI = function() {
             btnRight.style.backgroundColor = "#c0392b"; 
         }
         
-        let rStop = document.getElementById('drive-real-stop'); 
+        let rStop = window.getEl('drive-real-stop'); 
         if(rStop) rStop.textContent = "JÍZDA UKONČENA"; 
         
-        let nStop = document.getElementById('drive-next-stop'); 
+        let nStop = window.getEl('drive-next-stop'); 
         if(nStop) nStop.textContent = ""; 
         
-        let pvBox = document.getElementById('drive-preview-box'); 
+        let pvBox = window.getEl('drive-preview-box'); 
         if(pvBox) pvBox.style.display = 'none'; 
         
         if (isRandomContinue && (isClassicAuto || isTimeBasedAuto || isDelayAuto) && !window.autoContinueTimeout) {
@@ -3027,14 +3260,28 @@ window.updateDriveUI = function() {
         if(btnMain) btnMain.style.backgroundColor = "#eebb00"; 
     } 
     
-    let rStop = document.getElementById('drive-real-stop'); 
-    if(rStop) rStop.textContent = stops[realIdx] ? (realIdx+1)+". "+stops[realIdx].name : "NAČÍTÁNÍ..."; 
+    let rStop = window.getEl('drive-real-stop'); 
+    if (rStop) {
+        if (stops[realIdx]) {
+            let pIcon = (stops[realIdx].type === 'z' || stops[realIdx].isPhoneDemand) ? ' <span style="margin-left:5px; color:rgba(255,255,255,0.9); font-size:0.9em; position:relative; top:-1px;">&#10006;</span>' : '';
+            rStop.innerHTML = (realIdx+1)+". "+stops[realIdx].name + pIcon;
+        } else {
+            rStop.innerHTML = "NAČÍTÁNÍ...";
+        }
+    }
     
-    let nStop = document.getElementById('drive-next-stop'); 
-    if(nStop) nStop.textContent = stops[realIdx+1] ? "Příští: "+stops[realIdx+1].name : "Načítání..."; 
+    let nStop = window.getEl('drive-next-stop'); 
+    if (nStop) {
+        if (stops[realIdx+1]) {
+            let pIcon = (stops[realIdx+1].type === 'z' || stops[realIdx+1].isPhoneDemand) ? ' <span style="margin-left:5px; color:rgba(255,255,255,0.9); font-size:0.9em; position:relative; top:-1px;">&#10006;</span>' : '';
+            nStop.innerHTML = "Příští: "+stops[realIdx+1].name + pIcon;
+        } else {
+            nStop.innerHTML = "Načítání...";
+        }
+    } 
     
-    const box = document.getElementById('drive-preview-box'); 
-    const boxText = document.getElementById('drive-preview-text'); 
+    const box = window.getEl('drive-preview-box'); 
+    const boxText = window.getEl('drive-preview-text'); 
     const isEditing = (stopSelectionBuffer.length > 0) || (previewIdx !== realIdx); 
     
     if (isEditing) { 
@@ -3149,23 +3396,27 @@ window.pressKey = function(key) {
         window.submitPinNumber(key); 
     } else if(appState === 'LINKOSPOJ') { 
         inputValues.linkospoj += key; 
+        // Sync search input
+        const searchEl = document.getElementById('search-linkospoj-input');
+        if (searchEl) { searchEl.value = inputValues.linkospoj; }
         window.updateLinkospojDisplay(); 
+        window.renderSmartLinkList(inputValues.linkospoj);
         window.updateFilter(); 
         window.updateLinkospojUI(); 
     } else if(appState === 'IDPK_LINE') { 
-        if (linkospojFocus === 'list') { 
-            linkospojFocus = 'input'; 
-            isListOpen = false; 
-            window.updateLinkospojUI(); 
+        if (key === 'Backspace' || key === 'DEL') { 
+            inputValues.idpk = inputValues.idpk.slice(0, -1); 
+        } else if (key.length === 1 && /[0-9a-zA-Z]/.test(key)) { 
+            inputValues.idpk += key; 
         } 
-        inputValues.idpk += key; 
         selectedIdpkRouteId = ""; 
-        let disp = document.getElementById('display-idpk'); 
-        if(disp) disp.textContent = inputValues.idpk; 
-        window.updateFilter(); 
-        window.updateLinkospojUI(); 
-    } else if(appState === 'DRIVE') { 
-        stopSelectionBuffer += key; 
+        let disp = document.getElementById('search-idpk-input'); 
+        if(disp) disp.value = inputValues.idpk; 
+        window.renderSmartLinkList(inputValues.idpk, 'IDPK');
+    } else if (appState === 'DRIVE') {
+        if (stopSelectionBuffer.length < 3) {
+            stopSelectionBuffer += key; 
+        }
         const num = parseInt(stopSelectionBuffer); 
         if (!isNaN(num) && num > 0 && num <= routeData.stops.length) {
             routeData.previewStopIndex = num - 1; 
@@ -3174,38 +3425,23 @@ window.pressKey = function(key) {
     } 
 };
 
-window.deleteChar = function() { 
-    window.playClick(); 
-    if(appState === 'LOGIN_PIN_SETUP') { 
-        inputValues.pinSetup = inputValues.pinSetup.slice(0, -1); 
-        window.updatePinVisuals('pinSetup'); 
-    } else if(appState === 'LOGIN_PIN_ENTER') { 
-        inputValues.pinEnter = inputValues.pinEnter.slice(0, -1); 
-        window.updatePinVisuals('pinEnter'); 
-    } else if (appState === 'LINKOSPOJ') { 
-        inputValues.linkospoj = inputValues.linkospoj.slice(0, -1); 
-        window.updateLinkospojDisplay(); 
-        window.updateFilter(); 
-        window.updateLinkospojUI(); 
-    } else if (appState === 'IDPK_LINE') { 
-        inputValues.idpk = inputValues.idpk.slice(0, -1); 
-        selectedIdpkRouteId = ""; 
-        let disp = document.getElementById('display-idpk'); 
-        if(disp) disp.textContent = inputValues.idpk || '-----'; 
-        window.updateFilter(); 
-        window.updateLinkospojUI(); 
-    } else if (appState === 'DRIVE') { 
-        stopSelectionBuffer = stopSelectionBuffer.slice(0, -1); 
-        if (stopSelectionBuffer.length === 0) {
-            routeData.previewStopIndex = routeData.realStopIndex; 
-        } else { 
-            const num = parseInt(stopSelectionBuffer); 
-            if (!isNaN(num) && num > 0 && num <= routeData.stops.length) {
-                routeData.previewStopIndex = num - 1; 
-            }
-        } 
-        window.updateDriveUI(); 
-    } 
+window.deleteChar = function() {
+    window.playClick();
+    if(appState === 'LINKOSPOJ') {
+        inputValues.linkospoj = inputValues.linkospoj.slice(0, -1);
+        const searchEl = document.getElementById('search-linkospoj-input');
+        if (searchEl) { searchEl.value = inputValues.linkospoj; }
+        window.updateLinkospojDisplay();
+        window.renderSmartLinkList(inputValues.linkospoj);
+        window.updateFilter();
+        window.updateLinkospojUI();
+    } else if(appState === 'IDPK_LINE') {
+        inputValues.idpk = inputValues.idpk.slice(0, -1);
+        selectedIdpkRouteId = "";
+        const disp = document.getElementById('search-idpk-input');
+        if(disp) disp.value = inputValues.idpk;
+        window.renderSmartLinkList(inputValues.idpk, 'IDPK');
+    }
 };
 
 window.moveArrow = function(dir) { 
@@ -3263,6 +3499,7 @@ window.confirmSelection = function() {
                 const parts = filteredFiles[selectedListIndex].split('|'); 
                 inputValues.idpk = parts[0].trim(); 
                 selectedIdpkRouteId = parts[2] ? parts[2].trim() : ""; 
+                window.selectedIdpkRouteName = parts[1] ? parts[1].trim() : "";
                 let disp = document.getElementById('display-idpk'); 
                 if(disp) disp.textContent = inputValues.idpk; 
                 linkospojFocus = 'input'; 
@@ -3325,7 +3562,20 @@ window.triggerStopAction = function() {
         stopPressed = true; 
         ipcRenderer.send('broadcast-stop-state', true); 
         window.updateStopVisuals(); 
+        
         window.sendDataToPanel(false); 
+        if (window.stopFlashInterval) clearInterval(window.stopFlashInterval);
+        window.stopFlashState = false;
+        window.stopFlashInterval = setInterval(() => {
+            if (!stopPressed || drivePhase === 1) {
+                clearInterval(window.stopFlashInterval);
+                window.stopFlashInterval = null;
+                return;
+            }
+            window.stopFlashState = !window.stopFlashState;
+            window.sendDataToPanel(window.stopFlashState);
+        }, 5000);
+
         const btn = document.getElementById('key-ent'); 
         if(btn) { 
             btn.classList.add('blink-trigger'); 
@@ -3479,81 +3729,238 @@ function initKoyebMirror() {
     mirrorSessionId = safeId.replace(/[^a-zA-Z0-9]/g, '').substring(0, 8);
     if (!mirrorSessionId) mirrorSessionId = Math.random().toString(36).substring(2,8);
     
-    // Tlačítko pro mobilní propojení v hlavičce
-    let headerEl = document.querySelector('.system-header');
-    if (headerEl && window.isPremiumUser) {
-        let span = document.createElement('span');
-        span.style.fontSize = '12px';
-        span.style.color = 'black';
-        span.style.background = 'var(--idpk-yellow)';
-        span.style.padding = '3px 8px';
-        span.style.borderRadius = '4px';
-        span.style.float = 'right';
-        span.style.marginRight = '10px';
-        span.style.cursor = 'pointer';
-        span.innerHTML = `<i class="fas fa-mobile-alt"></i> MOBILNÍ OVLÁDÁNÍ`;
-        span.onclick = function() { window.toggleSettings(); };
-        headerEl.appendChild(span);
-    }
-    
     // Nastavení QR kódu v nastavení (Settings) pro premium uživatele
     if (window.isPremiumUser) {
-        let mobileLink = document.getElementById('settings-mobile-link');
-        let mKodEl = document.getElementById('settings-m-kod');
-        let qrEl = document.getElementById('settings-qr-code');
-        if (mobileLink) mobileLink.style.display = 'flex';
-        if (mKodEl) mKodEl.textContent = mirrorSessionId;
+        let urlEl = document.getElementById('mobile-info-url');
+        let qrEl = document.getElementById('mobile-info-qr');
+        if (urlEl) urlEl.innerHTML = 'datacorebot.koyeb.app/m/' + mirrorSessionId;
         if (qrEl) {
-            qrEl.src = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=https://datacorebot.koyeb.app/m/${mirrorSessionId}`;
-            qrEl.style.display = 'block';
+            qrEl.src = `https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=https://datacorebot.koyeb.app/m/${mirrorSessionId}`;
         }
+        window.mirrorSessionUrl = `https://datacorebot.koyeb.app/m/${mirrorSessionId}`;
     }
     
-    // Zapneme smyčku odesílání
-    setInterval(koyebMirrorSync, 2000);
+    // Odeslání mnohem rychleji (každých 800ms místo 2s) pro snížení zpoždění na mobilu
+    setInterval(koyebMirrorSync, 450);
 }
 
+let isKoyebSyncing = false;
 async function koyebMirrorSync() {
-    // Spouštíme pouze pokud běží jízda (drive-ui-wrapper)
-    let wrapper = document.getElementById('drive-ui-wrapper');
-    if (!wrapper || wrapper.style.display === 'none') return;
+    if (isKoyebSyncing) return;
+    isKoyebSyncing = true;
+    let state = { appState: window.appState || 'UNKNOWN' };
     
-    let header = "";
-    let hCode = document.getElementById('drive-header-code');
-    let hDest = document.getElementById('drive-header-dest');
-    if (hCode && hDest) header = hCode.innerText + " | " + hDest.innerText;
+    // Exact DOM mirror copy
+    let bodyClone = document.body.cloneNode(true);
+    // Odstranění overlaye debug a modalu s QR kódem, aby na mobilu nevyskakovaly, když jsou otevřené na PC, pokud nechceme
+    let debug = bodyClone.querySelector('#debug-overlay');
+    if (debug) debug.remove();
     
-    let nextStop = document.getElementById('drive-next-stop') ? document.getElementById('drive-next-stop').innerText : "";
-    let currStop = document.getElementById('drive-real-stop') ? document.getElementById('drive-real-stop').innerHTML : "";
-    let smartBtnMain = document.getElementById('smart-btn-main') ? document.getElementById('smart-btn-main').innerText : "";
-    let smartBtnSub = document.getElementById('smart-btn-sub') ? document.getElementById('smart-btn-sub').innerText : "";
+    let scriptsAndStyles = bodyClone.querySelectorAll('script, meta, iframe');
+    scriptsAndStyles.forEach(s => s.remove());
     
-    let state = {
-        header, nextStop, currStop, smartBtnMain, smartBtnSub
-    };
-
+    let allCSS = "";
     try {
-        let resp = await fetch('https://datacorebot.koyeb.app/api/mirror/pc_sync', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({
-                session_id: mirrorSessionId,
-                discord_id: storedDiscordId,
-                state: state
-            })
-        });
-        
-        let json = await resp.json();
-        if (json.actions && json.actions.length > 0) {
-            json.actions.forEach(act => {
-                if (act === 'btn-announce') window.smartButtonAction();
-                else if (act === 'btn-up') window.moveArrow('up');
-                else if (act === 'btn-down') window.moveArrow('down');
-                else if (act === 'btn-terminate') window.handleTerminate();
-                else if (act === 'btn-repeat') window.handleLeftButton();
-            });
+        for (let i = 0; i < document.styleSheets.length; i++) {
+            let sheet = document.styleSheets[i];
+            try {
+                for (let j = 0; j < sheet.cssRules.length; j++) {
+                    allCSS += sheet.cssRules[j].cssText + "\n";
+                }
+            } catch(e) { }
         }
     } catch(e) {}
+    
+    state.dom = "<style>" + allCSS + "</style>" + bodyClone.innerHTML;
+    if (state.dom.length > 2000000) {
+        let hidden = bodyClone.querySelectorAll('[style*="display: none"], [style*="display:none"]');
+        hidden.forEach(h => h.remove());
+        state.dom = "<style>" + allCSS + "</style>" + bodyClone.innerHTML;
+    }
+    
+    if (state.dom.length > 4000000) {
+        state.dom = "<div style='padding:20px;color:red;'>VAROVÁNÍ: Uživatelské rozhraní je momentálně příliš obrovské (" + (state.dom.length / 1024 / 1024).toFixed(1) + " MB) pro mobilní zrcadlení.</div>";
+    }
+
+    try {
+        const https = require('https');
+        let reqPayload = {
+            session_id: mirrorSessionId,
+            discord_id: (typeof isDevMode !== 'undefined' && isDevMode) ? 'VSC-DEV' : (localStorage.getItem('discordId') || storedDiscordId),
+            state: state
+        };
+        if (window.mirrorApproveState !== undefined) {
+            reqPayload.approve_connection = window.mirrorApproveState;
+            window.mirrorApproveState = undefined;
+        }
+        const payloadData = JSON.stringify(reqPayload);
+
+        let resp = await new Promise((resolve, reject) => {
+            const req = https.request({
+                hostname: 'datacorebot.koyeb.app',
+                port: 443,
+                path: '/api/mirror/pc_sync',
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Content-Length': Buffer.byteLength(payloadData)
+                }
+            }, (res) => {
+                let data = '';
+                res.on('data', (chunk) => { data += chunk; });
+                res.on('end', () => {
+                    resolve({ 
+                        ok: res.statusCode === 200, 
+                        status: res.statusCode, 
+                        text: () => Promise.resolve(data), 
+                        json: () => {
+                            try { return Promise.resolve(JSON.parse(data)); } 
+                            catch(e) { return Promise.resolve({}); }
+                        }
+                    });
+                });
+            });
+            req.on('error', (e) => reject(e));
+            req.setTimeout(8000, () => { req.destroy(); reject(new Error('Timeout')); });
+            req.write(payloadData);
+            req.end();
+        });
+        
+        if (!resp.ok) {
+            let errText = await resp.text();
+            debugLog('Zrcadleni error: ' + resp.status + ' - ' + errText);
+            console.error('[MIRROR ERROR]', resp.status, errText);
+            if (resp.status === 403) {
+                window.showErrorModal('ZRCADLENÍ ZAMÍTNUTO', 'Mobilní zrcadlení bylo serverem odmítnuto. Zkontrolujte logy nebo Premium status. Detail: ' + errText, false, 'error');
+            }
+        }
+        
+        let json = await resp.json();
+        
+        let ind = document.getElementById('mirror-indicator');
+        if (ind) {
+            ind.style.display = json.is_approved ? 'flex' : 'none';
+        }
+
+        if (json.connection_requested && !window.mirrorApprovalPending) {
+            window.mirrorApprovalPending = true;
+            if (typeof Swal !== 'undefined') {
+                if (!document.getElementById('swal-glowing-style')) {
+                    const style = document.createElement('style');
+                    style.id = 'swal-glowing-style';
+                    style.innerHTML = `
+                        .swal-glowing-dark-popup {
+                            background: rgba(15, 23, 42, 0.95) !important;
+                            backdrop-filter: blur(20px) !important;
+                            border: 1px solid rgba(56, 189, 248, 0.3) !important;
+                            box-shadow: 0 0 30px rgba(56, 189, 248, 0.2), inset 0 0 20px rgba(56, 189, 248, 0.1) !important;
+                            border-radius: 20px !important;
+                            color: #fff !important;
+                        }
+                        .swal-glowing-title {
+                            color: #38bdf8 !important;
+                            text-shadow: 0 0 10px rgba(56, 189, 248, 0.5) !important;
+                            font-weight: 700 !important;
+                            letter-spacing: 1px !important;
+                        }
+                        .swal-glowing-confirm {
+                            background: linear-gradient(135deg, #0284c7, #38bdf8) !important;
+                            border: none !important;
+                            box-shadow: 0 0 15px rgba(56, 189, 248, 0.4) !important;
+                            border-radius: 12px !important;
+                            font-weight: bold !important;
+                            transition: all 0.3s ease !important;
+                        }
+                        .swal-glowing-confirm:hover {
+                            box-shadow: 0 0 25px rgba(56, 189, 248, 0.6) !important;
+                            transform: scale(1.05) !important;
+                        }
+                        .swal-glowing-cancel {
+                            background: rgba(255, 255, 255, 0.1) !important;
+                            border: 1px solid rgba(255, 255, 255, 0.2) !important;
+                            color: #cbd5e1 !important;
+                            border-radius: 12px !important;
+                            transition: all 0.3s ease !important;
+                        }
+                        .swal-glowing-cancel:hover {
+                            background: rgba(255, 255, 255, 0.2) !important;
+                            color: #fff !important;
+                        }
+                    `;
+                    document.head.appendChild(style);
+                }
+                Swal.fire({
+                    title: 'MOBILNÍ PŘIPOJENÍ',
+                    html: `Zařízení s ID relace <b style="color: #38bdf8; text-shadow: 0 0 8px rgba(56,189,248,0.5);">${mirrorSessionId}</b> se chce připojit ke sdílení obrazu.<br><br>Povolit vzdálené ovládání?`,
+                    icon: 'question',
+                    iconColor: '#38bdf8',
+                    showCancelButton: true,
+                    confirmButtonText: 'POVOLIT',
+                    cancelButtonText: 'ZAMÍTNOUT',
+                    customClass: {
+                        popup: 'swal-glowing-dark-popup',
+                        title: 'swal-glowing-title',
+                        confirmButton: 'swal-glowing-confirm',
+                        cancelButton: 'swal-glowing-cancel'
+                    }
+                }).then((result) => {
+                    window.mirrorApprovalPending = false;
+                    window.mirrorApproveState = result.isConfirmed;
+                });
+            } else {
+                let approved = confirm(`Zařízení s ID relace ${mirrorSessionId} se chce připojit ke sdílení obrazu z mobilu. Povolit?`);
+                window.mirrorApprovalPending = false;
+                window.mirrorApproveState = approved;
+            }
+        }
+
+        if (json.actions && json.actions.length > 0) {
+            json.actions.forEach(actObj => {
+                // We handle object-based actions now from the exact mirror
+                if (typeof actObj === 'object' && actObj.action === 'eval' && actObj.code) {
+                    try { 
+                        if (actObj.code.includes('Swal.fire') && typeof Swal === 'undefined') {
+                            // Fallback if sweetalert didn't load
+                            if (confirm("Někdo se chce připojit ke sdílení obrazu. Povolit?")) {
+                                fetch("https://datacorebot.koyeb.app/api/mirror/pc_action", {
+                                    method: 'POST',
+                                    headers: {'Content-Type': 'application/json'},
+                                    body: JSON.stringify({session_id: mirrorSessionId, action: 'ALLOW_CONNECTION'})
+                                }).catch(e=>{});
+                            }
+                        } else {
+                            eval(actObj.code); 
+                        }
+                    } catch (e) { 
+                        console.error("Mirror eval err", e); 
+                        alert("CHYBA V ZRCADLENÍ: " + e.message);
+                    }
+                } else if (typeof actObj === 'object' && actObj.action === 'input' && actObj.id) {
+                    let inputEl = document.getElementById(actObj.id);
+                    if (inputEl) {
+                        inputEl.value = actObj.value;
+                        inputEl.dispatchEvent(new Event('input'));
+                    }
+                } 
+                // Backwards compatibility with old string actions if needed
+                else if (typeof actObj === 'string') {
+                    if (actObj === 'btn-announce' || actObj === 'space') window.smartButtonAction();
+                    else if (actObj === 'btn-up' || actObj === 'up') window.moveArrow('up');
+                    else if (actObj === 'btn-down' || actObj === 'down') window.moveArrow('down');
+                    else if (actObj === 'btn-terminate' || actObj === 's') window.handleTerminate();
+                    else if (actObj === 'btn-repeat' || actObj === 'r') window.handleLeftButton();
+                    else if (['0','1','2','3','4','5','6','7','8','9'].includes(actObj)) window.pressKey(actObj);
+                    else if (actObj === 'del') window.deleteChar();
+                    else if (actObj === 'ent') window.handleEnterOrStop();
+                    else if (actObj === 'dot') window.confirmSelection();
+                }
+            });
+        }
+    } catch(e) {
+        console.error('[MIRROR NETWORK ERROR]', e);
+    } finally {
+        isKoyebSyncing = false;
+    }
 }
 
 // Spustit zrcadlo s mírným zpožděním, aby byl config už načtený
@@ -3562,33 +3969,270 @@ setTimeout(() => {
 }, 5000);
 
 // ============================================================
-// DYNAMIC WINDOW SCALING OBSERVER
+// SMART LINK SEARCH – render suggestions
 // ============================================================
-setTimeout(() => {
-    const modals = ['settings-modal', 'funk-modal', 'supporters-modal', 'feedback-modal'];
-    let lastState = false;
+window.renderSmartLinkList = function(query, mode = 'LINKOSPOJ') {
+    const containerId = mode === 'IDPK' ? 'idpk-suggestions' : 'linkospoj-suggestions';
+    const container = document.getElementById(containerId);
+    if (!container) return;
+
+    query = (query || '').trim().toLowerCase();
+    const dataSrc = mode === 'IDPK' ? databaseFiles : availableFiles;
+
+    if (!dataSrc || dataSrc.length === 0) {
+        container.innerHTML = '<div class="link-no-results">Nejsou načtena žádná data linek.</div>';
+        return;
+    }
+
+    const normalize = s => (s || '').normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
     
-    const observer = new MutationObserver(() => {
-        let anyOpen = false;
-        modals.forEach(id => {
-            let el = document.getElementById(id);
-            if (el && el.style.display !== 'none' && el.style.display !== '') {
-                anyOpen = true;
+    let items = dataSrc.map(f => f.toLowerCase().replace(/_auto-beta/i,'').replace(/_auto/i,'').replace(/-beta/i,'').trim());
+    let unique = [...new Set(items)];
+
+    let matches = unique;
+    if (query) {
+        const queryNorm = normalize(query);
+        matches = unique.filter(f => normalize(f).includes(queryNorm));
+    }
+
+    if (matches.length === 0 && query) {
+        container.innerHTML = `<div class="link-no-results">⚠️ Linka <b style="color:var(--idpk-yellow)">${query.toUpperCase()}</b> není v systému dostupná</div>`;
+        return;
+    }
+
+    if (!query) {
+        let html = `<div class="link-select-section-title">Všechny dostupné linky (${matches.length})</div>`;
+        matches.slice(0, 60).forEach((name, i) => {
+            const orig = dataSrc.find(f => normalize(f.replace(/_auto-beta/i,'').replace(/_auto/i,'').replace(/-beta/i,'').trim()) === name) || dataSrc.find(f => f.toLowerCase().includes(name)) || name;
+            const isBeta = orig.toUpperCase().includes('BETA');
+            let routeName = orig.includes('|') ? orig.split('|')[1].trim() : '';
+            routeName = routeName.replace(/(^|[\s-,\.]+)([a-zěščřžýáíéóúůďťňA-ZĚŠČŘŽÝÁÍÉÓÚŮĎŤŇ])/g, (match, sep, char) => sep + char.toUpperCase());
+            const cleanBadge = name.split('|')[0].trim().toUpperCase();
+            html += `
+            <div class="link-suggestion-item" onclick='window.selectSmartLink(${JSON.stringify(orig).replace(/'/g, "&apos;")}, "${mode}")'>
+                <span class="lsi-badge${isBeta ? ' beta' : ''}">${cleanBadge}</span>
+                <span class="lsi-name">${routeName}${isBeta ? ' BETA' : ''}</span>
+            </div>`;
+        });
+        if (matches.length > 60) html += `<div class="link-no-results">... a ${matches.length - 60} dalších. Upřesněte vyhledávání.</div>`;
+        container.innerHTML = html;
+        return;
+    }
+
+    let html = `<div class="link-select-section-title">Nalezeno ${matches.length} linek</div>`;
+    matches.slice(0, 40).forEach(name => {
+        const orig = dataSrc.find(f => normalize(f.replace(/_auto-beta/i,'').replace(/_auto/i,'').replace(/-beta/i,'').trim()) === name) || dataSrc.find(f => f.toLowerCase().includes(name)) || name;
+        const isBeta = orig.toUpperCase().includes('BETA');
+        let routeName = orig.includes('|') ? orig.split('|')[1].trim() : '';
+        routeName = routeName.replace(/(^|[\s-,\.]+)([a-zěščřžýáíéóúůďťňA-ZĚŠČŘŽÝÁÍÉÓÚŮĎŤŇ])/g, (match, sep, char) => sep + char.toUpperCase());
+        const cleanBadge = name.split('|')[0].trim().toUpperCase();
+        
+        let displayRouteName = routeName;
+        let displayBadge = cleanBadge;
+        
+        if (query) {
+            const regex = new RegExp(query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi');
+            displayBadge = cleanBadge.replace(regex, m => `<span class="lsi-match">${m}</span>`);
+            displayRouteName = routeName.replace(regex, m => `<span class="lsi-match">${m}</span>`);
+        }
+        
+        html += `
+        <div class="link-suggestion-item" onclick='window.selectSmartLink(${JSON.stringify(orig).replace(/'/g, "&apos;")}, "${mode}")'>
+            <span class="lsi-badge${isBeta ? ' beta' : ''}">${displayBadge}</span>
+            <span class="lsi-name">${displayRouteName}${isBeta ? ' BETA' : ''}</span>
+        </div>`;
+    });
+    container.innerHTML = html;
+};
+
+window.selectSmartLink = function(linkName, mode = 'LINKOSPOJ') {
+    window.playClick();
+    if (mode === 'IDPK') {
+        let parts = linkName.split('|');
+        inputValues.idpk = parts[0].trim();
+        selectedIdpkRouteId = parts[2] ? parts[2].trim() : "";
+        window.selectedIdpkRouteName = parts[1] ? parts[1].trim() : "";
+        
+        const searchEl = document.getElementById('search-idpk-input');
+        if (searchEl) searchEl.value = inputValues.idpk;
+        
+        window.submitAction();
+    } else {
+        inputValues.linkospoj = linkName;
+        const searchEl = document.getElementById('search-linkospoj-input');
+        if (searchEl) searchEl.value = linkName.replace(/_auto-beta/i,'').replace(/_auto/i,'').replace(/-beta/i,'').trim().toUpperCase();
+        window.updateLinkospojDisplay();
+        window.submitAction();
+    }
+};
+
+// Init search input listeners once DOM ready
+setTimeout(() => {
+    const searchEl = document.getElementById('search-linkospoj-input');
+    const clearEl = document.getElementById('search-linkospoj-clear');
+
+    if (searchEl) {
+        searchEl.addEventListener('input', () => {
+            if (appState !== 'LINKOSPOJ') return;
+            inputValues.linkospoj = searchEl.value.trim();
+            window.renderSmartLinkList(searchEl.value.trim());
+        });
+        searchEl.addEventListener('keydown', e => {
+            if (e.key === 'Enter' || e.code === 'NumpadEnter') {
+                e.preventDefault();
+                const query = searchEl.value.trim();
+                if (!query) return;
+                // Find exact or first match
+                const lower = query.toLowerCase();
+                const match = availableFiles.find(f =>
+                    f.toLowerCase().replace(/_auto-beta/i,'').replace(/_auto/i,'').replace(/-beta/i,'').trim() === lower
+                ) || availableFiles.find(f =>
+                    f.toLowerCase().replace(/_auto-beta/i,'').replace(/_auto/i,'').replace(/-beta/i,'').trim().includes(lower)
+                );
+                if (match) { window.selectSmartLink(match); }
+                else { window.renderSmartLinkList(query); }
             }
         });
-        
-        if (anyOpen !== lastState) {
-            lastState = anyOpen;
-            try {
-                require('electron').ipcRenderer.send('resize-controller', anyOpen ? 760 : 380);
-            } catch(e) {}
-        }
-    });
+    }
+    if (clearEl) {
+        clearEl.addEventListener('click', () => {
+            if (searchEl) searchEl.value = '';
+            inputValues.linkospoj = '';
+            window.renderSmartLinkList('');
+        });
+    }
 
-    modals.forEach(id => {
-        let el = document.getElementById(id);
-        if (el) {
-            observer.observe(el, { attributes: true, attributeFilter: ['style'] });
+    const searchIdpkEl = document.getElementById('search-idpk-input');
+    const clearIdpkEl = document.getElementById('search-idpk-clear');
+
+    if (searchIdpkEl) {
+        searchIdpkEl.addEventListener('input', () => {
+            if (appState !== 'IDPK_LINE') return;
+            inputValues.idpk = searchIdpkEl.value.trim();
+            // Clear previous selection
+            selectedIdpkRouteId = "";
+            window.selectedIdpkRouteName = "";
+            window.renderSmartLinkList(searchIdpkEl.value.trim(), 'IDPK');
+        });
+        searchIdpkEl.addEventListener('keydown', e => {
+            if (e.key === 'Enter' || e.code === 'NumpadEnter') {
+                e.preventDefault();
+                const query = searchIdpkEl.value.trim();
+                if (!query) return;
+                const lower = query.toLowerCase();
+                const normalize = s => (s || '').normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+                const queryNorm = normalize(query);
+                
+                const match = databaseFiles.find(f =>
+                    normalize(f).split('|')[0].trim() === queryNorm
+                ) || databaseFiles.find(f =>
+                    normalize(f).includes(queryNorm)
+                );
+                
+                if (match) { window.selectSmartLink(match, 'IDPK'); }
+                else { window.renderSmartLinkList(query, 'IDPK'); }
+            }
+        });
+    }
+    if (clearIdpkEl) {
+        clearIdpkEl.addEventListener('click', () => {
+            if (searchIdpkEl) searchIdpkEl.value = '';
+            inputValues.idpk = '';
+            window.renderSmartLinkList('', 'IDPK');
+        });
+    }
+
+    // Render all links on LINKOSPOJ/IDPK state enter
+    const origSyncDom = window.syncDom;
+    window.syncDom = function() {
+        if (origSyncDom) origSyncDom();
+        if (appState === 'LINKOSPOJ') {
+            const s = document.getElementById('search-linkospoj-input');
+            if (s && !s.value) window.renderSmartLinkList('', 'LINKOSPOJ');
+        } else if (appState === 'IDPK_LINE') {
+            const s = document.getElementById('search-idpk-input');
+            if (s && !s.value && databaseFiles && databaseFiles.length > 0) {
+                window.renderSmartLinkList('', 'IDPK');
+            }
         }
-    });
-}, 1000);
+    };
+}, 2000);
+
+// Premium badge: expand on click / hover for 3s then collapse
+window.premiumExpand = function() {
+    // Deprecated
+};
+
+// Start 10s Premium Version Popup
+setTimeout(() => {
+    const premiumPopup = document.getElementById('temp-premium-popup');
+    if (premiumPopup) {
+        premiumPopup.style.display = 'block';
+        setTimeout(() => {
+            premiumPopup.style.transition = 'opacity 1s, top 1s';
+            premiumPopup.style.opacity = '0';
+            premiumPopup.style.top = '10px';
+            setTimeout(() => { premiumPopup.style.display = 'none'; }, 1000);
+        }, 10000); // 10 seconds
+    }
+}, 500);
+window.updateActionPanelRoles = function() {
+    let btPanel = document.getElementById('bt-action-panel');
+    if (!btPanel) return;
+    try {
+        let roles = JSON.parse(localStorage.getItem('userRoles') || '[]');
+        let isBtPlus = (typeof isDevMode !== 'undefined' && isDevMode) || roles.includes('BT') || roles.includes('DEV') || roles.includes('SA') || roles.includes('SUPERADMIN') || roles.includes('BETA TESTER');
+        if (isBtPlus) {
+            btPanel.style.display = 'flex';
+        } else {
+            btPanel.style.display = 'none';
+        }
+        
+        // Also update settings role display if open
+        let roleDisplay = document.getElementById('settings-role-display');
+        if (roleDisplay) {
+            roleDisplay.textContent = roles.length > 0 ? roles.join(', ') : 'UŽIVATEL';
+        }
+    } catch(e) {}
+};
+
+
+window.openMobileInfo = function() {
+    window.playClick();
+    let modal = document.getElementById('mobile-info-modal');
+    if (modal) modal.style.display = 'flex';
+};
+
+window.closeMobileInfo = function() {
+    window.playClick();
+    let modal = document.getElementById('mobile-info-modal');
+    if (modal) modal.style.display = 'none';
+};
+
+window.copyMobileUrl = function() {
+    window.playClick();
+    if (window.mirrorSessionUrl) {
+        navigator.clipboard.writeText(window.mirrorSessionUrl).then(() => {
+            window.showNotification("URL byla zkopírována do schránky", "success");
+        }).catch(err => {
+            window.showNotification("Kopírování selhalo", "error");
+        });
+    } else {
+        window.showNotification("URL zatím není k dispozici", "warning");
+    }
+};
+
+// Pridano pro otevirani userdata slozky z V1.6
+window.openUserdataFolder = function() {
+    window.playClick();
+    try {
+        const { shell } = require("electron");
+        const path = require("path");
+        const os = require("os");
+        const target = path.join(os.homedir(), "AppData", "Roaming", "idpk-palubni-pocitac", "userdata");
+        shell.openPath(target);
+        if (typeof window.showNotification === 'function') {
+            window.showNotification("Složka s daty byla otevřena na pozadí", "info", 3000);
+        }
+    } catch(err) { console.error("Cannot open userdata", err); }
+};

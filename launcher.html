@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>IDPK Launcher</title>
+    <title>Lancher OIS IDPK</title>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <link rel="stylesheet" href="css/launcher.css">
 </head>
@@ -12,38 +12,113 @@
         <div style="display: flex; flex-direction: column; width: 100%; max-width: 400px; gap: 15px;">
             <div style="font-size: 24px; color: white; text-align: center; font-weight: bold; margin-bottom: 20px;">PŘIHLÁŠENÍ DO SYSTÉMU</div>
             
+            <div id="login-error-message" style="display: none; background: rgba(239, 68, 68, 0.15); border: 1px solid #ef4444; color: #fca5a5; padding: 12px; border-radius: 8px; font-size: 14px; text-align: center; margin-bottom: 5px; user-select: text;">
+                <i class="fas fa-exclamation-circle" style="margin-right: 5px;"></i>
+                <span id="login-error-text"></span>
+            </div>
+
             <div id="login-discord-view" style="display: flex; flex-direction: column; gap: 15px;">
-                <input type="text" id="login-identifier-input" placeholder="Zadejte APP ID nebo Nick z Discordu" style="padding: 15px; border-radius: 5px; border: 1px solid #3b82f6; background: rgba(0,0,0,0.5); color: white; font-size: 16px; outline: none; text-align: center;">
+                <div style="color: #cbd5e1; font-size: 13px; text-align: center; line-height: 1.4;">
+                    Použijte k přihlášení vaše <b>Discord ID</b> (získáte ho na Discordu: Nastavení -> Pokročilé -> Zapnout vývojářský režim. Poté klikněte <b>levým tlačítkem myši</b> na svůj profil dole a dejte "Kopírovat ID uživatele").
+                </div>
+                <input type="text" id="login-identifier-input" placeholder="Zadejte své Discord ID" style="padding: 15px; border-radius: 5px; border: 1px solid #3b82f6; background: rgba(0,0,0,0.5); color: white; font-size: 16px; outline: none; text-align: center;">
                 <button type="button" id="btn-start-auth" style="padding: 15px; border-radius: 5px; border: none; background: #22c55e; color: white; font-weight: bold; font-size: 16px; cursor: pointer; transition: 0.2s;">POKRAČOVAT K OVĚŘENÍ</button>
                 <div style="text-align: center; margin-top: 5px;">
                     <a href="#" id="link-show-email-login" style="color: #94a3b8; font-size: 13px; text-decoration: none;">Nebo se přihlásit e-mailem</a>
                 </div>
             </div>
 
+            <!-- FÁZE 1: ZADÁNÍ E-MAILU -->
             <div id="login-email-view" style="display: none; flex-direction: column; gap: 15px;">
-                <input type="email" id="login-email-input" placeholder="Zadejte svůj e-mail" style="padding: 15px; border-radius: 5px; border: 1px solid #3b82f6; background: rgba(0,0,0,0.5); color: white; font-size: 16px; outline: none; text-align: center;">
-                <button type="button" id="btn-start-email-auth" style="padding: 15px; border-radius: 5px; border: none; background: #22c55e; color: white; font-weight: bold; font-size: 16px; cursor: pointer; transition: 0.2s;">ZASLAT KÓD</button>
+                <div style="text-align: center;">
+                    <div style="color: #60a5fa; font-weight: bold; font-size: 18px; margin-bottom: 8px;">Přihlášení bez hesla</div>
+                    <div style="color: #cbd5e1; font-size: 13px; line-height: 1.4;">
+                        Pro vaši maximální bezpečnost nepoužíváme klasická hesla. Zadejte svůj e-mail a my vám obratem pošleme bezpečný přihlašovací odkaz.
+                    </div>
+                </div>
+                <input type="email" id="login-email-input" placeholder="vas@email.cz" style="padding: 15px; border-radius: 5px; border: 1px solid #3b82f6; background: rgba(0,0,0,0.5); color: white; font-size: 16px; outline: none; text-align: center;">
+                <button type="button" id="btn-start-email-auth" style="padding: 15px; border-radius: 5px; border: none; background: #22c55e; color: white; font-weight: bold; font-size: 16px; cursor: pointer; transition: 0.2s;">Odeslat přihlašovací odkaz</button>
                 <div style="text-align: center; margin-top: 5px;">
                     <a href="#" id="link-show-discord-login" style="color: #94a3b8; font-size: 13px; text-decoration: none;">Zpět na přihlášení přes Discord</a>
                 </div>
             </div>
 
-            <div id="login-email-code-view" style="display: none; flex-direction: column; gap: 15px;">
-                <div style="color:white; text-align:center; font-size:14px;">Zadejte 5místný kód z e-mailu.</div>
-                <input type="text" id="login-email-code-input" placeholder="12345" style="padding: 15px; border-radius: 5px; border: 1px solid #facc15; background: rgba(0,0,0,0.5); color: white; font-size: 20px; font-weight: bold; letter-spacing: 5px; outline: none; text-align: center;" maxlength="5">
-                <button type="button" id="btn-verify-email-code" style="padding: 15px; border-radius: 5px; border: none; background: #22c55e; color: white; font-weight: bold; font-size: 16px; cursor: pointer; transition: 0.2s;">OVĚŘIT KÓD</button>
-                <button type="button" id="btn-cancel-email-auth" style="padding: 10px; border-radius: 5px; border: none; background: #ef4444; color: white; font-weight: bold; width: 100%; cursor: pointer;">ZRUŠIT</button>
+            <!-- FÁZE 2: ČEKÁNÍ NA KLIKNUTÍ V E-MAILU -->
+            <div id="login-email-code-view" style="display: none; flex-direction: column; gap: 20px; align-items: center; width: 100%;">
+                <div style="text-align: center; width: 100%;">
+                    <div style="color: #60a5fa; font-weight: bold; font-size: 20px; margin-bottom: 10px; text-transform: uppercase; letter-spacing: 1px;">
+                        Přihlašovací odkaz je na cestě! 📩
+                    </div>
+                    <div style="color: white; font-size: 15px; line-height: 1.5; background: rgba(59, 130, 246, 0.1); padding: 15px; border-radius: 8px; border: 1px solid rgba(59, 130, 246, 0.3);">
+                        Zkontrolujte si e-mailovou schránku a klikněte na odkaz, který jsme Vám právě poslali.
+                    </div>
+                </div>
+
+                <div style="background: rgba(255, 255, 255, 0.05); padding: 15px; border-radius: 8px; border-left: 4px solid #facc15; color: #cbd5e1; font-size: 13px; text-align: left; width: 100%; box-sizing: border-box;">
+                    <strong style="color: #facc15; font-size: 14px; display:block; margin-bottom: 8px;">
+                        <i class="fas fa-exclamation-triangle" style="margin-right: 5px;"></i>E-mail zatím nedorazil?
+                    </strong>
+                    Podívejte se pro jistotu do složky Spam nebo Hromadné.<br>
+                    Doručení může někdy trvat pár desítek vteřin.
+                </div>
+                
+                <div id="email-waiting-status" style="color: #38bdf8; font-size: 13px; text-align: center; font-style: italic; display: none;">Ověřuji stav...</div>
+
+                <button type="button" id="btn-manual-code-input" style="padding: 10px; border-radius: 5px; border: 1px solid #facc15; background: rgba(250, 204, 21, 0.2); color: #facc15; font-weight: bold; width: 100%; cursor: pointer;">Zadat 5místný kód ručně</button>
+
+                <div id="email-retry-buttons" style="display: none; flex-direction: column; gap: 10px; width: 100%;">
+                    <button type="button" id="btn-resend-email-auth" style="padding: 10px; border-radius: 5px; border: 1px solid #3b82f6; background: rgba(59, 130, 246, 0.2); color: white; font-weight: bold; width: 100%; cursor: pointer;">Znovu odeslat e-mail</button>
+                    <button type="button" id="btn-cancel-email-auth" style="padding: 10px; border-radius: 5px; border: none; background: #ef4444; color: white; font-weight: bold; width: 100%; cursor: pointer;">Zkusit přihlášení přes Discord</button>
+                </div>
             </div>
 
-            <div id="login-waiting-view" style="display: none; flex-direction: column; gap: 15px; align-items: center;">
-                <div style="color:white; font-weight:bold; font-size:16px; text-align:center;">Čekám na schválení...</div>
-                <div style="background: rgba(255,255,255,0.1); padding: 15px; border-radius: 5px; color: #ccc; font-size: 13px; text-align: center;">
-                    <strong style="color: #facc15; display:block; margin-bottom:5px;">Nepřišla Vám zpráva?</strong>
-                    1. Jděte na náš Discord.<br>2. Otevřete kanál <b>#bot-příkazy</b>.<br>3. Napište příkaz: <span style="color:#facc15; font-weight:bold;">!auth</span><br>4. Klikněte na tlačítko ve zprávě.
+            <!-- FÁZE 1.5: RUČNÍ ZADÁNÍ KÓDU -->
+            <div id="login-email-code-manual-view" style="display: none; flex-direction: column; gap: 15px; width: 100%;">
+                <div style="color:white; text-align:center; font-size:14px;">Zadejte 5místný kód z e-mailu.</div>
+                <input type="text" id="login-email-code-manual-input" placeholder="12345" style="padding: 15px; border-radius: 5px; border: 1px solid #facc15; background: rgba(0,0,0,0.5); color: white; font-size: 20px; font-weight: bold; letter-spacing: 5px; outline: none; text-align: center;" maxlength="5">
+                <button type="button" id="btn-verify-email-code-manual" style="padding: 15px; border-radius: 5px; border: none; background: #22c55e; color: white; font-weight: bold; font-size: 16px; cursor: pointer; transition: 0.2s;">OVĚŘIT KÓD</button>
+                <button type="button" id="btn-cancel-email-manual" style="padding: 10px; border-radius: 5px; border: none; background: #ef4444; color: white; font-weight: bold; width: 100%; cursor: pointer;">ZPĚT</button>
+            </div>
+
+            <div id="login-waiting-view" style="display: none; flex-direction: column; gap: 20px; align-items: center; width: 100%;">
+                <!-- První krok - Hlavní zpráva -->
+                <div style="text-align: center; width: 100%;">
+                    <div id="login-waiting-title" style="color: #60a5fa; font-weight: bold; font-size: 20px; margin-bottom: 15px; text-transform: uppercase; letter-spacing: 1px;">
+                        <i class="fas fa-paper-plane" style="margin-right: 8px;"></i>Odesílám požadavek...
+                    </div>
+                    <div style="color: white; font-size: 15px; line-height: 1.5; background: rgba(59, 130, 246, 0.1); padding: 20px; border-radius: 8px; border: 1px solid rgba(59, 130, 246, 0.3);">
+                        <b style="color: #93c5fd; font-size: 16px; display: block; margin-bottom: 8px;">Ověřovací zprávu jsme Vám právě odeslali na Discord (DataCoreBot)</b>
+                        Pro úspěšné ověření si prosím otevřete soukromou zprávu od našeho bota a klikněte na zelené tlačítko <b>Schválit přihlášení</b>.
+                    </div>
                 </div>
-                <button type="button" id="btn-cancel-auth" style="padding: 10px; border-radius: 5px; border: none; background: #ef4444; color: white; font-weight: bold; width: 100%; cursor: pointer;">ZRUŠIT</button>
+
+                <!-- Druhý krok - Alternativa -->
+                <div style="background: rgba(255, 255, 255, 0.05); padding: 15px; border-radius: 8px; border-left: 4px solid #facc15; color: #cbd5e1; font-size: 13px; text-align: left; width: 100%; box-sizing: border-box;">
+                    <strong style="color: #facc15; font-size: 14px; display:block; margin-bottom: 8px;">
+                        <i class="fas fa-exclamation-triangle" style="margin-right: 5px;"></i>Nedorazila Vám žádná zpráva?
+                    </strong>
+                    Pravděpodobně máte na Discordu zablokované přijímání soukromých zpráv. Můžete se ale snadno ověřit i alternativní cestou:<br><br>
+                    <ol style="margin: 0; padding-left: 20px; line-height: 1.6;">
+                        <li>Otevřete náš server <b>Projekt OIS IDPK</b>.</li>
+                        <li>Přejděte do kanálu <b style="color: white;">#💻・bot-příkazy</b>.</li>
+                        <li>Napište a odešlete příkaz: <span style="background: rgba(0,0,0,0.5); padding: 3px 6px; border-radius: 4px; color: #facc15; font-family: monospace; font-weight: bold; margin-left: 3px;">!auth</span></li>
+                    </ol>
+                </div>
+                
+                <button type="button" id="btn-cancel-auth" style="padding: 12px; border-radius: 5px; border: none; background: #ef4444; color: white; font-weight: bold; width: 100%; cursor: pointer; transition: 0.2s; font-size: 15px; text-transform: uppercase;">Zrušit přihlašování</button>
             </div>
             
+            
+            <!-- FÁZE 3: ÚSPĚCH -->
+            <div id="login-success-view" style="display: none; flex-direction: column; gap: 20px; align-items: center; justify-content: center; width: 100%; padding: 40px 0;">
+                <div style="width: 80px; height: 80px; background: #22c55e; border-radius: 50%; display: flex; align-items: center; justify-content: center; box-shadow: 0 0 30px rgba(34, 197, 94, 0.4); animation: popIn 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;">
+                    <i class="fas fa-check" style="color: white; font-size: 40px;"></i>
+                </div>
+                <div style="color: white; font-weight: bold; font-size: 24px; text-transform: uppercase; letter-spacing: 2px; animation: slideUp 0.5s ease forwards; opacity: 0; animation-delay: 0.2s;">
+                    Úspěšně přihlášeno
+                </div>
+            </div>
+
             <div style="color: #64748b; font-size: 12px; text-align: center; margin-top: 20px;" id="login-hwid-text">HWID: ---</div>
         </div>
     </div>
@@ -64,7 +139,7 @@
     <div class="launcher-container">
         <!-- Levé menu -->
         <div class="sidebar">
-            <img src="https://tdonrppusbwhoftdontz.supabase.co/storage/v1/object/public/logo/datacorebot%20pf-lepsi.png" alt="Logo" class="logo">
+            <img src="assets/img/datacorebot_pf-lepsi.png" alt="Logo" class="logo">
             <div class="user-info" style="display: flex; align-items: center; justify-content: space-between; padding-right: 15px;">
                 <div style="display: flex; align-items: center;">
                     <i class="fas fa-user-circle"></i>
@@ -85,25 +160,32 @@
         <!-- Hlavní obsah (hra) -->
         <div class="main-content" id="main-content-game">
             <div class="hero-section">
-                <h1>Palubní Počítač OIS</h1>
+                <h1>OIS IDPK V1.6.2</h1>
                 <p>Verze s plnou kontrolou přes Dashboard</p>
+            </div>
+
+            <div id="launcher-error-message" style="display: none; background: rgba(239, 68, 68, 0.15); border: 1px solid #ef4444; color: #fca5a5; padding: 12px; border-radius: 8px; font-size: 14px; text-align: center; margin: 0 20px 15px 20px; user-select: text;">
+                <i class="fas fa-exclamation-circle" style="margin-right: 5px;"></i>
+                <span id="launcher-error-text"></span>
             </div>
 
             <div class="launch-section">
                 <div class="version-selector-container">
-                    <label for="version-select">Vyberte verzi ke spuštění:</label>
-                    <select id="version-select" disabled>
-                        <option>Načítám dostupné verze...</option>
-                    </select>
+                    <label>Vyberte verzi ke spuštění:</label>
+                    <div id="custom-version-select" class="custom-select disabled">
+                        <div class="custom-select-trigger" id="custom-select-trigger">
+                            <span id="custom-select-text">Načítám dostupné verze...</span>
+                            <i class="fas fa-chevron-down"></i>
+                        </div>
+                        <div class="custom-options" id="custom-options-container">
+                        </div>
+                    </div>
+                    <select id="version-select" style="display:none;" disabled></select>
                 </div>
                 
-                <div style="display: flex; align-items: center; justify-content: center; gap: 10px; margin-bottom: 15px;">
-                    <input type="checkbox" id="auto-launch-checkbox" style="cursor: pointer; width: 18px; height: 18px;">
-                    <label for="auto-launch-checkbox" style="color: #94a3b8; font-size: 14px; cursor: pointer;">Příště spustit rovnou hru (bez Launcheru)</label>
-                </div>
 
                 <div class="action-row" style="display: flex; flex-direction: column; gap: 10px;">
-                    <button id="btn-launch" class="btn-launch" disabled>
+                    <button id="btn-launch" class="btn-launch btn-locked">
                         <span class="launch-text">NAČÍTÁNÍ...</span>
                         <i class="fas fa-spinner fa-spin launch-icon"></i>
                     </button>
@@ -157,8 +239,12 @@
                         <span style="font-size:11px; color:#64748b; display:block; margin-top:3px; margin-left:24px;">Zvuky, obraz, linky – nebude přepsáno updatem</span>
                     </button>
                     <button id="btn-clean-old-versions" style="width:100%; padding:12px 16px; background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.08); border-radius:8px; color:white; font-size:13px; font-weight:600; cursor:pointer; text-align:left; transition:0.2s; margin-bottom:8px;">
-                        <i class="fas fa-broom" style="margin-right:10px; color:#f59e0b;"></i>Vyčistit staré verze hry
-                        <span style="font-size:11px; color:#64748b; display:block; margin-top:3px; margin-left:24px;">Ponechá jen aktuálně vybranou verzi</span>
+                        <i class="fas fa-list-check" style="margin-right:10px; color:#f59e0b;"></i>Smazat vybrané verze
+                        <span style="font-size:11px; color:#64748b; display:block; margin-top:3px; margin-left:24px;">Zobrazí seznam stažených verzí ke smazání</span>
+                    </button>
+                    <button id="btn-clean-cache" style="width:100%; padding:12px 16px; background:rgba(59,130,246,0.08); border:1px solid rgba(59,130,246,0.25); border-radius:8px; color:#60a5fa; font-size:13px; font-weight:600; cursor:pointer; text-align:left; transition:0.2s; margin-bottom:8px;">
+                        <i class="fas fa-broom" style="margin-right:10px;"></i>Vyčistit mezipaměť a dočasné soubory
+                        <span style="font-size:11px; display:block; margin-top:3px; margin-left:24px; color:#94a3b8;">Smaže zbytečnosti (Cache). Vaše data a hra zůstanou nedotčeny.</span>
                     </button>
                     <button id="btn-delete-all-data" style="width:100%; padding:12px 16px; background:rgba(239,68,68,0.08); border:1px solid rgba(239,68,68,0.25); border-radius:8px; color:#ef4444; font-size:13px; font-weight:600; cursor:pointer; text-align:left; transition:0.2s;">
                         <i class="fas fa-trash-alt" style="margin-right:10px;"></i>Smazat všechna stažená data
@@ -170,14 +256,31 @@
                 <div style="background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.06); border-radius:8px; padding:14px;">
                     <div style="color:#64748b; font-size:10px; letter-spacing:2px; text-transform:uppercase; margin-bottom:8px;">ℹ️ O APLIKACI</div>
                     <div style="color:#475569; font-size:12px; line-height:2;">
-                        IDPK Launcher v1.6 RC-EDITION<br>
+                        Lancher OIS IDPK<br>
                         <span id="settings-app-version">Verze hry: načítám...</span><br>
-                        <a href="#" id="settings-discord-link" style="color:#3b82f6; text-decoration:none;"><i class="fab fa-discord" style="margin-right:5px;"></i>Připojit se na Discord</a>
+                        <a href="https://discord.com/invite/vmTagbC9mF" id="settings-discord-link" style="color:#3b82f6; text-decoration:none;"><i class="fab fa-discord" style="margin-right:5px;"></i>Připojit se na Discord</a>
                     </div>
                 </div>
             </div>
         </div>
     </div>
+
+
+
+    <div id="delete-versions-modal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); z-index:9999; justify-content:center; align-items:center;">
+        <div style="background:#1e293b; padding:25px; border-radius:12px; border:1px solid #334155; width:400px; max-width:90%; display:flex; flex-direction:column; max-height:80vh;">
+            <h3 style="color:white; margin:0 0 15px 0;"><i class="fas fa-trash-alt" style="color:#ef4444; margin-right:10px;"></i>Smazat vybrané verze</h3>
+            <p style="color:#94a3b8; font-size:13px; margin-bottom:15px;">Vyberte verze, které chcete z počítače odstranit. Aktivní (vybranou) verzi smazat nelze.</p>
+            <div id="delete-versions-list" style="overflow-y:auto; flex:1; background:rgba(0,0,0,0.2); border-radius:8px; padding:10px; margin-bottom:20px;">
+                <!-- Dynamically populated -->
+            </div>
+            <div style="display:flex; justify-content:flex-end; gap:10px;">
+                <button id="btn-close-delete-modal" style="background:rgba(255,255,255,0.1); border:none; color:white; padding:8px 15px; border-radius:6px; cursor:pointer;">Zrušit</button>
+                <button id="btn-confirm-delete-versions" style="background:#ef4444; border:none; color:white; padding:8px 15px; border-radius:6px; cursor:pointer; font-weight:bold;">Smazat vybrané</button>
+            </div>
+        </div>
+    </div>
+
 
     <script src="js/logic-launcher.js"></script>
 </body>
