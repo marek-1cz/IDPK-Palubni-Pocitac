@@ -620,28 +620,14 @@ async function loadAvailableVersions() {
                         <div style="position: absolute; top: 0; left: 0; right: 0; bottom: 0; border: 4px solid transparent; border-image: repeating-linear-gradient(45deg, #ef4444, #ef4444 10px, transparent 10px, transparent 20px) 1; pointer-events: none;"></div>
                         <div style="padding: 10px; position: relative; z-index: 2;">
                             <i class="fas fa-exclamation-triangle" style="font-size: 32px; color: #ef4444; margin-bottom: 15px;"></i>
-                            <h2 style="color: white; margin-bottom: 10px; text-transform: uppercase; letter-spacing: 1px; font-size: 18px;">Systém je offline</h2>
-                            <h3 style="color: #ef4444; margin-bottom: 15px; font-size: 14px;">Databáze je dočasně nedostupná</h3>
+                            <h2 style="color: white; margin-bottom: 10px; text-transform: uppercase; letter-spacing: 1px; font-size: 18px;">Launcher je offline</h2>
+                            <h3 style="color: #ef4444; margin-bottom: 15px; font-size: 14px;">Spojení se serverem selhalo</h3>
                             <p style="color: #cbd5e1; font-size: 13px; line-height: 1.5; margin-bottom: 25px;">
-                                O tom jestli systém běží nebo ne se informujete na našem discordu (server Projekt OIS IDPK).
+                                Aplikace nemůže navázat spojení s databází (limit vyčerpán). Pro více informací a aktuální stav sledujte náš Discord (Projekt OIS IDPK). Děkujeme za pochopení.
                             </p>
-                            <button onclick="window.close()" style="width: 100%; background: #ef4444; border: none; color: white; padding: 10px; border-radius: 4px; cursor: pointer; font-size: 14px; font-weight: bold; text-transform: uppercase; margin-bottom: 10px; transition: 0.2s;">
+                            <button onclick="window.close()" style="width: 100%; background: #ef4444; border: none; color: white; padding: 10px; border-radius: 4px; cursor: pointer; font-size: 14px; font-weight: bold; text-transform: uppercase; margin-bottom: 5px; transition: 0.2s;">
                                 Zavřít aplikaci
                             </button>
-                            <button onclick="document.getElementById('dev-login-panel').style.display='block'; this.style.display='none';" style="background: transparent; border: 1px solid rgba(255,255,255,0.1); color: #64748b; padding: 3px 8px; border-radius: 3px; cursor: pointer; font-size: 9px; float: right;">
-                                DEV
-                            </button>
-                            <div id="dev-login-panel" style="display: none; text-align: left; margin-top: 25px; border-top: 1px solid rgba(239,68,68,0.2); padding-top: 15px;">
-                                <p style="color: #ef4444; font-size: 11px; margin-bottom: 8px; font-weight: bold;"><i class="fas fa-shield-alt"></i> NOUZOVÝ REŽIM (ADMIN)</p>
-                                <input id="ol-username" type="text" placeholder="Uživatelské jméno" value=""
-                                    style="width:100%; padding:8px; background:rgba(255,255,255,0.05); border:1px solid rgba(239,68,68,0.3); border-radius:4px; color:white; font-size:12px; box-sizing:border-box; margin-bottom:6px;">
-                                <input id="ol-password" type="password" placeholder="Heslo"
-                                    style="width:100%; padding:8px; background:rgba(255,255,255,0.05); border:1px solid rgba(239,68,68,0.3); border-radius:4px; color:white; font-size:12px; box-sizing:border-box; margin-bottom:10px;">
-                                <button onclick="doLauncherOfflineLogin()" style="width:100%; background:rgba(239,68,68,0.15); color:#fca5a5; border:1px solid #ef4444; padding:8px; border-radius:4px; cursor:pointer; font-weight:bold; font-size:12px;">
-                                    PŘIHLÁSIT SE
-                                </button>
-                                <p id="ol-err" style="color:#f87171; font-size:11px; margin-top:5px; min-height:14px; text-align: center;"></p>
-                            </div>
                         </div>
                     </div>
                 `;
