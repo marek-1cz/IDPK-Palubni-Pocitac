@@ -276,6 +276,13 @@ window.showErrorModal = function(title, msg, isVersionBlock = false, type = 'err
             icon = '<i class="fas fa-shield-alt"></i>';
         }
 
+        if (isDbOutage) {
+            color = "#ef4444";
+            icon = '<i class="fas fa-exclamation-triangle"></i>';
+            title = "Systém je offline";
+            msg = "Z důvodu výpadku nebo přetížení datového serveru je provoz aplikace pozastaven. Systém se automaticky zotaví, jakmile bude spojení obnoveno.";
+        }
+
         if (msgEl) {
             msgEl.innerHTML = `<span style="color:${color}; font-size:18px; font-weight:bold; text-transform:uppercase;">${icon} ${title}</span><br><br><span style="color:var(--text-main); font-size:14px; line-height:1.5;">${msg}</span>`;
         }
@@ -321,13 +328,40 @@ window.showErrorModal = function(title, msg, isVersionBlock = false, type = 'err
         
         // ★ Noužové admin přihlášení - zobrazí se při výpadku databáze
         if (isDbOutage && msgEl && !msgEl.innerHTML.includes('NOUZOVÉ PŘIHLÁŠENÍ')) {
+            // Aplikujeme "glowing" design přímo na inner-box
+            let innerBox = modalEl.querySelector('.error-inner-box');
+            if (innerBox) {
+                innerBox.style.background = 'rgba(20,0,0,0.97)';
+                innerBox.style.border = '2px solid #ef4444';
+                innerBox.style.boxShadow = '0 0 30px rgba(239,68,68,0.5)';
+                innerBox.style.position = 'relative';
+                innerBox.style.overflow = 'hidden';
+                
+                // Přidáme stripes (přes pseudo elementy nebo absolutní divy uvnitř)
+                if (!innerBox.querySelector('.stripes-left')) {
+                    let sLeft = document.createElement('div');
+                    sLeft.className = 'stripes-left';
+                    sLeft.style.cssText = 'position: absolute; top: 0; left: 0; bottom: 0; width: 25px; background: repeating-linear-gradient(45deg, #ef4444, #ef4444 10px, transparent 10px, transparent 20px); z-index: 1;';
+                    let sRight = document.createElement('div');
+                    sRight.className = 'stripes-right';
+                    sRight.style.cssText = 'position: absolute; top: 0; right: 0; bottom: 0; width: 25px; background: repeating-linear-gradient(-45deg, #ef4444, #ef4444 10px, transparent 10px, transparent 20px); z-index: 1;';
+                    innerBox.insertBefore(sLeft, innerBox.firstChild);
+                    innerBox.appendChild(sRight);
+                    
+                    // Zajistíme že obsah je nad pruhy
+                    Array.from(innerBox.children).forEach(c => {
+                        if (c !== sLeft && c !== sRight) {
+                            c.style.position = 'relative';
+                            c.style.zIndex = '2';
+                        }
+                    });
+                }
+            }
+
             msgEl.innerHTML += `
-            <br><br>
-            <div style="border-top:1px solid rgba(239,68,68,0.3); margin-top:15px; padding-top:15px;">
-                <p style="color:var(--text-muted); font-size:12px; margin-bottom:10px;">Systém je možné používat v omezeném režimu:</p>
-                <button data-custom-btn="true" onclick="window.showOfflineLoginPanel()" style="background:rgba(239,68,68,0.15); color:#f87171; border:1px solid rgba(239,68,68,0.4); padding:8px 14px; cursor:pointer; font-size:12px; font-weight:bold; border-radius:5px; width:100%; letter-spacing:0.5px;">
-                    <i class="fas fa-shield-alt"></i> NOUZOVÉ PŘIHLÁŠENÍ (Admin)
-                </button>
+            <div style="margin-top:15px; padding-top:15px;">
+                <button onclick="window.showOfflineLoginPanel()" style="background:transparent; border:1px solid rgba(255,255,255,0.2); color:#94a3b8; padding:4px 10px; cursor:pointer; font-size:10px; border-radius:4px; float:right;">DEV</button>
+                <div style="clear:both;"></div>
             </div>
             `;
         }
@@ -343,20 +377,23 @@ window.showErrorModal = function(title, msg, isVersionBlock = false, type = 'err
 window.showOfflineLoginPanel = function() {
     let msgEl = document.getElementById('error-msg-text');
     if (!msgEl) return;
+    
+    // Skryjeme původní obsah modalu (ikonu atd.) abychom tam nacpali formulář čistě
+    let iconEl = document.querySelector('.error-icon-triangle');
+    if (iconEl) iconEl.style.display = 'none';
+
     msgEl.innerHTML = `
-        <span style="color:#f59e0b; font-size:16px; font-weight:bold;"><i class="fas fa-shield-alt"></i> NOUZOVÉ ADMIN PŘIHLÁŠENÍ</span>
-        <br><br>
-        <p style="color:var(--text-muted); font-size:12px; margin-bottom:12px;">
-            Databáze je nedĸstupná. Toto přihlášení funguje v omezeném offline režimu.
-        </p>
-        <input id="offline-username" type="text" placeholder="Uživatelské jméno" value="DataCoreBot_admin"
-            style="width:100%; padding:8px 10px; background:rgba(255,255,255,0.07); border:1px solid rgba(255,255,255,0.2); border-radius:5px; color:white; font-size:13px; box-sizing:border-box; margin-bottom:8px;">
-        <input id="offline-password" type="password" placeholder="Heslo"
-            style="width:100%; padding:8px 10px; background:rgba(255,255,255,0.07); border:1px solid rgba(255,255,255,0.2); border-radius:5px; color:white; font-size:13px; box-sizing:border-box; margin-bottom:12px;">
-        <button onclick="window.doOfflineLogin()" style="background:#f59e0b; color:black; border:none; padding:10px; cursor:pointer; font-weight:bold; border-radius:5px; width:100%;">
-            <i class="fas fa-unlock"></i> PŘIHLÁSIT SE (NOUZOVÝ REŽIM)
-        </button>
-        <p id="offline-err" style="color:#f87171; font-size:11px; margin-top:8px; min-height:16px;"></p>
+        <div style="text-align: left; border-top: 1px solid rgba(239,68,68,0.3); padding-top: 15px;">
+            <p style="color: #ef4444; font-size: 12px; margin-bottom: 10px; font-weight: bold;"><i class="fas fa-shield-alt"></i> NOUZOVÝ REŽIM (ADMIN)</p>
+            <input id="offline-username" type="text" placeholder="Uživatelské jméno" value=""
+                style="width:100%; padding:8px; background:rgba(255,255,255,0.05); border:1px solid rgba(239,68,68,0.4); border-radius:5px; color:white; font-size:12px; box-sizing:border-box; margin-bottom:7px;">
+            <input id="offline-password" type="password" placeholder="Heslo"
+                style="width:100%; padding:8px; background:rgba(255,255,255,0.05); border:1px solid rgba(239,68,68,0.4); border-radius:5px; color:white; font-size:12px; box-sizing:border-box; margin-bottom:10px;">
+            <button onclick="window.doOfflineLogin()" style="width:100%; background:rgba(239,68,68,0.2); color:#fca5a5; border:1px solid #ef4444; padding:9px; border-radius:6px; cursor:pointer; font-weight:bold; font-size:13px;">
+                PŘIHLÁSIT SE
+            </button>
+            <p id="offline-err" style="color:#f87171; font-size:11px; margin-top:7px; min-height:14px; text-align: center;"></p>
+        </div>
     `;
 };
 
