@@ -592,15 +592,14 @@ async function loadAvailableVersions() {
                 version_code: '1.0.0',
                 folder_name: 'Ovladač',
                 has_access: true,
-                can_launch: true
+                can_launch: true,
+                show_in_launcher: true
             }];
             currentUserRole = cfg.user_role || 'DEV';
-            return;
-        }
-
-        let id_param = cfg.discord_id;
-        if (!id_param && cfg.email) id_param = 'email-' + cfg.email; // Fallback
-        const res = await fetch(`${API_BASE}/api/launcher/versions?discord_id=${id_param}`);
+        } else {
+            let id_param = cfg.discord_id;
+            if (!id_param && cfg.email) id_param = 'email-' + cfg.email; // Fallback
+            const res = await fetch(`${API_BASE}/api/launcher/versions?discord_id=${id_param}`);
         const data = await res.json();
                 if (data.status === 'ok') {
             dbVersions = data.versions;
@@ -660,22 +659,23 @@ async function loadAvailableVersions() {
                 } else if (data.status === 'banned') {
             document.getElementById('initial-loading-overlay').style.display = 'flex';
             document.getElementById('initial-loading-overlay').innerHTML = `
-                <div style="background: rgba(185, 28, 28, 0.9); padding: 40px; border-radius: 15px; border: 2px solid #ef4444; text-align: center; max-width: 500px; box-shadow: 0 0 40px rgba(239, 68, 68, 0.6); position: relative; overflow: hidden;">
-                    <div style="position: absolute; top: -50%; left: -50%; width: 200%; height: 200%; background: repeating-linear-gradient(45deg, transparent, transparent 10px, rgba(0,0,0,0.1) 10px, rgba(0,0,0,0.1) 20px); z-index: 1;"></div>
-                    <div style="position: relative; z-index: 2;">
-                        <i class="fas fa-ban" style="font-size: 60px; color: white; margin-bottom: 20px; filter: drop-shadow(0 0 10px rgba(255,255,255,0.5));"></i>
-                        <h1 style="color: white; margin-bottom: 15px; font-size: 28px; text-transform: uppercase; letter-spacing: 2px; text-shadow: 0 2px 4px rgba(0,0,0,0.5);">Účet Zablokován</h1>
-                        <p style="color: #fca5a5; font-size: 16px; line-height: 1.6; margin-bottom: 25px;">
-                            Váš účet byl zablokován administrátorem.<br><br>
-                            Pokud se domníváte, že se jedná o omyl a chcete se odvolat, vytvořte si ticket na našem Discordu v kanále <strong>#💁‍♂️・podpora-založení-ticketu</strong>.
-                        </p>
-                        <button onclick="window.close()" style="background: #171717; border: 1px solid #404040; color: white; padding: 12px 30px; border-radius: 8px; cursor: pointer; font-weight: bold; font-size: 16px; transition: all 0.2s; box-shadow: 0 4px 6px rgba(0,0,0,0.3);">UKONČIT LAUNCHER</button>
-                    </div>
-                </div>
-            `;
-            return; // Zastavit načítání
-        } else {
-            console.error("Chyba při načítání verzí z API:", data.message);
+        <div style="background: rgba(185, 28, 28, 0.9); padding: 40px; border-radius: 15px; border: 2px solid #ef4444; text-align: center; max-width: 500px; box-shadow: 0 0 40px rgba(239, 68, 68, 0.6); position: relative; overflow: hidden;">
+            <div style="position: absolute; top: -50%; left: -50%; width: 200%; height: 200%; background: repeating-linear-gradient(45deg, transparent, transparent 10px, rgba(0,0,0,0.1) 10px, rgba(0,0,0,0.1) 20px); z-index: 1;"></div>
+            <div style="position: relative; z-index: 2;">
+                <i class="fas fa-ban" style="font-size: 60px; color: white; margin-bottom: 20px; filter: drop-shadow(0 0 10px rgba(255,255,255,0.5));"></i>
+                <h1 style="color: white; margin-bottom: 15px; font-size: 28px; text-transform: uppercase; letter-spacing: 2px; text-shadow: 0 2px 4px rgba(0,0,0,0.5);">Účet Zablokován</h1>
+                <p style="color: #fca5a5; font-size: 16px; line-height: 1.6; margin-bottom: 25px;">
+                    Váš účet byl zablokován administrátorem.<br><br>
+                    Pokud se domníváte, že se jedná o omyl a chcete se odvolat, vytvořte si ticket na našem Discordu v kanále <strong>#💁‍♂️・podpora-založení-ticketu</strong>.
+                </p>
+                <button onclick="window.close()" style="background: #171717; border: 1px solid #404040; color: white; padding: 12px 30px; border-radius: 8px; cursor: pointer; font-weight: bold; font-size: 16px; transition: all 0.2s; box-shadow: 0 4px 6px rgba(0,0,0,0.3);">UKONČIT LAUNCHER</button>
+            </div>
+        </div>
+    `;
+                return; // Zastavit načítání
+            } else {
+                console.error("Chyba při načítání verzí z API:", data.message);
+            }
         }
     } catch(e) {
         console.error("Síťová chyba při načítání verzí z API:", e);
