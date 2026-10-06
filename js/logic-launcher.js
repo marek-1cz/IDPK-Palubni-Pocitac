@@ -189,6 +189,9 @@ async function checkAuthAndInit() {
     if (config.auto_launch === undefined) {
         config.auto_launch = true;
     }
+    // Při novém spuštění aplikace se vždy zruší offline režim, dokud není znovu vyžádán
+    config.offline_mode = false;
+    saveConfig(config);
     
 
     if (config.discord_id) {

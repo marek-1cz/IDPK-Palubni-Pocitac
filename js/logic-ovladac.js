@@ -265,6 +265,12 @@ window.showErrorModal = function(title, msg, isVersionBlock = false, type = 'err
         let isDbOutage = (msg.includes('402') || msg.includes('databáze') || msg.includes('limit') ||
                           msg.includes('databaze') || title.includes('DATABAZE') || title.includes('DATABÁZE'));
 
+        // Pokud už jsme v offline režimu, ignoruj další hlášky o výpadku databáze (zabrání to vyskakování smyčky)
+        let config = window.loadConfig ? window.loadConfig() : {};
+        if (isDbOutage && config.offline_mode) {
+            return;
+        }
+
         let color = "#e74c3c"; 
         let icon = '<i class="fas fa-times-circle"></i>';
         
