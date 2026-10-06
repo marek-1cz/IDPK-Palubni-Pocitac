@@ -261,6 +261,9 @@ window.showErrorModal = function(title, msg, isVersionBlock = false, type = 'err
         let hwidBtn = document.getElementById('error-hwid-btn');
         
         let isGlobalShutdown = msg.includes('VYPNUT') || msg.includes('vypnut');
+        // Detekce pádu databáze (Supabase limit / 402 / DB nedostupna)
+        let isDbOutage = (msg.includes('402') || msg.includes('databáze') || msg.includes('limit') ||
+                          msg.includes('databaze') || title.includes('DATABAZE') || title.includes('DATABÁZE'));
 
         let color = "#e74c3c"; 
         let icon = '<i class="fas fa-times-circle"></i>';
@@ -316,11 +319,79 @@ window.showErrorModal = function(title, msg, isVersionBlock = false, type = 'err
             }
         }
         
+        // ★ Noužové admin přihlášení - zobrazí se při výpadku databáze
+        if (isDbOutage && msgEl && !msgEl.innerHTML.includes('NOUZOVÉ PŘIHLÁŠENÍ')) {
+            msgEl.innerHTML += `
+            <br><br>
+            <div style="border-top:1px solid rgba(239,68,68,0.3); margin-top:15px; padding-top:15px;">
+                <p style="color:var(--text-muted); font-size:12px; margin-bottom:10px;">Systém je možné používat v omezeném režimu:</p>
+                <button data-custom-btn="true" onclick="window.showOfflineLoginPanel()" style="background:rgba(239,68,68,0.15); color:#f87171; border:1px solid rgba(239,68,68,0.4); padding:8px 14px; cursor:pointer; font-size:12px; font-weight:bold; border-radius:5px; width:100%; letter-spacing:0.5px;">
+                    <i class="fas fa-shield-alt"></i> NOUZOVÉ PŘIHLÁŠENÍ (Admin)
+                </button>
+            </div>
+            `;
+        }
+        
         if (modalEl) modalEl.style.display = 'flex';
         let loadEl = document.getElementById('loadingScreen');
         if (loadEl) loadEl.style.display = 'none';
         window.syncDom();
     } catch(err) {}
+};
+
+// ★ NOUZOVÉ PŘIHLÁŠENÍ - handler
+window.showOfflineLoginPanel = function() {
+    let msgEl = document.getElementById('error-msg-text');
+    if (!msgEl) return;
+    msgEl.innerHTML = `
+        <span style="color:#f59e0b; font-size:16px; font-weight:bold;"><i class="fas fa-shield-alt"></i> NOUZOVÉ ADMIN PŘIHLÁŠENÍ</span>
+        <br><br>
+        <p style="color:var(--text-muted); font-size:12px; margin-bottom:12px;">
+            Databáze je nedĸstupná. Toto přihlášení funguje v omezeném offline režimu.
+        </p>
+        <input id="offline-username" type="text" placeholder="Uživatelské jméno" value="DataCoreBot_admin"
+            style="width:100%; padding:8px 10px; background:rgba(255,255,255,0.07); border:1px solid rgba(255,255,255,0.2); border-radius:5px; color:white; font-size:13px; box-sizing:border-box; margin-bottom:8px;">
+        <input id="offline-password" type="password" placeholder="Heslo"
+            style="width:100%; padding:8px 10px; background:rgba(255,255,255,0.07); border:1px solid rgba(255,255,255,0.2); border-radius:5px; color:white; font-size:13px; box-sizing:border-box; margin-bottom:12px;">
+        <button onclick="window.doOfflineLogin()" style="background:#f59e0b; color:black; border:none; padding:10px; cursor:pointer; font-weight:bold; border-radius:5px; width:100%;">
+            <i class="fas fa-unlock"></i> PŘIHLÁSIT SE (NOUZOVÝ REŽIM)
+        </button>
+        <p id="offline-err" style="color:#f87171; font-size:11px; margin-top:8px; min-height:16px;"></p>
+    `;
+};
+
+window.doOfflineLogin = async function() {
+    let usernameEl = document.getElementById('offline-username');
+    let passwordEl = document.getElementById('offline-password');
+    let errEl = document.getElementById('offline-err');
+    if (!usernameEl || !passwordEl) return;
+    let username = usernameEl.value.trim();
+    let password = passwordEl.value.trim();
+    if (errEl) errEl.textContent = 'Přihlašuji...';
+    try {
+        const resp = await fetch(`${API_BASE}/api/auth/offline_login`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username, password })
+        });
+        const data = await resp.json();
+        if (data.status === 'ok') {
+            // Uložit přihlášení stejně jako normální přihlášení
+            let config = loadConfig ? loadConfig() : {};
+            config.discord_id = data.discord_id;
+            config.discord_nick = data.discord_nick;
+            config.user_role = data.role;
+            config.offline_mode = true;
+            if (saveConfig) saveConfig(config);
+            storedDiscordId = data.discord_id;
+            window.closeErrorModal && window.closeErrorModal();
+            window.showNotification && window.showNotification(`Přihlášen nouzově jako ${data.discord_nick} (⧿ OFFLINE REŽIM)`, 'warning', 6000);
+        } else {
+            if (errEl) errEl.textContent = data.message || 'Nesprávné jméno nebo heslo.';
+        }
+    } catch(e) {
+        if (errEl) errEl.textContent = 'Chyba spojení se serverem.';
+    }
 };
 
 window.closeErrorModal = function() {
