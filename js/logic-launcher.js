@@ -294,7 +294,12 @@ btnStartEmailAuth.addEventListener('click', async () => {
 
             if (window.emailPollInterval) clearInterval(window.emailPollInterval);
             window.emailPollInterval = setInterval(async () => {
-                let { data: pollData } = await supabase.from('users').select('*').eq('email', email).single();
+                let { data: pollData, error: pollErr } = await supabase.from('users').select('*').eq('email', email).single();
+                if (pollErr && (pollErr.code === '402' || pollErr.message?.includes('402'))) {
+                    clearInterval(window.emailPollInterval);
+                    if (statusEl) statusEl.innerHTML = '<i class="fas fa-exclamation-triangle" style="color: #ef4444; margin-right: 5px;"></i>Datab\u00e1ze nedostupn\u00e1 (limit)';
+                    return;
+                }
                 if (pollData && pollData.web_session_token && pollData.web_session_token !== emailAuthOldToken) {
                     if (window.emailAuthTimeoutTimer) clearTimeout(window.emailAuthTimeoutTimer);
                     clearInterval(window.emailPollInterval);
@@ -1198,17 +1203,26 @@ const btnCloseDeleteModal = document.getElementById('btn-close-delete-modal');
 const btnConfirmDelete = document.getElementById('btn-confirm-delete-versions');
 
 async function forceDeleteFolderAsync(folderPath) {
-    return new Promise((resolve) => {
-        // Na Windows použijeme rmdir /s /q, což je mnohem rychlejší na tisíce souborů než fs.promises.rm
+    try {
+        await fs.promises.rm(folderPath, { recursive: true, force: true, maxRetries: 5, retryDelay: 500 });
+        return true;
+    } catch (error) {
+        // Fallback pro otravné ENOTEMPTY a zamknuté Windows soubory
         if (os.platform() === 'win32') {
-            exec(`rmdir /s /q "${folderPath}"`, (error) => {
-                // Tiše ignorujeme chyby (např. uzamčené soubory), složka se promaže co nejvíc
-                resolve(true);
+            return new Promise((resolve) => {
+                exec(`rmdir /s /q "${folderPath}"`, (err) => {
+                    if (err && fs.existsSync(folderPath)) {
+                        console.error("Fallback deletion failed:", err);
+                        alert(`Upozornění: Některé soubory mohly zůstat, protože jsou momentálně používány systémem. (Chyba: ${error.code || error.message})`);
+                    }
+                    resolve(true); // Dokončíme jako úspěšné, i když něco málo zbylo
+                });
             });
-        } else {
-            fs.promises.rm(folderPath, { recursive: true, force: true }).then(() => resolve(true)).catch(() => resolve(true));
         }
-    });
+        
+        console.error("Failed to delete folder:", folderPath, error);
+        throw new Error(`Nepodařilo se smazat složku: ${error.message}`);
+    }
 }
 
 if (btnCleanOldVersions && deleteModal) {
@@ -1440,6 +1454,9 @@ function updateCustomSelectUI(versions) {
             customText.innerText = v.db_version;
             customSelect.classList.remove('open');
             
+            const badge = document.getElementById('hero-version-badge');
+            if (badge) badge.innerText = v.db_version;
+            
             // Highlight selected
             Array.from(customOptions.children).forEach(c => c.classList.remove('selected'));
             div.classList.add('selected');
@@ -1455,6 +1472,9 @@ function updateCustomSelectUI(versions) {
     // Set active
     if (versionSelect.value) {
         customText.innerText = versionSelect.value;
+        const badge = document.getElementById('hero-version-badge');
+        if (badge) badge.innerText = versionSelect.value;
+        
         const opts = Array.from(customOptions.children);
         const idx = versionSelect.selectedIndex;
         if (idx >= 0 && opts[idx]) {

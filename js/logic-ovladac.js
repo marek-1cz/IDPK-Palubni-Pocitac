@@ -933,6 +933,10 @@ window.refreshPanel = function() {
 // --- PŮVODNÍ OKNO ZASTÁVEK STOP ---
 window.openStopWindow = function() { 
     window.playClick(); 
+    if (!window.isPremiumUser) {
+        window.showErrorModal('PŘÍSTUP ODEPŘEN', 'Tato funkce je dostupná pouze pro předplatitele (role BT a vyšší).<br><br>Pokud chcete tuto funkci získat, můžete si ji předplatit na:<br><br><a href="#" onclick="require(\'electron\').shell.openExternal(\'https://buymeacoffee.com/marekk_czz\')" style="color:var(--idpk-yellow); font-weight:bold; font-size:14px; text-decoration:none;">buymeacoffee.com/marekk_czz</a>', false, 'error');
+        return;
+    }
     ipcRenderer.send('open-stop-window'); 
 };
 
@@ -1152,6 +1156,10 @@ window.initAppFlow = async function(isServerOnline = true) {
                     body: JSON.stringify({ discord_id: storedDiscordId, action: 'start', app_version: APP_VERSION }) 
                 }).then(r => r.json()).then(data => {
                     if (data.status === 'error' && !isDevMode) {
+                        if (data.reason === 'db_error') {
+                            console.error('DB error na serveru, zustavam prihlasen v offline/degradovanem rezimu.');
+                            return;
+                        }
                         alert("CHYBA: Přihlášení vypršelo nebo server účet nerozpoznal.\n\nSpouštím IDPK Launcher pro nové přihlášení...");
                         
                         // Smazat data, aby Launcher zobrazil přihlašovací obrazovku
@@ -3725,6 +3733,7 @@ window.syncDom = function() {
 let mirrorSessionId = "";
 
 function initKoyebMirror() {
+    if (!window.isPremiumUser) return;
     let safeId = storedDiscordId || "";
     mirrorSessionId = safeId.replace(/[^a-zA-Z0-9]/g, '').substring(0, 8);
     if (!mirrorSessionId) mirrorSessionId = Math.random().toString(36).substring(2,8);
@@ -4199,6 +4208,10 @@ window.updateActionPanelRoles = function() {
 
 window.openMobileInfo = function() {
     window.playClick();
+    if (!window.isPremiumUser) {
+        window.showErrorModal('PŘÍSTUP ODEPŘEN', 'Tato funkce je dostupná pouze pro předplatitele (role BT a vyšší).<br><br>Pokud chcete tuto funkci získat, můžete si ji předplatit na:<br><br><a href="#" onclick="require(\'electron\').shell.openExternal(\'https://buymeacoffee.com/marekk_czz\')" style="color:var(--idpk-yellow); font-weight:bold; font-size:14px; text-decoration:none;">buymeacoffee.com/marekk_czz</a>', false, 'error');
+        return;
+    }
     let modal = document.getElementById('mobile-info-modal');
     if (modal) modal.style.display = 'flex';
 };
