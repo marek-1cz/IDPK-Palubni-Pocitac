@@ -589,15 +589,48 @@ async function loadAvailableVersions() {
             dbVersions = data.versions;
             if (data.user_role) currentUserRole = data.user_role;
         } else if (data.status === 'error') {
+            // Detekuj jestli je to DB/Supabase blokace (402 / egress limit)
+            let isDbBlock = data.message && (
+                data.message.includes('402') ||
+                data.message.includes('egress') ||
+                data.message.includes('exceed') ||
+                data.message.includes('restricted') ||
+                data.message.includes('Payment')
+            );
             document.getElementById('initial-loading-overlay').style.display = 'flex';
-            document.getElementById('initial-loading-overlay').innerHTML = `
-                <div style="background: rgba(239, 68, 68, 0.2); padding: 30px; border-radius: 15px; border: 1px solid rgba(239, 68, 68, 0.5); text-align: center; max-width: 400px;">
-                    <i class="fas fa-lock" style="font-size: 40px; color: #ef4444; margin-bottom: 20px;"></i>
-                    <h2 style="color: white; margin-bottom: 10px;">Přístup Zablokován</h2>
-                    <p style="color: #cbd5e1; font-size: 14px; line-height: 1.5;">${data.message || 'Launcher je dočasně uzamčen.'}</p>
-                    <button onclick="window.close()" style="margin-top: 20px; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); color: white; padding: 10px 20px; border-radius: 8px; cursor: pointer;">Zavřít</button>
-                </div>
-            `;
+            if (isDbBlock) {
+                document.getElementById('initial-loading-overlay').innerHTML = `
+                    <div style="background: rgba(30,20,20,0.97); padding: 30px; border-radius: 15px; border: 1px solid rgba(239,68,68,0.4); text-align: center; max-width: 420px;">
+                        <i class="fas fa-database" style="font-size: 36px; color: #f59e0b; margin-bottom: 15px;"></i>
+                        <h2 style="color: white; margin-bottom: 10px;">Databáze nedĸstupná</h2>
+                        <p style="color: #cbd5e1; font-size: 13px; line-height: 1.5; margin-bottom: 18px;">
+                            Systém je dočasně omezen kvůli překročení datového limitu Supabase.
+                            Normální provoz bude obnoven automaticky.
+                        </p>
+                        <div style="border-top: 1px solid rgba(255,255,255,0.1); padding-top: 15px; margin-bottom: 15px;">
+                            <p style="color: #94a3b8; font-size: 12px; margin-bottom: 10px;">Pokud jsi admin, můžeš pokračovat v nĸuzovém režimu:</p>
+                            <input id="ol-username" type="text" value="DataCoreBot_admin" placeholder="Uživatelské jméno"
+                                style="width:100%; padding:8px; background:rgba(255,255,255,0.07); border:1px solid rgba(255,255,255,0.2); border-radius:5px; color:white; font-size:12px; box-sizing:border-box; margin-bottom:7px;">
+                            <input id="ol-password" type="password" placeholder="Heslo"
+                                style="width:100%; padding:8px; background:rgba(255,255,255,0.07); border:1px solid rgba(255,255,255,0.2); border-radius:5px; color:white; font-size:12px; box-sizing:border-box; margin-bottom:10px;">
+                            <button onclick="doLauncherOfflineLogin()" style="width:100%; background:#f59e0b; color:black; border:none; padding:9px; border-radius:6px; cursor:pointer; font-weight:bold; font-size:13px;">
+                                <i class="fas fa-shield-alt"></i> NOUZOVÉ PŘIHLÁŠENÍ
+                            </button>
+                            <p id="ol-err" style="color:#f87171; font-size:11px; margin-top:7px; min-height:14px;"></p>
+                        </div>
+                        <button onclick="window.close()" style="background:rgba(255,255,255,0.07); border:1px solid rgba(255,255,255,0.15); color:#94a3b8; padding:8px 18px; border-radius:7px; cursor:pointer; font-size:12px;">Zavřít</button>
+                    </div>
+                `;
+            } else {
+                document.getElementById('initial-loading-overlay').innerHTML = `
+                    <div style="background: rgba(239, 68, 68, 0.2); padding: 30px; border-radius: 15px; border: 1px solid rgba(239, 68, 68, 0.5); text-align: center; max-width: 400px;">
+                        <i class="fas fa-lock" style="font-size: 40px; color: #ef4444; margin-bottom: 20px;"></i>
+                        <h2 style="color: white; margin-bottom: 10px;">Přístup Zablokován</h2>
+                        <p style="color: #cbd5e1; font-size: 14px; line-height: 1.5;">${data.message || 'Launcher je dočasně uzamčen.'}</p>
+                        <button onclick="window.close()" style="margin-top: 20px; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); color: white; padding: 10px 20px; border-radius: 8px; cursor: pointer;">Zavřít</button>
+                    </div>
+                `;
+            }
             return; // Stop initialization
                 } else if (data.status === 'banned') {
             document.getElementById('initial-loading-overlay').style.display = 'flex';
@@ -1515,5 +1548,39 @@ function secureExecutable(versionFolder, isBlocked) {
         }
     } catch (e) {
         console.error("Chyba při zabezpečování exe:", e);
+    }
+}
+
+// ★ NOUZOVÉ PŘIHLÁŠENÍ - z launcher overlay (při DB výpadku)
+async function doLauncherOfflineLogin() {
+    let usernameEl = document.getElementById('ol-username');
+    let passwordEl = document.getElementById('ol-password');
+    let errEl = document.getElementById('ol-err');
+    if (!usernameEl || !passwordEl) return;
+    let username = usernameEl.value.trim();
+    let password = passwordEl.value.trim();
+    if (errEl) errEl.textContent = 'Přihlašuji...';
+    try {
+        const resp = await fetch(`${API_BASE}/api/auth/offline_login`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username, password })
+        });
+        const data = await resp.json();
+        if (data.status === 'ok') {
+            let config = loadConfig();
+            config.discord_id = data.discord_id;
+            config.discord_nick = data.discord_nick;
+            config.user_role = data.role;
+            config.offline_mode = true;
+            saveConfig(config);
+            // Skryj overlay a pokračuj v inicializaci launcheru
+            document.getElementById('initial-loading-overlay').style.display = 'none';
+            await initLauncher(config);
+        } else {
+            if (errEl) errEl.textContent = data.message || 'Nesprávné jméno nebo heslo.';
+        }
+    } catch(e) {
+        if (errEl) errEl.textContent = 'Chyba spojení se serverem (' + (e.message || e) + ').';
     }
 }
