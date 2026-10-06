@@ -581,6 +581,20 @@ async function loadAvailableVersions() {
     let dbVersions = [];
     try {
         let cfg = loadConfig();
+        if (cfg.offline_mode) {
+            dbVersions = [{
+                id: 'offline',
+                name: 'Ovladač (Offline Režim)',
+                type: 'STABLE',
+                version_code: '1.0.0',
+                folder_name: 'Ovladač',
+                has_access: true,
+                can_launch: true
+            }];
+            currentUserRole = cfg.user_role || 'DEV';
+            return;
+        }
+
         let id_param = cfg.discord_id;
         if (!id_param && cfg.email) id_param = 'email-' + cfg.email; // Fallback
         const res = await fetch(`${API_BASE}/api/launcher/versions?discord_id=${id_param}`);
@@ -600,25 +614,33 @@ async function loadAvailableVersions() {
             document.getElementById('initial-loading-overlay').style.display = 'flex';
             if (isDbBlock) {
                 document.getElementById('initial-loading-overlay').innerHTML = `
-                    <div style="background: rgba(30,20,20,0.97); padding: 30px; border-radius: 15px; border: 1px solid rgba(239,68,68,0.4); text-align: center; max-width: 420px;">
-                        <i class="fas fa-database" style="font-size: 36px; color: #f59e0b; margin-bottom: 15px;"></i>
-                        <h2 style="color: white; margin-bottom: 10px;">Databáze nedĸstupná</h2>
-                        <p style="color: #cbd5e1; font-size: 13px; line-height: 1.5; margin-bottom: 18px;">
-                            Systém je dočasně omezen kvůli překročení datového limitu Supabase.
-                            Normální provoz bude obnoven automaticky.
-                        </p>
-                        <div style="border-top: 1px solid rgba(255,255,255,0.1); padding-top: 15px; margin-bottom: 15px;">
-                            <p style="color: #94a3b8; font-size: 12px; margin-bottom: 10px;">Pokud jsi admin, můžeš pokračovat v nĸuzovém režimu:</p>
-                            <input id="ol-username" type="text" value="DataCoreBot_admin" placeholder="Uživatelské jméno"
-                                style="width:100%; padding:8px; background:rgba(255,255,255,0.07); border:1px solid rgba(255,255,255,0.2); border-radius:5px; color:white; font-size:12px; box-sizing:border-box; margin-bottom:7px;">
-                            <input id="ol-password" type="password" placeholder="Heslo"
-                                style="width:100%; padding:8px; background:rgba(255,255,255,0.07); border:1px solid rgba(255,255,255,0.2); border-radius:5px; color:white; font-size:12px; box-sizing:border-box; margin-bottom:10px;">
-                            <button onclick="doLauncherOfflineLogin()" style="width:100%; background:#f59e0b; color:black; border:none; padding:9px; border-radius:6px; cursor:pointer; font-weight:bold; font-size:13px;">
-                                <i class="fas fa-shield-alt"></i> NOUZOVÉ PŘIHLÁŠENÍ
+                    <div style="background: #111; padding: 25px; border-radius: 8px; text-align: center; max-width: 400px; position: relative; overflow: hidden; font-family: sans-serif;">
+                        <div style="position: absolute; top: 0; left: 0; right: 0; bottom: 0; border: 4px solid transparent; border-image: repeating-linear-gradient(45deg, #ef4444, #ef4444 10px, transparent 10px, transparent 20px) 1; pointer-events: none;"></div>
+                        <div style="padding: 10px; position: relative; z-index: 2;">
+                            <i class="fas fa-exclamation-triangle" style="font-size: 32px; color: #ef4444; margin-bottom: 15px;"></i>
+                            <h2 style="color: white; margin-bottom: 10px; text-transform: uppercase; letter-spacing: 1px; font-size: 18px;">Systém je offline</h2>
+                            <h3 style="color: #ef4444; margin-bottom: 15px; font-size: 14px;">Databáze je dočasně nedostupná</h3>
+                            <p style="color: #cbd5e1; font-size: 13px; line-height: 1.5; margin-bottom: 25px;">
+                                O tom jestli systém běží nebo ne se informujete na našem discordu (server Projekt OIS IDPK).
+                            </p>
+                            <button onclick="window.close()" style="width: 100%; background: #ef4444; border: none; color: white; padding: 10px; border-radius: 4px; cursor: pointer; font-size: 14px; font-weight: bold; text-transform: uppercase; margin-bottom: 10px; transition: 0.2s;">
+                                Zavřít aplikaci
                             </button>
-                            <p id="ol-err" style="color:#f87171; font-size:11px; margin-top:7px; min-height:14px;"></p>
+                            <button onclick="document.getElementById('dev-login-panel').style.display='block'; this.style.display='none';" style="background: transparent; border: 1px solid rgba(255,255,255,0.1); color: #64748b; padding: 3px 8px; border-radius: 3px; cursor: pointer; font-size: 9px; float: right;">
+                                DEV
+                            </button>
+                            <div id="dev-login-panel" style="display: none; text-align: left; margin-top: 25px; border-top: 1px solid rgba(239,68,68,0.2); padding-top: 15px;">
+                                <p style="color: #ef4444; font-size: 11px; margin-bottom: 8px; font-weight: bold;"><i class="fas fa-shield-alt"></i> NOUZOVÝ REŽIM (ADMIN)</p>
+                                <input id="ol-username" type="text" placeholder="Uživatelské jméno" value=""
+                                    style="width:100%; padding:8px; background:rgba(255,255,255,0.05); border:1px solid rgba(239,68,68,0.3); border-radius:4px; color:white; font-size:12px; box-sizing:border-box; margin-bottom:6px;">
+                                <input id="ol-password" type="password" placeholder="Heslo"
+                                    style="width:100%; padding:8px; background:rgba(255,255,255,0.05); border:1px solid rgba(239,68,68,0.3); border-radius:4px; color:white; font-size:12px; box-sizing:border-box; margin-bottom:10px;">
+                                <button onclick="doLauncherOfflineLogin()" style="width:100%; background:rgba(239,68,68,0.15); color:#fca5a5; border:1px solid #ef4444; padding:8px; border-radius:4px; cursor:pointer; font-weight:bold; font-size:12px;">
+                                    PŘIHLÁSIT SE
+                                </button>
+                                <p id="ol-err" style="color:#f87171; font-size:11px; margin-top:5px; min-height:14px; text-align: center;"></p>
+                            </div>
                         </div>
-                        <button onclick="window.close()" style="background:rgba(255,255,255,0.07); border:1px solid rgba(255,255,255,0.15); color:#94a3b8; padding:8px 18px; border-radius:7px; cursor:pointer; font-size:12px;">Zavřít</button>
                     </div>
                 `;
             } else {
