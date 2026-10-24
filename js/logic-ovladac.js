@@ -168,6 +168,7 @@ const audioPlayer = new Audio();
 let statsStartTime = 0;
 let statsAnnouncedStops = [];
 let statsUniqueStopsCount = 0;
+let lastAnnouncedStopIndex = -1;
 let isStatsActive = false;
 
 // ==========================================
@@ -177,36 +178,90 @@ window.initStatsTracking = function() {
     statsStartTime = Date.now();
     statsAnnouncedStops = [];
     statsUniqueStopsCount = 0;
+    lastAnnouncedStopIndex = -1;
     isStatsActive = true;
     debugLog("Statistiky: Záznam linky zahájen.");
 };
 
-window.trackStopAnnouncement = function(stopName) {
+window.trackStopAnnouncement = function(stopName, stopIndex) {
     if (!isStatsActive || !stopName) return;
-    statsAnnouncedStops.push(stopName);
-    let uniqueStops = [...new Set(statsAnnouncedStops)];
-    statsUniqueStopsCount = uniqueStops.length;
+    let clean = String(stopName).trim();
+    if (!clean) return;
+    // Ochrana před opakovaným kliknutím na tlačítko hlášení u téže zastávky (na stejném indexu v trase)
+    if (stopIndex !== undefined && stopIndex !== null && stopIndex === lastAnnouncedStopIndex) {
+        return;
+    }
+    lastAnnouncedStopIndex = (stopIndex !== undefined && stopIndex !== null) ? stopIndex : -1;
+    statsAnnouncedStops.push(clean);
+    statsUniqueStopsCount = statsAnnouncedStops.length;
+    debugLog(`Statistiky: Zaznamenána zastávka [${lastAnnouncedStopIndex}]: ${clean} (celkem na spoji: ${statsAnnouncedStops.length})`);
+};
+
+window.prepareStatsPayload = function() {
+    if (!isStatsActive || (!routeData.line && !routeData.routeId)) return null;
+    let lineToSend = String(routeData.line || "").trim();
+    if (!lineToSend && routeData.routeId) {
+        lineToSend = String(routeData.routeId).trim();
+    }
+    if (!lineToSend || statsAnnouncedStops.length === 0) return null;
+    let dId = localStorage.getItem('discordId') || storedDiscordId || "";
+    return {
+        line: lineToSend,
+        stops: [...statsAnnouncedStops],
+        discord_id: dId
+    };
 };
 
 window.submitStats = function() {
-    if (!isStatsActive || !routeData.line) return;
+    let payload = window.prepareStatsPayload();
+    if (!payload) {
+        isStatsActive = false;
+        statsAnnouncedStops = [];
+        statsUniqueStopsCount = 0;
+        lastAnnouncedStopIndex = -1;
+        return;
+    }
     
-    let timePlayed = Date.now() - statsStartTime;
-    // Odeslat jen když hráč hrál aspoň 30 vteřin NEBO vyhlásil aspoň 2 unikátní zastávky
-    if (timePlayed > 30000 || statsUniqueStopsCount >= 2) {
-        let dId = localStorage.getItem('discordId') || storedDiscordId || "";
-        debugLog(`Statistiky: Odesílám data pro linku ${routeData.line} | Hráč ID: ${dId} | Zastávek: ${statsAnnouncedStops.length}`);
-        fetchBlesk(`${API_BASE}/api/submit_stats`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ line: routeData.line, stops: statsAnnouncedStops, discord_id: dId }),
-            keepalive: true
-        }, 3000).catch(e => {});
-    } else {
-        debugLog("Statistiky: Linka byla ukončena příliš brzy, záznam se neodesílá.");
+    // Unikátní identifikátor této jízdy pro spolehlivou deduplikaci na serveru
+    payload.trip_uid = 'trip_' + Date.now() + '_' + Math.random().toString(36).substr(2, 7);
+    
+    debugLog(`Statistiky: Odesílám data pro linku ${payload.line} | Hráč ID: ${payload.discord_id} | Zastávek: ${payload.stops.length} | UID: ${payload.trip_uid}`);
+    
+    let dispatched = false;
+    // 1. Prioritní spolehlivé odeslání přes IPC do Node.js Electronu (dokončí se na pozadí i při vypnutí okna)
+    try {
+        if (typeof ipcRenderer !== 'undefined' && ipcRenderer.send) {
+            ipcRenderer.send('save-stats-on-close', payload);
+            dispatched = true;
+        }
+    } catch(e) {}
+
+    // 2. Pokud nejsme v Electronu s IPC, odesíláme přes navigator.sendBeacon
+    if (!dispatched) {
+        try {
+            if (typeof navigator !== 'undefined' && navigator.sendBeacon) {
+                const blob = new Blob([JSON.stringify(payload)], { type: 'application/json' });
+                dispatched = navigator.sendBeacon(`${API_BASE}/api/submit_stats`, blob);
+            }
+        } catch(e) {}
+    }
+
+    // 3. Poslední záloha přes standardní fetch pokud ani jedno výše nebylo dostupné
+    if (!dispatched) {
+        try {
+            fetchBlesk(`${API_BASE}/api/submit_stats`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload),
+                keepalive: true
+            }, 3000).catch(e => {});
+        } catch(e) {}
     }
     
     isStatsActive = false; // Prevence proti dvojímu odeslání
+    statsAnnouncedStops = [];
+    statsUniqueStopsCount = 0;
+    lastAnnouncedStopIndex = -1;
 };
 
 // ==========================================
@@ -488,7 +543,7 @@ function safeGetHWID() {
 }
 
 window.addEventListener('beforeunload', () => {
-    window.submitStats(); // Záznam statistik při vypnutí
+    window.submitStats(); // Záznam statistik při vypnutí (odešle se pouze 1x)
     if (!appState.startsWith('LOGIN') && appState !== 'LOCKED' && storedDiscordId) {
         fetchBlesk(`${API_BASE}/api/app_ping`, { 
             method: 'POST', 
@@ -2951,6 +3006,9 @@ window.finalizeTripSelection = function(tripId, destination, tripNumber) {
             let w = document.getElementById('idpk-direction-wrapper'); 
             if(w) w.style.display = 'none'; 
             
+            if (isStatsActive && statsAnnouncedStops.length > 0) {
+                window.submitStats();
+            }
             window.initStatsTracking(); 
             window.switchToDriveScreen(); 
             window.sendDataToPanel(); 
@@ -3106,7 +3164,7 @@ window.smartButtonAction = function() {
     if (drivePhase === 0) { 
         // ZÁZNAM ZASTÁVKY DO STATISTIK
         if (routeData.stops[routeData.realStopIndex]) {
-            window.trackStopAnnouncement(routeData.stops[routeData.realStopIndex].name);
+            window.trackStopAnnouncement(routeData.stops[routeData.realStopIndex].name, routeData.realStopIndex);
         }
 
         if (!routeData.isMuted) {
