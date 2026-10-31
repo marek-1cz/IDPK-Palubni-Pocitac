@@ -322,8 +322,93 @@ ipcMain.on('reset-panel', () => { if (panelWindow) panelWindow.webContents.send(
 ipcMain.on('reload-panel-window', () => { if (panelWindow) panelWindow.reload(); });
 ipcMain.on('panel-boot', () => { if (panelWindow) panelWindow.webContents.send('show-boot-screen'); });
 ipcMain.on('panel-idle', () => { if (panelWindow) panelWindow.webContents.send('reset-panel-ui'); });
-ipcMain.on('quit-app', () => { app.quit(); });
+function sendStatsToBackend(data) {
+    return new Promise((resolve) => {
+        try {
+            if (!data || !data.line) return resolve();
+            const payload = JSON.stringify(data);
+            const req = https.request('https://datacorebot.koyeb.app/api/submit_stats', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Content-Length': Buffer.byteLength(payload)
+                },
+                timeout: 3000
+            }, (res) => {
+                res.resume();
+                resolve();
+            });
+            req.on('error', () => resolve());
+            req.on('timeout', () => { req.destroy(); resolve(); });
+            req.write(payload);
+            req.end();
+        } catch(e) {
+            resolve();
+        }
+    });
+}
+
+let pendingStatsPromise = Promise.resolve();
+
+ipcMain.on('save-stats-on-close', (event, data) => {
+    if (data && data.line && data.stops && data.stops.length > 0) {
+        pendingStatsPromise = sendStatsToBackend(data);
+    }
+});
+
+ipcMain.on('quit-app', async (event, data) => {
+    try {
+        if (data && data.line && data.stops && data.stops.length > 0) {
+            await sendStatsToBackend(data);
+        } else if (pendingStatsPromise) {
+            await Promise.race([pendingStatsPromise, new Promise(r => setTimeout(r, 2000))]);
+        }
+    } catch(e) {}
+    app.quit();
+});
+
+app.on('before-quit', async (e) => {
+    try {
+        if (pendingStatsPromise) {
+            await Promise.race([pendingStatsPromise, new Promise(r => setTimeout(r, 2000))]);
+        }
+    } catch(e) {}
+});
 ipcMain.on('relaunch-app', () => { app.relaunch(); app.exit(); });
+ipcMain.on('install-launcher-update', (event, installerPath) => {
+    try {
+        const { spawn } = require('child_process');
+        const fs = require('fs');
+        const path = require('path');
+        const os = require('os');
+
+        const appExe = process.execPath;
+        const tempBatch = path.join(os.tmpdir(), `idpk_updater_${Date.now()}.bat`);
+
+        const scriptContent = [
+            '@echo off',
+            'timeout /t 2 /nobreak >nul',
+            `start "" /wait "${installerPath}" /S`,
+            'timeout /t 1 /nobreak >nul',
+            `start "" "${appExe}"`,
+            'del "%~f0"'
+        ].join('\r\n');
+
+        fs.writeFileSync(tempBatch, scriptContent, 'utf8');
+
+        const child = spawn('cmd.exe', ['/c', tempBatch], {
+            detached: true,
+            stdio: 'ignore',
+            windowsHide: true
+        });
+        child.unref();
+
+        app.quit();
+    } catch (e) {
+        console.error('Error starting launcher updater:', e);
+        app.quit();
+    }
+});
 ipcMain.on('minimize-app', () => { 
     if (launcherWindow && !launcherWindow.isDestroyed()) {
         launcherWindow.minimize();

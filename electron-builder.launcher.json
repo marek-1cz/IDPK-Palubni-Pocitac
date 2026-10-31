@@ -1,0 +1,62 @@
+{
+  "appId": "com.marek.idpklauncher",
+  "productName": "IDPK Launcher",
+  "extraMetadata": {
+    "version": "1.0.0"
+  },
+  "files": [
+    "main.js",
+    "launcher.html",
+    "launcher-version.json",
+    "ovladac.html",
+    "panel.html",
+    "navod.html",
+    "buse.html",
+    "stop.html",
+    "icon.ico",
+    "js/**",
+    "css/**",
+    "assets/**",
+    "package.json",
+    "node_modules/**",
+    "!node_modules/.cache/**",
+    "!**/*.map",
+    "!**/electron-packager/**"
+  ],
+  "win": {
+    "target": [
+      {
+        "target": "nsis",
+        "arch": [
+          "x64"
+        ]
+      }
+    ],
+    "icon": "icon.ico"
+  },
+  "nsis": {
+    "oneClick": false,
+    "allowToChangeInstallationDirectory": true,
+    "installerLanguages": [
+      "cs"
+    ],
+    "language": "1029",
+    "installerHeaderIcon": "icon.ico",
+    "createDesktopShortcut": true,
+    "createStartMenuShortcut": true,
+    "shortcutName": "IDPK Launcher",
+    "uninstallDisplayName": "IDPK Launcher",
+    "deleteAppDataOnUninstall": false
+  },
+  "directories": {
+    "output": "dist-launcher"
+  },
+  "asar": true,
+  "publish": [
+    {
+      "provider": "github",
+      "owner": "marek-1cz",
+      "repo": "IDPK-Palubni-Pocitac"
+    }
+  ]
+}

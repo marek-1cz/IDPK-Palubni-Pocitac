@@ -45,7 +45,6 @@ window.alert = function(msg) {
 };
 
 const { ipcRenderer } = require('electron');
-const { createClient } = require('@supabase/supabase-js');
 const fs = require('fs');
 const path = require('path');
 const https = require('https');
@@ -68,9 +67,6 @@ document.getElementById('btn-minimize').addEventListener('click', () => {
     ipcRenderer.send('minimize-app');
 });
 
-const SUPABASE_URL = 'https://tdonrppusbwhoftdontz.supabase.co';
-const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRkb25ycHB1c2J3aG9mdGRvbnR6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI4MDI1NDIsImV4cCI6MjA4ODM3ODU0Mn0.4RLDe65aE5aW1HtWkfgS0QL6JY1MNzGrA7yfnehBFzo';
-const supabase = createClient(SUPABASE_URL, SUPABASE_KEY, { auth: { persistSession: false } });
 
 const hwidDisplay = document.getElementById('hwid-display');
 let availableVersions = [];
@@ -141,6 +137,144 @@ let currentHWID = '';
 const API_BASE = 'https://datacorebot.koyeb.app';
 const APP_VERSION = 'V1.6.2';
 
+let LAUNCHER_VERSION = '1.0.0';
+try {
+    const lVerPath = path.join(__dirname, '..', 'launcher-version.json');
+    if (fs.existsSync(lVerPath)) {
+        const lVerData = JSON.parse(fs.readFileSync(lVerPath, 'utf8'));
+        if (lVerData && lVerData.version) LAUNCHER_VERSION = lVerData.version;
+    }
+} catch(e) {}
+
+function isNewerVersion(remoteVer, currentVer) {
+    if (!remoteVer || !currentVer) return false;
+    const parse = (v) => {
+        const matches = String(v).match(/\d+/g);
+        return matches ? matches.map(Number) : [0];
+    };
+    const r = parse(remoteVer);
+    const c = parse(currentVer);
+    const len = Math.max(r.length, c.length);
+    for (let i = 0; i < len; i++) {
+        const rNum = r[i] || 0;
+        const cNum = c[i] || 0;
+        if (rNum > cNum) return true;
+        if (rNum < cNum) return false;
+    }
+    return false;
+}
+
+async function checkForLauncherUpdate() {
+    try {
+        const res = await fetch(`${API_BASE}/api/launcher/check_update?current_version=${encodeURIComponent(LAUNCHER_VERSION)}`);
+        const data = await res.json();
+        if (data && data.status === 'ok') {
+            const remoteVer = data.latest_version || '1.0.0';
+            const dlUrl = data.download_url;
+            if (data.has_update && dlUrl && isNewerVersion(remoteVer, LAUNCHER_VERSION)) {
+                return await downloadAndInstallLauncherUpdate(dlUrl, remoteVer);
+            }
+        }
+    } catch (e) {
+        console.warn("[LauncherUpdate] Chyba při kontrole aktualizace:", e);
+    }
+    return false;
+}
+
+function downloadAndInstallLauncherUpdate(url, newVersion) {
+    return new Promise((resolve) => {
+        const modal = document.getElementById('launcher-update-modal');
+        const statusEl = document.getElementById('launcher-update-status');
+        const pBar = document.getElementById('launcher-update-progress-bar');
+        const pPct = document.getElementById('launcher-update-percent');
+        const pSpd = document.getElementById('launcher-update-speed');
+
+        if (modal) modal.style.display = 'flex';
+        if (statusEl) statusEl.innerText = `Nalezena nová verze Launcheru (v${newVersion}). Stahuji aktualizaci...`;
+
+        const tempExePath = path.join(os.tmpdir(), `IDPK-Launcher-Setup-${newVersion}.exe`);
+        const fileStream = fs.createWriteStream(tempExePath);
+
+        const doDownload = (targetUrl) => {
+            const client = targetUrl.startsWith('https:') ? https : require('http');
+            const options = {
+                headers: {
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) IDPK-Launcher/' + LAUNCHER_VERSION
+                }
+            };
+            const req = client.get(targetUrl, options, (res) => {
+                if ([301, 302, 307, 308].includes(res.statusCode) && res.headers.location) {
+                    return doDownload(res.headers.location);
+                }
+
+                if (res.statusCode !== 200) {
+                    if (modal) modal.style.display = 'none';
+                    console.error("[LauncherUpdate] Download failed with HTTP " + res.statusCode);
+                    return resolve(false);
+                }
+
+                const totalBytes = parseInt(res.headers['content-length'], 10) || 0;
+                let downloadedBytes = 0;
+                let startTime = Date.now();
+
+                res.on('data', (chunk) => {
+                    downloadedBytes += chunk.length;
+                    if (totalBytes > 0) {
+                        const pct = Math.round((downloadedBytes / totalBytes) * 100);
+                        if (pBar) pBar.style.width = pct + '%';
+                        if (pPct) pPct.innerText = `${pct} %`;
+
+                        const elapsedSec = (Date.now() - startTime) / 1000;
+                        if (elapsedSec > 0.5) {
+                            const speedMBps = ((downloadedBytes / (1024 * 1024)) / elapsedSec).toFixed(1);
+                            const downloadedMB = (downloadedBytes / (1024 * 1024)).toFixed(1);
+                            const totalMB = (totalBytes / (1024 * 1024)).toFixed(1);
+                            if (pSpd) pSpd.innerText = `${downloadedMB} / ${totalMB} MB (${speedMBps} MB/s)`;
+                        }
+                    } else {
+                        const dlMB = (downloadedBytes / (1024 * 1024)).toFixed(1);
+                        if (pPct) pPct.innerText = `${dlMB} MB`;
+                    }
+                });
+
+                res.pipe(fileStream);
+
+                fileStream.on('finish', () => {
+                    fileStream.close(() => {
+                        if (statusEl) statusEl.innerText = `Aktualizace stažena. Restartuji a instaluji Launcher...`;
+                        if (pBar) pBar.style.width = '100%';
+                        if (pPct) pPct.innerText = '100 %';
+
+                        const isPackaged = !process.defaultApp && !/[\\/]electron\.exe$/i.test(process.execPath);
+                        if (!isPackaged) {
+                            console.log("[LauncherUpdate] Běží v DEV režimu (electron.exe). Instalátor stažen:", tempExePath);
+                            setTimeout(() => {
+                                if (modal) modal.style.display = 'none';
+                                resolve(false);
+                            }, 2500);
+                            return;
+                        }
+
+                        setTimeout(() => {
+                            ipcRenderer.send('install-launcher-update', tempExePath);
+                            resolve(true);
+                        }, 1000);
+                    });
+                });
+            });
+
+            req.on('error', (err) => {
+                console.error("[LauncherUpdate] Download error:", err);
+                if (modal) modal.style.display = 'none';
+                try { fs.unlinkSync(tempExePath); } catch(e){}
+                resolve(false);
+            });
+        };
+
+        doDownload(url);
+    });
+}
+
 
 function startLockoutTimer() {
     if (lockoutTimerInterval) clearInterval(lockoutTimerInterval);
@@ -182,6 +316,18 @@ function hideLoginError() {
 }
 
 async function checkAuthAndInit() {
+    const titleVerEl = document.getElementById('launcher-title-version');
+    if (titleVerEl) titleVerEl.innerText = `v${LAUNCHER_VERSION}`;
+    const setLauncherVerEl = document.getElementById('settings-launcher-version');
+    if (setLauncherVerEl) setLauncherVerEl.innerText = `Verze Launcheru: v${LAUNCHER_VERSION}`;
+
+    try {
+        const isUpdating = await checkForLauncherUpdate();
+        if (isUpdating) return;
+    } catch(e) {
+        console.warn('[LauncherUpdate] Kontrola aktualizace selhala:', e);
+    }
+
     currentHWID = await getHWID();
     hwidText.innerText = "HWID: " + currentHWID;
     
@@ -258,8 +404,7 @@ btnStartEmailAuth.addEventListener('click', async () => {
     
     let emailAuthOldToken = null;
     try {
-        let { data } = await supabase.from('users').select('web_session_token').eq('email', email).single();
-        emailAuthOldToken = data ? data.web_session_token : null;
+        const pollInitRes = await fetch(`${API_BASE}/api/launcher/email_poll`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email }) }); const pollInitData = await pollInitRes.json(); emailAuthOldToken = pollInitData.status === 'success' ? pollInitData.web_session_token : null;
     } catch(e) {}
     
     try {
@@ -297,13 +442,7 @@ btnStartEmailAuth.addEventListener('click', async () => {
 
             if (window.emailPollInterval) clearInterval(window.emailPollInterval);
             window.emailPollInterval = setInterval(async () => {
-                let { data: pollData, error: pollErr } = await supabase.from('users').select('*').eq('email', email).single();
-                if (pollErr && (pollErr.code === '402' || pollErr.message?.includes('402'))) {
-                    clearInterval(window.emailPollInterval);
-                    if (statusEl) statusEl.innerHTML = '<i class="fas fa-exclamation-triangle" style="color: #ef4444; margin-right: 5px;"></i>Datab\u00e1ze nedostupn\u00e1 (limit)';
-                    return;
-                }
-                if (pollData && pollData.web_session_token && pollData.web_session_token !== emailAuthOldToken) {
+                const pollRes = await fetch(`${API_BASE}/api/launcher/email_poll`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email }) }); const pollData = await pollRes.json(); if (pollData.status === 'success' && pollData.web_session_token && pollData.web_session_token !== emailAuthOldToken) { pollData.id = pollData.discord_id;
                     if (window.emailAuthTimeoutTimer) clearTimeout(window.emailAuthTimeoutTimer);
                     clearInterval(window.emailPollInterval);
                     if (statusEl) statusEl.innerHTML = '<i class="fas fa-check-circle" style="color: #22c55e; margin-right: 5px;"></i>Schváleno! Přihlašuji...';
@@ -364,9 +503,7 @@ if (btnVerifyEmailCodeManual) {
         btnVerifyEmailCodeManual.innerText = 'OVĚŘUJI...';
         
         try {
-            let { data } = await supabase.from('users').select('*').eq('email', email).eq('login_token', code).single();
-            if (data) {
-                await supabase.from('users').update({ login_token: '' }).eq('id', data.id);
+            const verifyRes = await fetch(`${API_BASE}/api/launcher/email_verify`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, code }) }); const verifyData = await verifyRes.json(); if (verifyData.status === 'success') { let data = verifyData; data.id = verifyData.discord_id;
                 let config = loadConfig();
                 config.discord_id = data.discord_id || "email-" + data.id;
                 config.discord_nick = data.nick || data.email;
@@ -529,8 +666,7 @@ async function initLauncher(config) {
         hwidDisplay.innerText = config.discord_nick || currentHWID;
         
         // Získat roli z users tabulky
-        let { data, error } = await supabase.from('users').select('role, avatar_url').eq('discord_id', config.discord_id).single();
-        if (data) {
+        const roleRes = await fetch(`${API_BASE}/api/launcher/user_info`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ discord_id: config.discord_id }) }); const data = await roleRes.json(); if (data.status === 'success') {
             currentUserRole = data.role || 'User';
             
             // Uložit roli do config.json pro Ovladač (Premium detekce)
@@ -1100,6 +1236,40 @@ function launchApp(exePath) {
 
 // V Electronu je inline skript ve <body> spuštěn až PO DOMContentLoaded,
 // proto stačí přímé volání bez listeneru.
+// Tlačítko manuální kontroly aktualizace Launcheru
+const btnCheckLauncherUpdate = document.getElementById('btn-check-launcher-update');
+if (btnCheckLauncherUpdate) {
+    btnCheckLauncherUpdate.addEventListener('click', async () => {
+        const icon = document.getElementById('btn-check-launcher-icon');
+        const text = document.getElementById('btn-check-launcher-text');
+        if (icon) icon.className = 'fas fa-spinner fa-spin';
+        if (text) text.innerText = 'Kontroluji...';
+        btnCheckLauncherUpdate.disabled = true;
+
+        try {
+            const res = await fetch(`${API_BASE}/api/launcher/check_update?current_version=${encodeURIComponent(LAUNCHER_VERSION)}`);
+            const data = await res.json();
+            if (data && data.status === 'ok') {
+                const remoteVer = data.latest_version || '1.0.0';
+                if (data.has_update && data.download_url && isNewerVersion(remoteVer, LAUNCHER_VERSION)) {
+                    await downloadAndInstallLauncherUpdate(data.download_url, remoteVer);
+                    return;
+                } else {
+                    alert(`Váš Launcher je aktuální (verze v${LAUNCHER_VERSION}).`);
+                }
+            } else {
+                alert('Nepodařilo se ověřit aktualizace: ' + (data?.message || 'Neznámá chyba'));
+            }
+        } catch(e) {
+            alert('Chyba spojení se serverem: ' + e.message);
+        } finally {
+            if (icon) icon.className = 'fas fa-sync-alt';
+            if (text) text.innerText = 'Zkontrolovat aktualizace Launcheru';
+            btnCheckLauncherUpdate.disabled = false;
+        }
+    });
+}
+
 checkAuthAndInit();
 
 function showError(msg) {

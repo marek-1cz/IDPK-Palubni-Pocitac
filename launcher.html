@@ -129,7 +129,7 @@
     </div>
     
     <div class="titlebar">
-        <div class="drag-region">IDPK Launcher</div>
+        <div class="drag-region">IDPK Launcher <span id="launcher-title-version" style="font-size:11px; opacity:0.6; font-weight:normal; margin-left:6px;">v1.0.0</span></div>
         <div class="window-controls">
             <button id="btn-minimize"><i class="fas fa-minus"></i></button>
             <button id="btn-close"><i class="fas fa-times"></i></button>
@@ -139,7 +139,7 @@
     <div class="launcher-container">
         <!-- Levé menu -->
         <div class="sidebar">
-            <img src="assets/img/datacorebot_pf-lepsi.png" alt="Logo" class="logo">
+            <img src="https://datacorebot.koyeb.app/static/img/datacorebot_pf-lepsi.png" alt="Logo" class="logo">
             <div class="user-info" style="display: flex; align-items: center; justify-content: space-between; padding-right: 15px;">
                 <div style="display: flex; align-items: center;">
                     <i class="fas fa-user-circle"></i>
@@ -159,9 +159,13 @@
 
         <!-- Hlavní obsah (hra) -->
         <div class="main-content" id="main-content-game">
-            <div class="hero-section">
-                <h1>OIS IDPK V1.6.2</h1>
-                <p>Verze s plnou kontrolou přes Dashboard</p>
+            <div class="hero-section" style="position:relative; overflow:hidden; border-radius:12px; padding:30px; margin-bottom:20px; background:linear-gradient(135deg, rgba(59,130,246,0.1), rgba(16,185,129,0.05)); border:1px solid rgba(255,255,255,0.05); box-shadow: inset 0 0 20px rgba(0,0,0,0.2);">
+                <div style="position:absolute; top:-50px; right:-50px; width:200px; height:200px; background:rgba(59,130,246,0.15); filter:blur(60px); border-radius:50%; z-index:0; animation: pulseGlow 4s infinite alternate;"></div>
+                <div style="position:relative; z-index:1; animation: slideDown 0.6s ease-out;">
+                    <h1 style="font-size:46px; font-weight:800; letter-spacing:-1.5px; margin-bottom:10px; text-shadow:0 4px 20px rgba(0,0,0,0.5);">OIS IDPK</h1>
+                    <div id="hero-version-badge" style="display:inline-block; padding:5px 14px; background:rgba(59,130,246,0.15); border:1px solid rgba(59,130,246,0.3); border-radius:20px; color:#93c5fd; font-weight:bold; font-size:12px; margin-bottom:15px; text-transform:uppercase; letter-spacing:1.5px; box-shadow: 0 4px 10px rgba(0,0,0,0.2); transition: all 0.3s ease;">V1.6.2 - RC Edition</div>
+                    <p style="font-size:15px; color:#94a3b8; max-width:85%; line-height:1.6; margin:0;">Realistický simulátor palubního počítače<br>pro příměstské autobusy IDPK (Plzeňský kraj).</p>
+                </div>
             </div>
 
             <div id="launcher-error-message" style="display: none; background: rgba(239, 68, 68, 0.15); border: 1px solid #ef4444; color: #fca5a5; padding: 12px; border-radius: 8px; font-size: 14px; text-align: center; margin: 0 20px 15px 20px; user-select: text;">
@@ -256,9 +260,16 @@
                 <div style="background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.06); border-radius:8px; padding:14px;">
                     <div style="color:#64748b; font-size:10px; letter-spacing:2px; text-transform:uppercase; margin-bottom:8px;">ℹ️ O APLIKACI</div>
                     <div style="color:#475569; font-size:12px; line-height:2;">
-                        Lancher OIS IDPK<br>
+                        Launcher OIS IDPK<br>
+                        <span id="settings-launcher-version" style="color:#94a3b8; font-weight:600;">Verze Launcheru: v1.0.0</span><br>
                         <span id="settings-app-version">Verze hry: načítám...</span><br>
                         <a href="https://discord.com/invite/vmTagbC9mF" id="settings-discord-link" style="color:#3b82f6; text-decoration:none;"><i class="fab fa-discord" style="margin-right:5px;"></i>Připojit se na Discord</a>
+                    </div>
+                    <div style="margin-top:10px;">
+                        <button id="btn-check-launcher-update" style="background:rgba(59,130,246,0.15); border:1px solid rgba(59,130,246,0.3); color:#93c5fd; padding:6px 14px; border-radius:6px; cursor:pointer; font-size:12px; font-weight:600; transition:0.2s; display:inline-flex; align-items:center; gap:6px;">
+                            <i class="fas fa-sync-alt" id="btn-check-launcher-icon"></i>
+                            <span id="btn-check-launcher-text">Zkontrolovat aktualizace Launcheru</span>
+                        </button>
                     </div>
                 </div>
             </div>
@@ -281,6 +292,23 @@
         </div>
     </div>
 
+    <!-- Launcher Auto-Update Modal -->
+    <div id="launcher-update-modal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(15, 23, 42, 0.95); z-index:99999; justify-content:center; align-items:center; backdrop-filter:blur(8px);">
+        <div style="background:#1e293b; padding:30px; border-radius:14px; border:1px solid #3b82f6; width:440px; max-width:90%; display:flex; flex-direction:column; align-items:center; text-align:center; box-shadow:0 20px 40px rgba(0,0,0,0.7);">
+            <div style="width:60px; height:60px; border-radius:50%; background:rgba(59,130,246,0.15); display:flex; align-items:center; justify-content:center; margin-bottom:16px;">
+                <i class="fas fa-sync-alt fa-spin" style="font-size:26px; color:#3b82f6;"></i>
+            </div>
+            <h3 style="color:#f8fafc; margin:0 0 8px 0; font-size:18px;">Aktualizace Launcheru</h3>
+            <p id="launcher-update-status" style="color:#94a3b8; font-size:13px; margin:0 0 20px 0; line-height:1.5;">Nalezena nová verze. Připravuji stažení...</p>
+            <div style="width:100%; height:8px; background:rgba(255,255,255,0.1); border-radius:999px; overflow:hidden; margin-bottom:12px;">
+                <div id="launcher-update-progress-bar" style="width:0%; height:100%; background:#3b82f6; transition:width 0.2s ease; border-radius:999px;"></div>
+            </div>
+            <div style="display:flex; justify-content:space-between; width:100%; font-size:12px; color:#64748b;">
+                <span id="launcher-update-percent">0 %</span>
+                <span id="launcher-update-speed">Stahování...</span>
+            </div>
+        </div>
+    </div>
 
     <script src="js/logic-launcher.js"></script>
 </body>

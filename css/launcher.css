@@ -429,3 +429,6 @@ body {
     color: white;
     text-shadow: 0 0 10px rgba(255,255,255,0.3);
 }
+
+@keyframes pulseGlow { 0% { opacity: 0.5; transform: scale(1); } 100% { opacity: 0.8; transform: scale(1.1); } }
+@keyframes slideDown { 0% { opacity: 0; transform: translateY(-20px); } 100% { opacity: 1; transform: translateY(0); } }

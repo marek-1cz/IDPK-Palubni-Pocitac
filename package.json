@@ -6,7 +6,7 @@
   "scripts": {
     "start": "electron .",
     "build": "electron-builder --win --x64",
-    "build:launcher": "electron-builder --win --x64 --config electron-builder.launcher.json",
+    "build:launcher": "node scripts/build-launcher.js",
     "build:game": "electron-builder --win --x64 --config electron-builder.game.json",
     "zip:game": "node scripts/make-game-zip.js",
     "zip:game-quick": "node scripts/make-game-zip-from-existing.js"
@@ -32,6 +32,7 @@
       "icon.ico",
       "js/**",
       "css/**",
+      "assets/**",
       "package.json",
       "node_modules/**",
       "!node_modules/.cache/**",
