@@ -137,6 +137,19 @@ let currentHWID = '';
 const API_BASE = 'https://datacorebot.koyeb.app';
 const APP_VERSION = 'V1.6.2';
 
+async function safeFetch(url, options = {}, timeoutMs = 6000) {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+        const res = await fetch(url, { ...options, signal: controller.signal });
+        clearTimeout(timeoutId);
+        return res;
+    } catch (err) {
+        clearTimeout(timeoutId);
+        throw err;
+    }
+}
+
 let LAUNCHER_VERSION = '1.0.0';
 try {
     const lVerPath = path.join(__dirname, '..', 'launcher-version.json');
@@ -166,7 +179,8 @@ function isNewerVersion(remoteVer, currentVer) {
 
 async function checkForLauncherUpdate() {
     try {
-        const res = await fetch(`${API_BASE}/api/launcher/check_update?current_version=${encodeURIComponent(LAUNCHER_VERSION)}`);
+        const res = await safeFetch(`${API_BASE}/api/launcher/check_update?current_version=${encodeURIComponent(LAUNCHER_VERSION)}`, {}, 4000);
+        if (!res.ok) return false;
         const data = await res.json();
         if (data && data.status === 'ok') {
             const remoteVer = data.latest_version || '1.0.0';
@@ -329,7 +343,7 @@ async function checkAuthAndInit() {
     }
 
     currentHWID = await getHWID();
-    hwidText.innerText = "HWID: " + currentHWID;
+    if (typeof hwidText !== 'undefined' && hwidText) hwidText.innerText = "HWID: " + currentHWID;
     
     let config = loadConfig();
     if (config.auto_launch === undefined) {
@@ -338,14 +352,14 @@ async function checkAuthAndInit() {
     // Při novém spuštění aplikace se vždy zruší offline režim, dokud není znovu vyžádán
     config.offline_mode = false;
     saveConfig(config);
-    
 
     if (config.discord_id) {
         // Uživatel už je přihlášen, pustíme ho dál
-        initLauncher(config);
+        await initLauncher(config);
     } else {
         // Není přihlášen, zobrazit auth
-        document.getElementById('initial-loading-overlay').style.display = 'none';
+        const overlay = document.getElementById('initial-loading-overlay');
+        if (overlay) overlay.style.display = 'none';
         loginOverlay.style.display = 'flex';
         showAuthView('discord');
     }
@@ -663,55 +677,72 @@ async function pollAuth(discordId) {
 
 async function initLauncher(config) {
     try {
-        hwidDisplay.innerText = config.discord_nick || currentHWID;
+        if (hwidDisplay) hwidDisplay.innerText = config.discord_nick || currentHWID;
         
-        // Získat roli z users tabulky
-        const roleRes = await fetch(`${API_BASE}/api/launcher/user_info`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ discord_id: config.discord_id }) }); const data = await roleRes.json(); if (data.status === 'success') {
-            currentUserRole = data.role || 'User';
-            
-            // Uložit roli do config.json pro Ovladač (Premium detekce)
-            config.user_role = currentUserRole;
-            saveConfig(config);
+        // Získat roli z users tabulky s timeoutem
+        try {
+            const roleRes = await safeFetch(`${API_BASE}/api/launcher/user_info`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ discord_id: config.discord_id })
+            }, 5000);
+            if (roleRes.ok) {
+                const data = await roleRes.json();
+                if (data && data.status === 'success') {
+                    currentUserRole = data.role || 'User';
+                    config.user_role = currentUserRole;
+                    saveConfig(config);
 
-            if (data.avatar_url) {
-                // Najít element pro avatar
-                const avatarImg = document.querySelector('.user-info i.fa-user-circle');
-                if (avatarImg) {
-                    const img = document.createElement('img');
-                    img.src = data.avatar_url;
-                    img.style.width = '40px';
-                    img.style.height = '40px';
-                    img.style.borderRadius = '50%';
-                    img.style.marginRight = '10px';
-                    img.style.objectFit = 'cover';
-                    avatarImg.parentNode.replaceChild(img, avatarImg);
+                    if (data.avatar_url) {
+                        const avatarImg = document.querySelector('.user-info i.fa-user-circle');
+                        if (avatarImg) {
+                            const img = document.createElement('img');
+                            img.src = data.avatar_url;
+                            img.style.width = '40px';
+                            img.style.height = '40px';
+                            img.style.borderRadius = '50%';
+                            img.style.marginRight = '10px';
+                            img.style.objectFit = 'cover';
+                            avatarImg.parentNode.replaceChild(img, avatarImg);
+                        }
+                    }
+                    if (currentUserRole.includes('DEV') || currentUserRole.includes('SA')) {
+                        const btnDevBuild = document.getElementById('btn-dev-build');
+                        if (btnDevBuild) {
+                            btnDevBuild.style.display = 'block';
+                            btnDevBuild.addEventListener('click', () => {
+                                btnDevBuild.disabled = true;
+                                btnDevBuild.innerHTML = '<i class="fas fa-spinner fa-spin"></i> SPOUŠTÍM...';
+                                ipcRenderer.send('launch-dev-build');
+                            });
+                        }
+                    }
+                } else {
+                    currentUserRole = config.user_role || 'User';
                 }
+            } else {
+                currentUserRole = config.user_role || 'User';
             }
-            if (currentUserRole.includes('DEV') || currentUserRole.includes('SA')) {
-                const btnDevBuild = document.getElementById('btn-dev-build');
-                if (btnDevBuild) {
-                    btnDevBuild.style.display = 'block';
-                    btnDevBuild.addEventListener('click', () => {
-                        btnDevBuild.disabled = true;
-                        btnDevBuild.innerHTML = '<i class="fas fa-spinner fa-spin"></i> SPOUŠTÍM...';
-                        ipcRenderer.send('launch-dev-build');
-                    });
-                }
-            }
-        } else {
-            currentUserRole = 'User';
+        } catch(eRole) {
+            console.warn('[initLauncher] Nelze načíst roli ze serveru, použita uložená role:', eRole.message || eRole);
+            currentUserRole = config.user_role || 'User';
         }
         
         let color = '#64748b'; // public
         if (currentUserRole.includes('DEV') || currentUserRole.includes('SA')) color = '#ef4444';
         else if (currentUserRole.includes('BT')) color = '#3b82f6';
         
-        roleDisplay.innerText = currentUserRole.toUpperCase();
-        roleDisplay.style.backgroundColor = color;
+        if (roleDisplay) {
+            roleDisplay.innerText = currentUserRole.toUpperCase();
+            roleDisplay.style.backgroundColor = color;
+        }
 
         await loadAvailableVersions();
     } catch(e) {
-        alert("Chyba při startu: " + e.message + "\n\n" + e.stack);
+        console.error("Chyba při startu launcheru:", e);
+        const overlay = document.getElementById('initial-loading-overlay');
+        if (overlay) overlay.style.display = 'none';
+        await loadAvailableVersions();
     }
 }
 
@@ -735,12 +766,13 @@ async function loadAvailableVersions() {
         } else {
             let id_param = cfg.discord_id;
             if (!id_param && cfg.email) id_param = 'email-' + cfg.email; // Fallback
-            const res = await fetch(`${API_BASE}/api/launcher/versions?discord_id=${id_param}`);
-        const data = await res.json();
+            const res = await safeFetch(`${API_BASE}/api/launcher/versions?discord_id=${id_param}`, {}, 6000);
+            if (res.ok) {
+                const data = await res.json();
                 if (data.status === 'ok') {
-            dbVersions = data.versions;
-            if (data.user_role) currentUserRole = data.user_role;
-        } else if (data.status === 'error') {
+                    dbVersions = data.versions || [];
+                    if (data.user_role) currentUserRole = data.user_role;
+                } else if (data.status === 'error') {
             // Detekuj jestli je to DB/Supabase blokace (402 / egress limit)
             let isDbBlock = data.message && (
                 data.message.includes('402') ||
@@ -799,8 +831,36 @@ async function loadAvailableVersions() {
                 console.error("Chyba při načítání verzí z API:", data.message);
             }
         }
-    } catch(e) {
-        console.error("Síťová chyba při načítání verzí z API:", e);
+    }
+} catch(e) {
+        console.warn("Síťová chyba při načítání verzí z API:", e.message || e);
+    }
+
+    if (dbVersions.length === 0) {
+        dbVersions = [
+            {
+                id: 1,
+                version_name: "OIS IDPK V1.6.2",
+                db_version: "V1.6.2",
+                file_url: "https://github.com/marek-1cz/IDPK-Palubni-Pocitac/releases/download/V1.6.2I/OIS-IDPK-V1.6.2.zip",
+                target_role: "BT",
+                has_access: (currentUserRole.includes('BT') || currentUserRole.includes('DEV') || currentUserRole.includes('SA')),
+                can_download: true,
+                can_launch: true,
+                show_in_launcher: true
+            },
+            {
+                id: 2,
+                version_name: "OIS IDPK V1.6.1",
+                db_version: "v1.6.1",
+                file_url: "https://github.com/marek-1cz/IDPK-Palubni-Pocitac/releases/download/v1.6.1/OIS_IDPK_V1.6.1.zip",
+                target_role: "User",
+                has_access: true,
+                can_download: true,
+                can_launch: true,
+                show_in_launcher: true
+            }
+        ];
     }
 
     let finalVersions = [];
@@ -1309,16 +1369,32 @@ const cs2 = document.getElementById('custom-version-select'); if(cs2) cs2.classL
 
 function getHWID() {
     return new Promise((resolve) => {
+        let isDone = false;
+        const timer = setTimeout(() => {
+            if (!isDone) {
+                isDone = true;
+                resolve("FALLBACK-HWID-" + Math.random().toString(36).substr(2, 9));
+            }
+        }, 2000);
+
         if (process.platform === 'win32') {
             exec('wmic csproduct get uuid', (err, stdout) => {
+                if (isDone) return;
+                isDone = true;
+                clearTimeout(timer);
                 if (err) resolve("UNKNOWN-HWID-UPDATER-" + Math.random().toString(36).substr(2, 9));
                 else {
                     let lines = stdout.split('\n');
-                    if (lines.length > 1) resolve(lines[1].trim());
+                    if (lines.length > 1 && lines[1].trim()) resolve(lines[1].trim());
                     else resolve("UNKNOWN-HWID-UPDATER-" + Math.random().toString(36).substr(2, 9));
                 }
             });
-        } else resolve("NOT-WINDOWS-" + Math.random().toString(36).substr(2, 9));
+        } else {
+            if (isDone) return;
+            isDone = true;
+            clearTimeout(timer);
+            resolve("NOT-WINDOWS-" + Math.random().toString(36).substr(2, 9));
+        }
     });
 }
 
