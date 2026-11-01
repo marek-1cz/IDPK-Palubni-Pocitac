@@ -43,44 +43,59 @@
       {
         "from": "data",
         "to": "data",
-        "filter": ["**/*"]
+        "filter": [
+          "**/*"
+        ]
       },
       {
         "from": "obraz",
         "to": "obraz",
-        "filter": ["**/*"]
+        "filter": [
+          "**/*"
+        ]
       },
       {
         "from": "zvuky",
         "to": "zvuky",
-        "filter": ["**/*", "!old/**"]
+        "filter": [
+          "**/*",
+          "!old/**"
+        ]
       },
       {
         "from": "linky",
         "to": "linky",
-        "filter": ["**/*", "!OLD/**"]
+        "filter": [
+          "**/*",
+          "!OLD/**"
+        ]
       }
     ],
     "win": {
       "target": [
         {
           "target": "nsis",
-          "arch": ["x64"]
+          "arch": [
+            "x64"
+          ]
         }
       ],
       "icon": "icon.ico"
     },
     "nsis": {
-      "oneClick": false,
+      "oneClick": true,
       "allowToChangeInstallationDirectory": true,
-      "installerLanguages": ["cs"],
+      "installerLanguages": [
+        "cs"
+      ],
       "language": "1029",
       "installerHeaderIcon": "icon.ico",
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
       "shortcutName": "OIS IDPK V1.6.2",
       "uninstallDisplayName": "OIS IDPK V1.6.2",
-      "deleteAppDataOnUninstall": false
+      "deleteAppDataOnUninstall": false,
+      "perMachine": false
     },
     "directories": {
       "output": "dist"
