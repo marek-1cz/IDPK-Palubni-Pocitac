@@ -30,6 +30,12 @@
         "arch": [
           "x64"
         ]
+      },
+      {
+        "target": "portable",
+        "arch": [
+          "x64"
+        ]
       }
     ],
     "icon": "icon.ico"
@@ -39,6 +45,7 @@
     "perMachine": false,
     "allowElevation": true,
     "allowToChangeInstallationDirectory": false,
+    "differentialPackage": false,
     "installerLanguages": [
       "cs"
     ],
