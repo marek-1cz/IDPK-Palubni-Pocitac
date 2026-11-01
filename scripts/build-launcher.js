@@ -34,7 +34,7 @@ console.log(` Building ${versionInfo.productName} v${versionInfo.version} (Build
 console.log(` Last build: ${versionInfo.last_build}`);
 console.log(`====================================================`);
 
-// 3. Sync version & files into electron-builder.launcher.json
+// 3. Sync version & files into electron-builder.launcher.json and launcher.html
 if (fs.existsSync(builderConfigPath)) {
     const builderConfig = JSON.parse(fs.readFileSync(builderConfigPath, 'utf8'));
     builderConfig.extraMetadata = builderConfig.extraMetadata || {};
@@ -43,6 +43,14 @@ if (fs.existsSync(builderConfigPath)) {
         builderConfig.files.push('launcher-version.json');
     }
     fs.writeFileSync(builderConfigPath, JSON.stringify(builderConfig, null, 2), 'utf8');
+}
+
+const launcherHtmlPath = path.join(rootDir, 'launcher.html');
+if (fs.existsSync(launcherHtmlPath)) {
+    let html = fs.readFileSync(launcherHtmlPath, 'utf8');
+    html = html.replace(/(<span id="launcher-title-version"[^>]*>)[^<]*(<\/span>)/, `$1v${versionInfo.version}$2`);
+    html = html.replace(/(<span id="settings-launcher-version"[^>]*>)[^<]*(<\/span>)/, `$1Verze Launcheru: v${versionInfo.version}$2`);
+    fs.writeFileSync(launcherHtmlPath, html, 'utf8');
 }
 
 // 4. Run electron-builder

@@ -152,10 +152,20 @@ async function safeFetch(url, options = {}, timeoutMs = 6000) {
 
 let LAUNCHER_VERSION = '1.0.0';
 try {
-    const lVerPath = path.join(__dirname, '..', 'launcher-version.json');
-    if (fs.existsSync(lVerPath)) {
-        const lVerData = JSON.parse(fs.readFileSync(lVerPath, 'utf8'));
-        if (lVerData && lVerData.version) LAUNCHER_VERSION = lVerData.version;
+    const candidatePaths = [
+        path.join(__dirname, 'launcher-version.json'),
+        path.join(__dirname, '..', 'launcher-version.json'),
+        path.join(process.resourcesPath || '', 'app.asar', 'launcher-version.json'),
+        path.join(process.resourcesPath || '', 'app', 'launcher-version.json')
+    ];
+    for (const p of candidatePaths) {
+        if (fs.existsSync(p)) {
+            const lVerData = JSON.parse(fs.readFileSync(p, 'utf8'));
+            if (lVerData && lVerData.version) {
+                LAUNCHER_VERSION = String(lVerData.version).trim();
+                break;
+            }
+        }
     }
 } catch(e) {}
 
