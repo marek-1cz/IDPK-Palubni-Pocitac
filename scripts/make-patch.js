@@ -116,3 +116,4 @@ try {
     console.error('\n❌ Chyba při kompresi patche:', err.message);
     process.exit(1);
 }
+
