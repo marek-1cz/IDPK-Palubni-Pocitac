@@ -176,7 +176,7 @@ ipcMain.handle('get-hwid', async () => {
 
 function createDebugWindow() {
     debugWindow = new BrowserWindow({
-        width: 600, height: 400, title: "Diagnostický Log OIS IDPK V1.6.2", autoHideMenuBar: true,
+        width: 600, height: 400, title: "Diagnostický Log OIS IDPK V1.6.3", autoHideMenuBar: true,
         webPreferences: { nodeIntegration: true, contextIsolation: false }
     });
     loadWindowFile(debugWindow, 'diagnostika.html');
@@ -201,7 +201,7 @@ ipcMain.on('broadcast-stop-state', (event, isStopPressed) => {
 
 function createController() {
     controllerWindow = new BrowserWindow({
-        width: 380, height: 750, resizable: false, autoHideMenuBar: true, title: "OIS IDPK V1.6.2",
+        width: 380, height: 750, resizable: false, autoHideMenuBar: true, title: "OIS IDPK V1.6.3",
         webPreferences: { nodeIntegration: true, contextIsolation: false, autoplayPolicy: 'no-user-gesture-required', webSecurity: false },
         icon: path.join(__dirname, 'icon.ico')
     });

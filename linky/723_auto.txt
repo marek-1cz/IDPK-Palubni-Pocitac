@@ -12,6 +12,7 @@ Chodský Újezd, Nahý Újezdec, rozc.0.3 = Chod_U_N_U_03 | Display:  | Tarifní
 Chodský Újezd, Neblažov, rozc. = Chod_U_Neb_rozc | Display:  | Tarifní zona:  | Čas:  | Další znaky: ZZ
 Chodský Újezd, Dolní Jadruž, rozc. = Chod_U_D_J_rozc | Display:  | Tarifní zona:  | Čas:  | Další znaky: ZZ
 Planá, Červený mlýn = Plan_Cer_mlyn | Display:  | Tarifní zona:  | Čas:  | Další znaky: ZZ
+Planá, žel.st.  = Plan_Zel_st | Display:  | Tarifní zona:  | Čas:  | Další znaky:
 Planá, rozc.k nádr. = Plan_rozc_nadr | Display:  | Tarifní zona:  | Čas:  | Další znaky: ZZ
 Planá, aut.st. = Plan_aut_st | Display:  | Tarifní zona:  | Čas:  | Další znaky:
 Planá, Sadová = Plan_Sad | Display:  | Tarifní zona:  | Čas:  | Další znaky: ZZ

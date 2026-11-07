@@ -417,7 +417,13 @@ linkShowDiscordLogin.addEventListener('click', (e) => {
 });
 
 btnStartEmailAuth.addEventListener('click', async () => {
+    const inputNick = document.getElementById('login-nick-input');
+    const nick = inputNick ? inputNick.value.trim() : '';
     const email = inputEmail.value.trim();
+    if (!nick || nick.length < 2) {
+        showLoginError("Zadejte prosím svou přezdívku (alespoň 2 znaky)!");
+        return;
+    }
     if (!email || !email.includes('@')) {
         showLoginError("Zadejte platný e-mail!");
         return;
@@ -435,7 +441,7 @@ btnStartEmailAuth.addEventListener('click', async () => {
         const res = await fetch(`${API_BASE}/api/auth/email/request`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ email: email, intent: 'app_login' })
+            body: JSON.stringify({ email: email, nick: nick, intent: 'app_login' })
         });
         
         const data = await res.json();
@@ -930,6 +936,22 @@ function getVersionFolder(versionName) {
     return path.join(userData, 'versions', versionName);
 }
 
+function getLocalBuildInfo(folder) {
+    try {
+        const buildFile = path.join(folder, 'build_info.json');
+        if (fs.existsSync(buildFile)) {
+            return JSON.parse(fs.readFileSync(buildFile, 'utf8'));
+        }
+        const subBuildFile = path.join(folder, 'win-unpacked', 'build_info.json');
+        if (fs.existsSync(subBuildFile)) {
+            return JSON.parse(fs.readFileSync(subBuildFile, 'utf8'));
+        }
+    } catch (e) {
+        console.warn('Chyba při čtení build_info.json:', e);
+    }
+    return null;
+}
+
 function checkLocalVersion(versionName) {
     const selectedVersion = availableVersions.find(v => v.db_version === versionName);
     if (!selectedVersion) {
@@ -984,10 +1006,34 @@ function checkLocalVersion(versionName) {
             btnLaunch.classList.add('btn-locked');
             btnLaunch.title = "Administrátor zakázal spouštění této verze.\nPro více informací navštivte Discord.";
         } else {
-            launchText.innerText = "HRÁT";
-            launchIcon.className = "fas fa-play";
-            btnLaunch.classList.remove('btn-locked'); btnLaunch.disabled = false;
-            btnLaunch.title = "";
+            const localInfo = getLocalBuildInfo(folder);
+            const localBuild = localInfo ? (localInfo.build || localInfo.current_build) : null;
+            const remoteBuild = selectedVersion.current_build || selectedVersion.db_version;
+            const patchUrl = selectedVersion.patch_url ? selectedVersion.patch_url.trim() : "";
+
+            // Detekce novějšího buildu a nabídnutí rychlé aktualizace
+            if (patchUrl && remoteBuild && localBuild && (localBuild !== remoteBuild)) {
+                launchText.innerText = `AKTUALIZOVAT (${remoteBuild})`;
+                launchIcon.className = "fas fa-sync-alt";
+                btnLaunch.classList.remove('btn-locked');
+                btnLaunch.disabled = false;
+                btnLaunch.dataset.action = 'patch';
+                btnLaunch.title = `Dostupný opravný patch ${remoteBuild} (aktuálně máte ${localBuild}).\nKliknutím stáhnete rychlou aktualizaci bez mazání souborů.`;
+            } else if (patchUrl && remoteBuild && !localBuild && remoteBuild !== selectedVersion.db_version) {
+                launchText.innerText = `AKTUALIZOVAT (${remoteBuild})`;
+                launchIcon.className = "fas fa-sync-alt";
+                btnLaunch.classList.remove('btn-locked');
+                btnLaunch.disabled = false;
+                btnLaunch.dataset.action = 'patch';
+                btnLaunch.title = `Dostupný nový build ${remoteBuild}.\nKliknutím stáhnete rychlou aktualizaci.`;
+            } else {
+                launchText.innerText = "HRÁT";
+                launchIcon.className = "fas fa-play";
+                btnLaunch.classList.remove('btn-locked');
+                btnLaunch.disabled = false;
+                btnLaunch.dataset.action = 'play';
+                btnLaunch.title = localBuild ? `Nainstalovaný build: ${localBuild}` : "";
+            }
         }
     } else {
         if (!selectedVersion.has_access) {
@@ -1009,10 +1055,13 @@ function checkLocalVersion(versionName) {
             btnLaunch.classList.add('btn-locked');
             btnLaunch.title = "Administrátor zakázal stahování této verze.\nPro více informací navštivte Discord.";
         } else {
+            const remoteBuild = selectedVersion.current_build || selectedVersion.db_version;
             launchText.innerText = "STÁHNOUT";
             launchIcon.className = "fas fa-download";
-            btnLaunch.classList.remove('btn-locked'); btnLaunch.disabled = false;
-            btnLaunch.title = "";
+            btnLaunch.classList.remove('btn-locked');
+            btnLaunch.disabled = false;
+            btnLaunch.dataset.action = 'download';
+            btnLaunch.title = `Stáhnout instalaci verze ${versionName} (${remoteBuild})`;
         }
     }
 }
@@ -1079,6 +1128,17 @@ btnLaunch.addEventListener('click', async () => {
         
     const versionName = versionSelect.value;
     const folder = getVersionFolder(versionName);
+    const selectedVersion = availableVersions.find(v => v.db_version === versionName);
+
+    // Pokud uživatel klikl na AKTUALIZOVAT (rychlý opravný patch)
+    if (btnLaunch.dataset.action === 'patch') {
+        const patchUrl = selectedVersion ? (selectedVersion.patch_url || "").trim() : "";
+        const targetBuild = selectedVersion ? (selectedVersion.current_build || selectedVersion.db_version) : versionName;
+        isLaunchingApp = false;
+        await downloadAndApplyPatch(versionName, folder, patchUrl, targetBuild);
+        return;
+    }
+
     // Budeme hledat jakýkoliv .exe soubor v adresáři
     
     if (fs.existsSync(folder)) {
@@ -1220,6 +1280,25 @@ function downloadAndExtract(url, folder, versionName) {
                         process.noAsar = originalNoAsar;
 
                         await fs.promises.unlink(zipPath); // Smazat zip
+
+                        // Uložit výchozí build_info.json po plném stažení
+                        try {
+                            const curV = availableVersions.find(v => v.db_version === versionName);
+                            const initBuild = (curV && curV.current_build) ? curV.current_build : versionName;
+                            const bData = {
+                                version: versionName,
+                                build: initBuild,
+                                updated_at: new Date().toLocaleString('cs-CZ')
+                            };
+                            const bJson = JSON.stringify(bData, null, 2);
+                            fs.writeFileSync(path.join(folder, 'build_info.json'), bJson, 'utf8');
+                            const subWinF = path.join(folder, 'win-unpacked');
+                            if (fs.existsSync(subWinF)) {
+                                fs.writeFileSync(path.join(subWinF, 'build_info.json'), bJson, 'utf8');
+                            }
+                        } catch (eBuild) {
+                            console.warn("Nepodařilo se uložit výchozí build_info.json:", eBuild);
+                        }
                     
                     // Najít EXE
                     let files = await fs.promises.readdir(folder);
@@ -1275,6 +1354,145 @@ function downloadAndExtract(url, folder, versionName) {
     };
     
     doDownload(url);
+}
+
+async function downloadAndApplyPatch(versionName, folder, patchUrl, targetBuild) {
+    if (!patchUrl || !patchUrl.trim()) {
+        showError("Pro tuto verzi nebyl nastaven odkaz na patch balíček v databázi.");
+        checkLocalVersion(versionName);
+        return;
+    }
+
+    btnLaunch.classList.add('btn-locked');
+    btnLaunch.disabled = true;
+    versionSelect.disabled = true;
+    const cs1 = document.getElementById('custom-version-select');
+    if (cs1) cs1.classList.add('disabled');
+
+    launchText.innerText = "AKTUALIZACE...";
+    launchIcon.className = "fas fa-spinner fa-spin";
+    progressContainer.style.display = 'block';
+    progressFill.style.width = '0%';
+    progressText.innerText = `Příprava aktualizace (${targetBuild})...`;
+
+    if (!fs.existsSync(folder)) fs.mkdirSync(folder, { recursive: true });
+    const patchZipPath = path.join(folder, 'patch_download.zip');
+
+    const file = fs.createWriteStream(patchZipPath);
+
+    const doPatchDownload = (downloadUrl) => {
+        const options = {
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) IDPK-Launcher/1.0.2'
+            }
+        };
+        https.get(downloadUrl, options, (response) => {
+            if (response.statusCode === 302 || response.statusCode === 301) {
+                return doPatchDownload(response.headers.location);
+            }
+            if (response.statusCode !== 200) {
+                try { fs.unlinkSync(patchZipPath); } catch(_) {}
+                progressContainer.style.display = 'none';
+                btnLaunch.disabled = false;
+                versionSelect.disabled = false;
+                if (cs1) cs1.classList.remove('disabled');
+                showError(`Chyba stahování opravy: HTTP ${response.statusCode}`);
+                checkLocalVersion(versionName);
+                return;
+            }
+
+            const total = parseInt(response.headers['content-length'], 10);
+            let downloaded = 0;
+
+            response.on('data', (chunk) => {
+                downloaded += chunk.length;
+                if (total) {
+                    const percent = Math.round((downloaded / total) * 100);
+                    progressFill.style.width = percent + '%';
+                    const mbDl = (downloaded / 1024 / 1024).toFixed(1);
+                    const mbTot = (total / 1024 / 1024).toFixed(1);
+                    progressText.innerText = `Stahování aktualizace: ${percent}% (${mbDl} MB / ${mbTot} MB)`;
+                } else {
+                    const mbDl = (downloaded / 1024 / 1024).toFixed(1);
+                    progressText.innerText = `Stahování aktualizace: ${mbDl} MB`;
+                }
+            });
+
+            response.pipe(file);
+            file.on('finish', () => {
+                file.close(async () => {
+                    progressText.innerText = 'Instalace aktualizace... (přepisování souborů)';
+                    launchText.innerText = 'INSTALACE...';
+
+                    try {
+                        let originalNoAsar = process.noAsar;
+                        process.noAsar = true;
+
+                        // Určit cílový adresář pro extrakci: pokud je aplikace v win-unpacked, rozbalit do win-unpacked
+                        let extractDir = folder;
+                        if (!fs.existsSync(path.join(folder, 'resources')) && fs.existsSync(path.join(folder, 'win-unpacked', 'resources'))) {
+                            extractDir = path.join(folder, 'win-unpacked');
+                        }
+
+                        await extract(patchZipPath, { dir: extractDir });
+                        process.noAsar = originalNoAsar;
+
+                        // Smazat dočasný ZIP
+                        try { await fs.promises.unlink(patchZipPath); } catch (_) {}
+
+                        // Uložit build_info.json s novým číslem buildu
+                        const buildData = {
+                            version: versionName,
+                            build: targetBuild,
+                            current_build: targetBuild,
+                            updated_at: new Date().toLocaleString('cs-CZ')
+                        };
+                        const buildJsonStr = JSON.stringify(buildData, null, 2);
+                        try { fs.writeFileSync(path.join(folder, 'build_info.json'), buildJsonStr, 'utf8'); } catch (_) {}
+                        try {
+                            const subF = path.join(folder, 'win-unpacked');
+                            if (fs.existsSync(subF)) {
+                                fs.writeFileSync(path.join(subF, 'build_info.json'), buildJsonStr, 'utf8');
+                            }
+                        } catch (_) {}
+
+                        progressFill.style.width = '100%';
+                        progressText.innerText = `Aktualizace na ${targetBuild} byla úspěšně dokončena!`;
+                        await new Promise(r => setTimeout(r, 600));
+                        progressContainer.style.display = 'none';
+
+                        btnLaunch.classList.remove('btn-locked');
+                        btnLaunch.disabled = false;
+                        versionSelect.disabled = false;
+                        if (cs1) cs1.classList.remove('disabled');
+
+                        checkLocalVersion(versionName);
+                        alert(`✅ Aktualizace na build ${targetBuild} byla úspěšně nainstalována!\nNyní můžete spustit hru tlačítkem HRÁT.`);
+                    } catch (err) {
+                        try { fs.unlinkSync(patchZipPath); } catch (_) {}
+                        progressContainer.style.display = 'none';
+                        btnLaunch.classList.remove('btn-locked');
+                        btnLaunch.disabled = false;
+                        versionSelect.disabled = false;
+                        if (cs1) cs1.classList.remove('disabled');
+                        showError("Chyba při instalaci aktualizace: " + err.message);
+                        checkLocalVersion(versionName);
+                    }
+                });
+            });
+        }).on('error', (e) => {
+            try { fs.unlinkSync(patchZipPath); } catch (_) {}
+            progressContainer.style.display = 'none';
+            btnLaunch.classList.remove('btn-locked');
+            btnLaunch.disabled = false;
+            versionSelect.disabled = false;
+            if (cs1) cs1.classList.remove('disabled');
+            showError("Chyba stahování: " + e.message);
+            checkLocalVersion(versionName);
+        });
+    };
+
+    doPatchDownload(patchUrl);
 }
 
 function launchApp(exePath) {
@@ -1712,6 +1930,9 @@ function updateCustomSelectUI(versions) {
         div.className = 'custom-option';
         
         let txt = v.db_version;
+        if (v.current_build && v.current_build !== v.db_version) {
+            txt = `${v.db_version} (${v.current_build})`;
+        }
         let desc = '';
         let isBeta = false;
         if (!v.has_access) {
@@ -1755,7 +1976,10 @@ function updateCustomSelectUI(versions) {
             customSelect.classList.remove('open');
             
             const badge = document.getElementById('hero-version-badge');
-            if (badge) badge.innerText = v.db_version;
+            if (badge) {
+                const bldTag = (v.current_build && v.current_build !== v.db_version) ? ` • ${v.current_build}` : '';
+                badge.innerText = `${v.db_version}${bldTag}`;
+            }
             
             // Highlight selected
             Array.from(customOptions.children).forEach(c => c.classList.remove('selected'));
@@ -1772,8 +1996,10 @@ function updateCustomSelectUI(versions) {
     // Set active
     if (versionSelect.value) {
         customText.innerText = versionSelect.value;
+        const curV = availableVersions.find(v => v.db_version === versionSelect.value);
+        const bldTag = (curV && curV.current_build && curV.current_build !== curV.db_version) ? ` • ${curV.current_build}` : '';
         const badge = document.getElementById('hero-version-badge');
-        if (badge) badge.innerText = versionSelect.value;
+        if (badge) badge.innerText = `${versionSelect.value}${bldTag}`;
         
         const opts = Array.from(customOptions.children);
         const idx = versionSelect.selectedIndex;

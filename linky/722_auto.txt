@@ -23,7 +23,7 @@ Bor, aut. st. = Bor_aut_st | Display:  | Tarifní zona:  | Čas:  | Další znak
 Bor, statek = Bor_statek | Display:  | Tarifní zona:  | Čas:  | Další znaky:
 Bor, Skviřín = Bor_Skvi | Display:  | Tarifní zona:  | Čas:  | Další znaky: 
 Bor, Holostřevy, rest. Kadrnožka = Bor_Holo_rest_Kadr | Display:  | Tarifní zona:  | Čas:  | Další znaky: ZZ
-Bor, Holostřevy | Display:  | Tarifní zona:  | Čas:  | Další znaky:
+Bor, Holostřevy = Bor_Holo | Display:  | Tarifní zona:  | Čas:  | Další znaky:
 Benešovice = Benesovice | Display:  | Tarifní zona:  | Čas:  | Další znaky: 
 Stříbro, Milíkov, rozc. = Str_Mil_rozc | Display:  | Tarifní zona:  | Čas:  | Další znaky: ZZ
 Stříbro, Západní předměstí = Str_zap_pred | Display:  | Tarifní zona:  | Čas:  | Další znaky:
@@ -49,4 +49,5 @@ Plzeň, Chebská = Plz_Cheb | Display:  | Tarifní zona:  | Čas:  | Další zna
 Plzeň, Pošta logistika = Plz_posta_logi | Display:  | Tarifní zona:  | Čas:  | Další znaky: ZZ
 Plzeň, U Apolla = Plz_U_Apolla | Display:  | Tarifní zona:  | Čas:  | Další znaky:
 Plzeň, CAN Tylova = Plz_CAN_Tylova | Display:  | Tarifní zona:  | Čas:  | Další znaky:
+Plzeň, Mrakodrap = plz_mrak | Display:  | Tarifní zona:  | Čas:  | Další znaky:
 Plzeň, Terminál Hlavní Nádraží = Plz_terminal | Display:  | Tarifní zona:  | Čas:  | Další znaky:

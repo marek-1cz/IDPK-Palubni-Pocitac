@@ -5,7 +5,7 @@ Zastávky:
 Domažlice, Vlakové nádraží = dom_vla | Display:  | Tarifní zona:  | Čas:  | Další znaky: 
 Domažlice, U Svatých = dom_u_svat | Display:  | Tarifní zona:  | Čas:  | Další znaky: ZZ
 Domažlice, Poděbradova = dom_pode | Display:  | Tarifní zona:  | Čas:  | Další znaky: 
-Domažlice, Prokopa Velikého = dom_pro_vel | Display:  | Tarifní zona:  | Čas:  | Další znaky: 
+Domažlice, Prokopova Velikého = dom_pro_vel | Display: Domažlice, Prokopa Velikého | Tarifní zona:  | Čas:  | Další znaky: 
 Meclov,Třebnice,rozc.0.6 = mec_tre_rozc | Display:  | Tarifní zona:  | Čas:  | Další znaky: ZZ
 Meclov,Jeníkovice,rozc.0.5 = mec_jen_rozc | Display:  | Tarifní zona:  | Čas:  | Další znaky: ZZ
 Horšovský Týn = hor_tyn | Display:  | Tarifní zona:  | Čas:  | Další znaky: 

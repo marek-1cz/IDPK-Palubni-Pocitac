@@ -1,0 +1,21 @@
+GTSF-DATA
+Linka: 430911
+
+Zastávky:
+Sušice,,žel.st. = sus_zel_st | Display:  | Tarifní zona:  | Čas:  | Další znaky: 
+Sušice,,Nádražní u samoobsluhy = sus_nadr_u_so | Display:  | Tarifní zona:  | Čas:  | Další znaky: 
+Sušice,,Prefa = sus_pre | Display:  | Tarifní zona:  | Čas:  | Další znaky: ZZ
+Sušice,,Nádražní Úřad práce = sus_nadr_u_p | Display:  | Tarifní zona:  | Čas:  | Další znaky: ZZ
+Sušice,,SOLO = sus_solo | Display:  | Tarifní zona:  | Čas:  | Další znaky: 
+Sušice,,Hrádecká = sus_hrad | Display:  | Tarifní zona:  | Čas:  | Další znaky: 
+Sušice,,Pravdova = sus_prav | Display:  | Tarifní zona:  | Čas:  | Další znaky: 
+Sušice,,Pod Stráží = sus_p_s | Display:  | Tarifní zona:  | Čas:  | Další znaky: 
+Sušice,,Lerchova = sus_ler | Display:  | Tarifní zona:  | Čas:  | Další znaky: 
+Sušice,,nábřeží = sus_nabr | Display:  | Tarifní zona:  | Čas:  | Další znaky: 
+Sušice,,u hřiště = sus_u_hr | Display:  | Tarifní zona:  | Čas:  | Další znaky: 
+Sušice,,Kaštanová = sus_kas | Display:  | Tarifní zona:  | Čas:  | Další znaky: 
+Sušice,,sídl.Vojtěška = sus_sidl_voj | Display:  | Tarifní zona:  | Čas:  | Další znaky: 
+Sušice,Červené Dvorce = sus_cer_dv | Display:  | Tarifní zona:  | Čas:  | Další znaky: ZZ
+Sušice,Volšovy,točna = sus_vol_toc | Display:  | Tarifní zona:  | Čas:  | Další znaky: 
+
+

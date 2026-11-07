@@ -1,0 +1,57 @@
+{
+  "appId": "com.marek.idpkpanel",
+  "productName": "OIS IDPK V1.6.3",
+  "files": [
+    "main.js",
+    "launcher.html",
+    "ovladac.html",
+    "panel.html",
+    "navod.html",
+    "buse.html",
+    "stop.html",
+    "icon.ico",
+    "js/**",
+    "css/**",
+    "assets/**",
+    "package.json",
+    "node_modules/**",
+    "!node_modules/.cache/**",
+    "!**/*.map",
+    "!**/electron-packager/**"
+  ],
+  "extraResources": [
+    {
+      "from": "data",
+      "to": "data",
+      "filter": ["**/*"]
+    },
+    {
+      "from": "obraz",
+      "to": "obraz",
+      "filter": ["**/*"]
+    },
+    {
+      "from": "zvuky",
+      "to": "zvuky",
+      "filter": ["**/*", "!old/**"]
+    },
+    {
+      "from": "linky",
+      "to": "linky",
+      "filter": ["**/*", "!OLD/**"]
+    }
+  ],
+  "win": {
+    "target": [
+      {
+        "target": "dir",
+        "arch": ["x64"]
+      }
+    ],
+    "icon": "icon.ico"
+  },
+  "directories": {
+    "output": "dist-game"
+  },
+  "asar": true
+}

@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
-    <title>OIS IDPK V1.6.2</title>
+    <title>OIS IDPK V1.6.3</title>
     <style>
         :root {
             --idpk-blue: #035689; --idpk-dark-blue: #023e63; --idpk-yellow: #F4CC17;
@@ -410,7 +410,7 @@
 
     <div id="announcement-modal" class="announcement-modal">
         <div class="announcement-inner-box">
-            <img src="assets/img/datacorebot_n.png" class="announcement-logo" alt="Logo">
+            <img src="https://datacorebot.koyeb.app/static/img/datacorebot_n.png" class="announcement-logo" alt="Logo">
             <div id="announcement-title" class="announcement-title">ZPRÁVA OD VÝVOJÁŘE</div>
             <div id="announcement-text" class="announcement-content">Tady bude text zprávy z databáze...</div>
             <button type="button" id="announcement-link-btn" class="settings-action-btn" style="display:none; background:var(--idpk-yellow); color:black; margin-bottom:10px; font-size:14px; box-shadow: 0 3px 0 #cba90f;" onclick="window.openAnnouncementLink()">ZOBRAZIT VÍCE INFO</button>
@@ -419,7 +419,7 @@
     </div>
     
     <div id="funk-modal" class="funk-modal">
-        <div class="settings-title">FUNKCE OIS IDPK V1.6.2</div>
+        <div class="settings-title">FUNKCE OIS IDPK V1.6.3</div>
         <div class="funk-row"><span class="funk-label">NÁHODNÉ POKRAČOVÁNÍ LINKOSPOJŮ</span><button type="button" id="btn-random-continue" class="funk-toggle" onclick="window.toggleRandomContinue()">VYPNUTO</button></div>
         <div class="funk-row"><span class="funk-label">ZPOŽDĚNÍ (REAL / FIKCE)</span><button type="button" id="btn-delay-mode" class="funk-toggle" onclick="window.toggleDelayMode()">VYPNUTO</button></div>
         <div class="funk-row"><span class="funk-label">NASTAVIT FIKTIVNÍ ČAS</span><div style="display:flex; gap:10px; margin-top:5px;"><input type="time" id="fictional-time-input" style="width:60px; text-align:center; padding:5px; font-weight:bold; font-size:16px; flex:1;"><button type="button" class="settings-action-btn" style="width:auto; height:auto; padding:5px 15px; margin:0; background:var(--idpk-yellow); color:black;" onclick="window.setFictionalTime()">OK</button></div></div>
@@ -477,14 +477,18 @@
                 <button type="button" class="glass-btn gb-yellow" onclick="window.openUserdataFolder()" style="margin-bottom:0; padding:8px 10px; font-size:11px;">
                     <span class="gb-icon"><i class="fas fa-folder-open"></i></span> Moje data
                 </button>
+                <button type="button" class="glass-btn" onclick="if(typeof window.showNotification === 'function') window.showNotification('Tato funkce je momentálně ve fázi vývoje a zatím není dostupná.', 'error', 4000); else alert('Tato funkce je momentálně ve fázi vývoje a zatím není dostupná.');" style="margin-bottom:0; padding:8px 10px; font-size:11px; grid-column: 1 / -1; background: #475569; color: #94a3b8; border-color: #334155;">
+                    <span class="gb-icon"><i class="fas fa-edit"></i></span> Editor vlastních linek (Ve vývoji)
+                </button>
+            </div>
+
+            <div class="glass-section-title" style="color:var(--idpk-yellow);">Předplatitelé</div>
+            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:8px; margin-bottom:12px; width:100%;">
                 <button type="button" class="glass-btn gb-purple" onclick="window.openMobileInfo()" style="margin-bottom:0; padding:8px 10px; font-size:11px;">
                     <span class="gb-icon"><i class="fas fa-mobile-alt"></i></span> Mobilní zrcadlení
                 </button>
                 <button type="button" class="glass-btn gb-red" onclick="window.openStopWindow()" style="margin-bottom:0; padding:8px 10px; font-size:11px;">
                     <span class="gb-icon"><i class="fas fa-tv"></i></span> STOP displej
-                </button>
-                <button type="button" class="glass-btn" onclick="if(typeof window.showNotification === 'function') window.showNotification('Tato funkce je momentálně ve fázi vývoje a zatím není dostupná.', 'error', 4000); else alert('Tato funkce je momentálně ve fázi vývoje a zatím není dostupná.');" style="margin-bottom:0; padding:8px 10px; font-size:11px; grid-column: 1 / -1; background: #475569; color: #94a3b8; border-color: #334155;">
-                    <span class="gb-icon"><i class="fas fa-edit"></i></span> Editor vlastních linek (Ve vývoji)
                 </button>
             </div>
 
@@ -661,12 +665,12 @@
     <button type="button" class="glass-btn" onclick="if(typeof window.showNotification === 'function') window.showNotification('Tato funkce je momentálně ve fázi vývoje a zatím není dostupná.', 'error', 4000); else alert('Tato funkce je momentálně ve fázi vývoje a zatím není dostupná.');" style="margin-bottom:0; padding:8px 10px; font-size:11px; background: #475569; color: #94a3b8; border-color: #334155;">
         <span class="gb-icon"><i class="fas fa-edit"></i></span> Editor vlastních linek (Ve vývoji)
     </button>
-    <button type="button" class="glass-btn gb-blue" onclick="require('electron').shell.openPath(require('path').join(__dirname, 'navod.html'))" style="margin-bottom:0; padding:8px 10px; font-size:11px;">
+    <button type="button" class="glass-btn gb-blue" onclick="window.open('navod.html', 'Návod', 'width=1024,height=768,nodeIntegration=yes')" style="margin-bottom:0; padding:8px 10px; font-size:11px;">
         <span class="gb-icon"><i class="fas fa-book"></i></span> Návod k aplikaci
     </button>
     
-    <div id="bt-action-panel" style="display:none; flex-direction:column; gap:8px; margin-top:0px; border-top:1px dashed rgba(244,204,23,0.3); padding-top:5px;">
-        <div style="font-size:9px; color:var(--idpk-yellow); text-transform:uppercase; font-weight:bold; letter-spacing:1px; text-align:center; padding-bottom:5px; border-bottom:1px solid rgba(244,204,23,0.3);">BETA TESTER NÁSTROJE</div>
+    <div id="bt-action-panel" style="display:flex; flex-direction:column; gap:8px; margin-top:0px; border-top:1px dashed rgba(244,204,23,0.3); padding-top:5px;">
+        <div style="font-size:9px; color:var(--idpk-yellow); text-transform:uppercase; font-weight:bold; letter-spacing:1px; text-align:center; padding-bottom:5px; border-bottom:1px solid rgba(244,204,23,0.3);">PŘEDPLATITELÉ</div>
         <div style="display:grid; grid-template-columns: 1fr 1fr; gap:8px;">
             <button type="button" class="glass-btn gb-purple" onclick="window.openMobileInfo()" style="margin-bottom:0; padding:8px 10px; font-size:11px;">
                 <span class="gb-icon"><i class="fas fa-mobile-alt"></i></span> Ovladač

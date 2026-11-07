@@ -1,6 +1,6 @@
 {
   "name": "idpk-palubni-pocitac",
-  "version": "1.6.2",
+  "version": "1.6.3",
   "description": "Systém Palubního Počítače OIS pro linky IDPK s plnou kontrolou přes Dashboard",
   "main": "main.js",
   "scripts": {
@@ -9,7 +9,8 @@
     "build:launcher": "node scripts/build-launcher.js",
     "build:game": "electron-builder --win --x64 --config electron-builder.game.json",
     "zip:game": "node scripts/make-game-zip.js",
-    "zip:game-quick": "node scripts/make-game-zip-from-existing.js"
+    "zip:game-quick": "node scripts/make-game-zip-from-existing.js",
+    "make:patch": "node scripts/make-patch.js"
   },
   "author": "Marek",
   "license": "ISC",
@@ -20,7 +21,7 @@
   },
   "build": {
     "appId": "com.marek.idpkpanel",
-    "productName": "OIS IDPK V1.6.2",
+    "productName": "OIS IDPK V1.6.3",
     "files": [
       "main.js",
       "launcher.html",
