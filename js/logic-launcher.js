@@ -1327,10 +1327,11 @@ btnLaunch.addEventListener('click', async () => {
     isLaunchingApp = true;
     btnLaunch.classList.add('btn-locked');
 
+    const versionName = versionSelect.value;
+    const folder = getVersionFolder(versionName);
+
     // Pokud jsme v Offline režimu, spouštíme ihned bez online dotazování na server
     if (isOfflineMode) {
-        const versionName = versionSelect.value;
-        const folder = getVersionFolder(versionName);
         const exePath = findExeInFolder(folder);
         if (exePath) {
             launchApp(exePath);
@@ -1379,8 +1380,6 @@ btnLaunch.addEventListener('click', async () => {
         }
     }
         
-    const versionName = versionSelect.value;
-    const folder = getVersionFolder(versionName);
     const selectedVersion = availableVersions.find(v => v.db_version === versionName);
 
     // Pokud uživatel klikl na AKTUALIZOVAT (rychlý opravný patch)
