@@ -1441,7 +1441,7 @@ async function downloadAndApplyPatch(versionName, folder, patchUrl, targetBuild)
     const doPatchDownload = (downloadUrl) => {
         const options = {
             headers: {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) IDPK-Launcher/1.0.2'
+                'User-Agent': `Mozilla/5.0 (Windows NT 10.0; Win64; x64) IDPK-Launcher/${LAUNCHER_VERSION}`
             }
         };
         https.get(downloadUrl, options, (response) => {
