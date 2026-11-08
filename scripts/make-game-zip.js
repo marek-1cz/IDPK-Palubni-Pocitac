@@ -35,6 +35,22 @@ if (!fs.existsSync(SOURCE_DIR)) {
     process.exit(1);
 }
 
+// 1. Zapsat výchozí build_info.json do win-unpacked
+const defaultBuildTag = `${VERSION}.00`;
+const buildInfoPath = path.join(SOURCE_DIR, 'build_info.json');
+const now = new Date();
+const pad = (n) => String(n).padStart(2, '0');
+const timeStr = `${pad(now.getDate())}.${pad(now.getMonth() + 1)}.${now.getFullYear()} ${pad(now.getHours())}:${pad(now.getMinutes())}`;
+const baseBuildInfo = {
+    version: VERSION,
+    build: defaultBuildTag,
+    current_build: defaultBuildTag,
+    updated_at: timeStr,
+    is_base_release: true
+};
+fs.writeFileSync(buildInfoPath, JSON.stringify(baseBuildInfo, null, 2), 'utf8');
+console.log(`📝 Vytvořen výchozí build_info.json (Build: ${defaultBuildTag})`);
+
 // Smazat starý ZIP pokud existuje
 if (fs.existsSync(ZIP_PATH)) {
     fs.unlinkSync(ZIP_PATH);

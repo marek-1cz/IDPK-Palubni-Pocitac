@@ -48,8 +48,39 @@ const processCore = require('process');
 
 const API_BASE = 'https://datacorebot.koyeb.app';
 
-// ZDE NASTAV PŘESNÝ NÁZEV VERZE, KTERÝ MÁŠ ZADANÝ NA WEBU V DASHBOARDU!
-const APP_VERSION = "V1.6.2"; 
+// Dynamická detekce verze a buildu z build_info.json nebo package.json
+function detectAppBuildInfo() {
+    let version = "V1.6.3";
+    let build = "V1.6.3.00";
+    try {
+        const fs = require('fs');
+        const p = require('path');
+        const candidatePaths = [
+            p.join(p.dirname(process.execPath), 'build_info.json'),
+            p.join(p.dirname(process.execPath), 'resources', 'build_info.json'),
+            p.join(__dirname, 'build_info.json'),
+            p.join(__dirname, '..', 'build_info.json'),
+            p.join(process.cwd(), 'build_info.json')
+        ];
+        for (const cp of candidatePaths) {
+            if (fs.existsSync(cp)) {
+                const raw = JSON.parse(fs.readFileSync(cp, 'utf8'));
+                if (raw.version) version = (raw.version.startsWith('V') ? raw.version : 'V' + raw.version).trim();
+                if (raw.build || raw.current_build) {
+                    const b = (raw.build || raw.current_build).trim();
+                    build = b.startsWith('V') ? b : 'V' + b;
+                }
+                break;
+            }
+        }
+    } catch (e) {}
+    return { version, build };
+}
+
+const APP_BUILD_INFO = detectAppBuildInfo();
+const APP_VERSION = APP_BUILD_INFO.version; 
+const CURRENT_BUILD = APP_BUILD_INFO.build;
+let isAppOfflineMode = false;
 
 // Bezpečná detekce VSC (aby to nevadilo kompilátoru při buildu)
 let isDevMode = false;
@@ -271,6 +302,96 @@ async function fetchBlesk(url, options, msTimeout = 4000) {
     const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout sítě")), msTimeout));
     return Promise.race([fetch(url, options), timeout]);
 }
+
+async function checkMandatoryPatch(isServerOnline) {
+    if (!isServerOnline || !navigator.onLine) return { ok: true };
+    try {
+        const res = await fetchBlesk(`${API_BASE}/api/launcher/versions`, { method: 'GET' }, 3500);
+        const data = await res.json();
+        if (data.status === 'ok' && Array.isArray(data.versions)) {
+            const cleanAppVer = APP_VERSION.trim().toUpperCase().replace(/^V/, '');
+            const matchingV = data.versions.find(v => {
+                const name = (v.db_version || v.name || '').trim().toUpperCase().replace(/^V/, '');
+                return name === cleanAppVer;
+            });
+            if (matchingV && matchingV.current_build) {
+                const srvBuild = matchingV.current_build.trim();
+                const curBuild = CURRENT_BUILD.trim();
+                if (srvBuild && curBuild && srvBuild.toUpperCase() !== curBuild.toUpperCase()) {
+                    return { 
+                        ok: false, 
+                        localBuild: curBuild, 
+                        serverBuild: srvBuild, 
+                        version: matchingV.name || APP_VERSION 
+                    };
+                }
+            }
+        }
+    } catch (e) {
+        debugLog("[PATCH-CHECK] Kontrola buildu selhala (síť/timeout): " + e);
+    }
+    return { ok: true };
+}
+
+window.showMandatoryPatchScreen = function(localBuild, serverBuild, versionName) {
+    let startEl = document.getElementById('startupScreen');
+    if (startEl) startEl.style.display = 'none';
+    let loadEl = document.getElementById('loadingScreen');
+    if (loadEl) loadEl.style.display = 'none';
+
+    let overlay = document.getElementById('mandatory-patch-overlay');
+    let textEl = document.getElementById('patch-overlay-text');
+    if (textEl) {
+        textEl.innerHTML = `
+            Pro spuštění verze <b>${versionName || APP_VERSION}</b> je vyžadován nejnovější opravný balíček aplikace.<br><br>
+            <div style="background:rgba(0,0,0,0.35); padding:10px 14px; border-radius:6px; margin-bottom:12px; font-size:12px; text-align:left; line-height:1.6;">
+                <div>Váš nainstalovaný build: <b style="color:#ef4444;">${localBuild}</b></div>
+                <div>Nejnovější build na serveru: <b style="color:#2ecc71;">${serverBuild}</b></div>
+            </div>
+            Vstup do aplikace je zakázán. Spusťte prosím <b>IDPK Launcher</b> a klikněte na <b>AKTUALIZOVAT</b>.
+        `;
+    }
+
+    const btnPatchLauncher = document.getElementById('btn-patch-to-launcher');
+    if (btnPatchLauncher) {
+        btnPatchLauncher.onclick = function() {
+            window.playClick();
+            try {
+                const { ipcRenderer } = require('electron');
+                ipcRenderer.send('fallback-to-launcher');
+            } catch (_) {
+                window.close();
+            }
+        };
+    }
+    const btnPatchQuit = document.getElementById('btn-patch-quit');
+    if (btnPatchQuit) {
+        btnPatchQuit.onclick = function() {
+            window.closeApp();
+        };
+    }
+    const devBtn = document.getElementById('btn-patch-dev-bypass');
+    if (devBtn && isDevMode) {
+        devBtn.style.display = 'block';
+        devBtn.onclick = function() {
+            if (overlay) overlay.style.display = 'none';
+            window.initAppFlow(true);
+        };
+    }
+
+    if (overlay) {
+        overlay.style.display = 'flex';
+    } else {
+        window.showErrorModal("VYŽADOVÁNA AKTUALIZACE", `Byl vydán nový opravný balíček (${serverBuild}). Váš build: ${localBuild}. Spusťte Launcher a proveďte aktualizaci.`, true, 'error');
+    }
+};
+
+window.applyAppOfflineMode = function() {
+    isAppOfflineMode = true;
+    const banner = document.getElementById('app-offline-banner');
+    if (banner) banner.style.display = 'block';
+    debugLog("⚡ Aplikace přepnuta do OFFLINE režimu (žádné blokace ani dotazy do databáze).");
+};
 
 async function zanalyzujPripojeni() {
     if (!navigator.onLine) {
@@ -928,16 +1049,24 @@ document.addEventListener('DOMContentLoaded', async () => {
         } catch (e) {
             isServerOnline = false;
         }
+
+        // KONTROLA POVINNÉHO PATCHE (BUILDU) PŘED VSTUPEM DO HRY
+        if (isServerOnline) {
+            const patchCheck = await checkMandatoryPatch(isServerOnline);
+            if (!patchCheck.ok) {
+                window.showMandatoryPatchScreen(patchCheck.localBuild, patchCheck.serverBuild, patchCheck.version);
+                return; // STOP BOOT COMPLETELY!
+            }
+        }
     }
 
     if (!isServerOnline) {
+        window.applyAppOfflineMode();
         ksStatus = localStorage.getItem('lastKillSwitchState') || 'enabled';
         debugLog("Server nedostupný (offline). Poslední známý stav KS: " + ksStatus);
         
         if (pripojeni.status === "BLOCKED_BY_FIREWALL") {
             window.showErrorModal("ZABLOKOVÁNO ANTIVIREM", pripojeni.zprava, false, 'warning');
-        } else {
-            window.showErrorModal("INFORMAČNÍ SYSTÉM", pripojeni.zprava, false, 'info');
         }
     }
 
@@ -1240,19 +1369,39 @@ window.initAppFlow = async function(isServerOnline = true) {
         try { config = JSON.parse(fs.readFileSync(configPath, 'utf8')); } catch(e){}
     }
     
-    storedDiscordId = config.discord_id || "";
-    let storedNick = config.discord_nick || "Řidič";
+    storedDiscordId = config.discord_id || localStorage.getItem('discordId') || "";
+    let storedNick = config.discord_nick || localStorage.getItem('discordNick') || "Řidič";
     
+    if (!storedDiscordId) {
+        try {
+            const cachePath = path.join(userDataPath, 'cached_launcher_state.json');
+            if (fs.existsSync(cachePath)) {
+                const cState = JSON.parse(fs.readFileSync(cachePath, 'utf8'));
+                if (cState.discord_id) storedDiscordId = cState.discord_id;
+                if (cState.discord_nick) storedNick = cState.discord_nick;
+            }
+        } catch(_) {}
+    }
+
     if (isDevMode && !storedDiscordId) {
         storedDiscordId = "VSC-DEV";
         storedNick = "VÝVOJÁŘ";
     }
 
     if (!storedDiscordId) {
-        alert("CHYBA: Přihlášení vypršelo nebo chybí data.\n\nSpouštím IDPK Launcher pro nové přihlášení...");
-        const { ipcRenderer } = require('electron');
-        ipcRenderer.send('fallback-to-launcher');
-        return;
+        if (!isServerOnline || isAppOfflineMode) {
+            storedDiscordId = "OFFLINE-DRIVER";
+            storedNick = config.discord_nick || "Řidič (Offline)";
+        } else {
+            alert("CHYBA: Přihlášení vypršelo nebo chybí data.\n\nSpouštím IDPK Launcher pro nové přihlášení...");
+            const { ipcRenderer } = require('electron');
+            ipcRenderer.send('fallback-to-launcher');
+            return;
+        }
+    }
+
+    if (!isServerOnline || isAppOfflineMode) {
+        window.applyAppOfflineMode();
     }
 
     // === PREMIUM BADGE – zobrazit pro BT / DEV / SA ===
@@ -1626,12 +1775,13 @@ window.backToLauncher = function() {
 
 window.startPingLoop = function() {
     if(pingInterval) clearInterval(pingInterval);
+    if (isAppOfflineMode || !navigator.onLine) return;
     pingInterval = setInterval(() => {
-        if (!appState.startsWith('LOGIN') && appState !== 'LOCKED' && storedDiscordId) {
+        if (!appState.startsWith('LOGIN') && appState !== 'LOCKED' && storedDiscordId && !isAppOfflineMode && navigator.onLine) {
             fetch(`${API_BASE}/api/app_ping`, { 
                 method: 'POST', 
                 headers: { 'Content-Type': 'application/json' }, 
-                body: JSON.stringify({ discord_id: storedDiscordId, action: 'ping', session_id: currentSessionId, app_version: APP_VERSION }) 
+                body: JSON.stringify({ discord_id: storedDiscordId, action: 'ping', session_id: currentSessionId, app_version: APP_VERSION, build: CURRENT_BUILD }) 
             }).catch(e=>{});
         }
     }, 60000);

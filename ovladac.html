@@ -406,6 +406,28 @@
     
     <div id="startupScreen" class="startup-screen" style="display:flex;"><div class="spinner"></div><div class="startup-title">NAČÍTÁNÍ SYSTÉMU...</div></div>
 
+    <!-- MANDATORY PATCH OVERLAY -->
+    <div id="mandatory-patch-overlay" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:#021b2b; z-index:9999999; flex-direction:column; align-items:center; justify-content:center; padding:20px; box-sizing:border-box; text-align:center; font-family:sans-serif;">
+        <div style="background:#01121d; border:3px solid #e74c3c; border-radius:12px; padding:25px; width:100%; max-width:340px; box-sizing:border-box; box-shadow:0 0 30px rgba(231,76,60,0.6); position:relative;">
+            <div style="font-size:46px; color:#e74c3c; margin-bottom:12px; line-height:1;">⚠️</div>
+            <div style="font-size:16px; font-weight:900; color:#fff; text-transform:uppercase; letter-spacing:1px; margin-bottom:12px;">
+                VYŽADOVÁNA AKTUALIZACE
+            </div>
+            <div id="patch-overlay-text" style="font-size:13px; color:#cbd5e1; line-height:1.5; margin-bottom:20px;">
+                Byl vydán nový opravný balíček aplikace. Vstup do aplikace je zakázán.
+            </div>
+            <button id="btn-patch-to-launcher" type="button" style="width:100%; background:#e74c3c; color:white; border:none; padding:13px; font-weight:bold; font-size:13px; border-radius:6px; cursor:pointer; text-transform:uppercase; letter-spacing:1px; box-shadow:0 4px 10px rgba(231,76,60,0.4); margin-bottom:10px;">
+                <i class="fas fa-sync-alt"></i> OTEVŘÍT LAUNCHER
+            </button>
+            <button id="btn-patch-quit" type="button" style="width:100%; background:#334155; color:#cbd5e1; border:none; padding:10px; font-weight:bold; font-size:12px; border-radius:6px; cursor:pointer; text-transform:uppercase;">
+                UKONČIT HRU
+            </button>
+            <button id="btn-patch-dev-bypass" type="button" style="display:none; width:100%; background:#f59e0b; color:black; border:none; padding:8px; font-weight:bold; font-size:11px; border-radius:4px; cursor:pointer; text-transform:uppercase; margin-top:8px;">
+                DEV BYPASS (VÝVOJÁŘ)
+            </button>
+        </div>
+    </div>
+
 
 
     <div id="announcement-modal" class="announcement-modal">
@@ -543,6 +565,11 @@
 
         <div class="screen-area">
             
+            <!-- OFFLINE BANNER -->
+            <div id="app-offline-banner" style="display:none; width: 100%; background: rgba(245, 158, 11, 0.2); border: 1px solid #f59e0b; color: #fbbf24; border-radius: 6px; padding: 6px 10px; font-size: 11px; font-weight: bold; text-align: center; margin-bottom: 10px; text-transform: uppercase; letter-spacing: 0.5px; box-sizing: border-box;">
+                ⚡ OFFLINE REŽIM (Bez připojení k síti)
+            </div>
+
             <!-- TOP BAR -->
             <div style="display: flex; justify-content: space-between; align-items: center; width: 100%; margin-bottom: 15px; flex-shrink: 0; overflow: hidden; gap: 5px;">
                 

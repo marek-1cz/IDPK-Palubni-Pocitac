@@ -95,6 +95,25 @@ function saveConfig(config) {
     fs.writeFileSync(configPath, JSON.stringify(config, null, 2), 'utf8');
 }
 
+const launcherCachePath = path.join(userDataPath, 'cached_launcher_state.json');
+let isOfflineMode = false;
+
+function saveLauncherCache(payload) {
+    try {
+        if (!fs.existsSync(userDataPath)) fs.mkdirSync(userDataPath, { recursive: true });
+        fs.writeFileSync(launcherCachePath, JSON.stringify(payload, null, 2), 'utf8');
+    } catch (_) {}
+}
+
+function loadLauncherCache() {
+    try {
+        if (fs.existsSync(launcherCachePath)) {
+            return JSON.parse(fs.readFileSync(launcherCachePath, 'utf8'));
+        }
+    } catch (_) {}
+    return null;
+}
+
 // Auth UI elements
 const loginOverlay = document.getElementById('login-overlay');
 const loginDiscordView = document.getElementById('login-discord-view');
@@ -765,21 +784,15 @@ async function initLauncher(config) {
 async function loadAvailableVersions() {
     document.getElementById('initial-loading-overlay').style.display = 'none';
     let dbVersions = [];
-    try {
-        let cfg = loadConfig();
-        if (cfg.offline_mode) {
-            dbVersions = [{
-                id: 'offline',
-                name: 'Ovladač (Offline Režim)',
-                type: 'STABLE',
-                version_code: '1.0.0',
-                folder_name: 'Ovladač',
-                has_access: true,
-                can_launch: true,
-                show_in_launcher: true
-            }];
-            currentUserRole = cfg.user_role || 'DEV';
-        } else {
+    isOfflineMode = false;
+    const offlineBadge = document.getElementById('offline-badge');
+    if (offlineBadge) offlineBadge.style.display = 'none';
+
+    let cfg = loadConfig();
+    let onlineFetchSuccess = false;
+
+    if (navigator.onLine && !cfg.offline_mode) {
+        try {
             let id_param = cfg.discord_id;
             if (!id_param && cfg.email) id_param = 'email-' + cfg.email; // Fallback
             const res = await safeFetch(`${API_BASE}/api/launcher/versions?discord_id=${id_param}`, {}, 6000);
@@ -788,68 +801,77 @@ async function loadAvailableVersions() {
                 if (data.status === 'ok') {
                     dbVersions = data.versions || [];
                     if (data.user_role) currentUserRole = data.user_role;
-                } else if (data.status === 'error') {
-            // Detekuj jestli je to DB/Supabase blokace (402 / egress limit)
-            let isDbBlock = data.message && (
-                data.message.includes('402') ||
-                data.message.includes('egress') ||
-                data.message.includes('exceed') ||
-                data.message.includes('restricted') ||
-                data.message.includes('Payment')
-            );
-            document.getElementById('initial-loading-overlay').style.display = 'flex';
-            if (isDbBlock) {
-                document.getElementById('initial-loading-overlay').innerHTML = `
-                    <div style="background: #111; padding: 25px; border-radius: 8px; text-align: center; max-width: 400px; position: relative; overflow: hidden; font-family: sans-serif;">
-                        <div style="position: absolute; top: 0; left: 0; right: 0; bottom: 0; border: 4px solid transparent; border-image: repeating-linear-gradient(45deg, #ef4444, #ef4444 10px, transparent 10px, transparent 20px) 1; pointer-events: none;"></div>
-                        <div style="padding: 10px; position: relative; z-index: 2;">
-                            <i class="fas fa-exclamation-triangle" style="font-size: 32px; color: #ef4444; margin-bottom: 15px;"></i>
-                            <h2 style="color: white; margin-bottom: 10px; text-transform: uppercase; letter-spacing: 1px; font-size: 18px;">Launcher je offline</h2>
-                            <h3 style="color: #ef4444; margin-bottom: 15px; font-size: 14px;">Spojení se serverem selhalo</h3>
-                            <p style="color: #cbd5e1; font-size: 13px; line-height: 1.5; margin-bottom: 25px;">
-                                Aplikace nemůže navázat spojení s databází (limit vyčerpán). Pro více informací a aktuální stav sledujte náš Discord (Projekt OIS IDPK). Děkujeme za pochopení.
-                            </p>
-                            <button onclick="window.close()" style="width: 100%; background: #ef4444; border: none; color: white; padding: 10px; border-radius: 4px; cursor: pointer; font-size: 14px; font-weight: bold; text-transform: uppercase; margin-bottom: 5px; transition: 0.2s;">
-                                Zavřít aplikaci
-                            </button>
-                        </div>
-                    </div>
-                `;
-            } else {
-                document.getElementById('initial-loading-overlay').innerHTML = `
-                    <div style="background: rgba(239, 68, 68, 0.2); padding: 30px; border-radius: 15px; border: 1px solid rgba(239, 68, 68, 0.5); text-align: center; max-width: 400px;">
-                        <i class="fas fa-lock" style="font-size: 40px; color: #ef4444; margin-bottom: 20px;"></i>
-                        <h2 style="color: white; margin-bottom: 10px;">Přístup Zablokován</h2>
-                        <p style="color: #cbd5e1; font-size: 14px; line-height: 1.5;">${data.message || 'Launcher je dočasně uzamčen.'}</p>
-                        <button onclick="window.close()" style="margin-top: 20px; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); color: white; padding: 10px 20px; border-radius: 8px; cursor: pointer;">Zavřít</button>
-                    </div>
-                `;
-            }
-            return; // Stop initialization
+                    onlineFetchSuccess = true;
+                    // Uložit do offline mezipaměti pro případ výpadku sítě v budoucnu
+                    saveLauncherCache({
+                        saved_at: Date.now(),
+                        versions: dbVersions,
+                        user_role: currentUserRole,
+                        discord_id: cfg.discord_id,
+                        discord_nick: cfg.discord_nick
+                    });
                 } else if (data.status === 'banned') {
-            document.getElementById('initial-loading-overlay').style.display = 'flex';
-            document.getElementById('initial-loading-overlay').innerHTML = `
-        <div style="background: rgba(185, 28, 28, 0.9); padding: 40px; border-radius: 15px; border: 2px solid #ef4444; text-align: center; max-width: 500px; box-shadow: 0 0 40px rgba(239, 68, 68, 0.6); position: relative; overflow: hidden;">
-            <div style="position: absolute; top: -50%; left: -50%; width: 200%; height: 200%; background: repeating-linear-gradient(45deg, transparent, transparent 10px, rgba(0,0,0,0.1) 10px, rgba(0,0,0,0.1) 20px); z-index: 1;"></div>
-            <div style="position: relative; z-index: 2;">
-                <i class="fas fa-ban" style="font-size: 60px; color: white; margin-bottom: 20px; filter: drop-shadow(0 0 10px rgba(255,255,255,0.5));"></i>
-                <h1 style="color: white; margin-bottom: 15px; font-size: 28px; text-transform: uppercase; letter-spacing: 2px; text-shadow: 0 2px 4px rgba(0,0,0,0.5);">Účet Zablokován</h1>
-                <p style="color: #fca5a5; font-size: 16px; line-height: 1.6; margin-bottom: 25px;">
-                    Váš účet byl zablokován administrátorem.<br><br>
-                    Pokud se domníváte, že se jedná o omyl a chcete se odvolat, vytvořte si ticket na našem Discordu v kanále <strong>#💁‍♂️・podpora-založení-ticketu</strong>.
-                </p>
-                <button onclick="window.close()" style="background: #171717; border: 1px solid #404040; color: white; padding: 12px 30px; border-radius: 8px; cursor: pointer; font-weight: bold; font-size: 16px; transition: all 0.2s; box-shadow: 0 4px 6px rgba(0,0,0,0.3);">UKONČIT LAUNCHER</button>
-            </div>
-        </div>
-    `;
-                return; // Zastavit načítání
-            } else {
-                console.error("Chyba při načítání verzí z API:", data.message);
+                    document.getElementById('initial-loading-overlay').style.display = 'flex';
+                    document.getElementById('initial-loading-overlay').innerHTML = `
+                        <div style="background: rgba(185, 28, 28, 0.9); padding: 40px; border-radius: 15px; border: 2px solid #ef4444; text-align: center; max-width: 500px; box-shadow: 0 0 40px rgba(239, 68, 68, 0.6); position: relative; overflow: hidden;">
+                            <div style="position: relative; z-index: 2;">
+                                <i class="fas fa-ban" style="font-size: 60px; color: white; margin-bottom: 20px;"></i>
+                                <h1 style="color: white; margin-bottom: 15px; font-size: 28px; text-transform: uppercase;">Účet Zablokován</h1>
+                                <p style="color: #fca5a5; font-size: 16px; line-height: 1.6; margin-bottom: 25px;">
+                                    Váš účet byl zablokován administrátorem.<br><br>
+                                    Pokud se domníváte, že se jedná o omyl a chcete se odvolat, vytvořte si ticket na našem Discordu.
+                                </p>
+                                <button onclick="window.close()" style="background: #171717; border: 1px solid #404040; color: white; padding: 12px 30px; border-radius: 8px; cursor: pointer; font-weight: bold; font-size: 16px;">UKONČIT LAUNCHER</button>
+                            </div>
+                        </div>
+                    `;
+                    return;
+                } else {
+                    console.error("Chyba při načítání verzí z API:", data.message);
+                }
             }
+        } catch(e) {
+            console.warn("Síťová chyba při načítání verzí z API, přecházím na offline režim:", e.message || e);
         }
     }
-} catch(e) {
-        console.warn("Síťová chyba při načítání verzí z API:", e.message || e);
+
+    // Pokud se nepodařilo načíst online (výpadek sítě / serveru / offline)
+    if (!onlineFetchSuccess) {
+        isOfflineMode = true;
+        if (offlineBadge) offlineBadge.style.display = 'inline-block';
+        if (roleDisplay) {
+            roleDisplay.innerText = `${currentUserRole.toUpperCase()} (OFFLINE)`;
+        }
+
+        const cached = loadLauncherCache();
+        if (cached && Array.isArray(cached.versions) && cached.versions.length > 0) {
+            dbVersions = cached.versions;
+            if (cached.user_role) currentUserRole = cached.user_role;
+            console.log(`[Launcher] Načteno ${dbVersions.length} verzí z offline mezipaměti.`);
+        }
+    }
+
+    // Pokud nemáme ani mezipaměť (první instalace offline), prohledáme existující složky ve versions/
+    if (dbVersions.length === 0) {
+        const versionsDir = path.join(userDataPath, 'versions');
+        if (fs.existsSync(versionsDir)) {
+            try {
+                const subdirs = fs.readdirSync(versionsDir);
+                for (const dName of subdirs) {
+                    const fPath = path.join(versionsDir, dName);
+                    if (findExeInFolder(fPath)) {
+                        dbVersions.push({
+                            id: dName,
+                            version_name: dName,
+                            db_version: dName,
+                            has_access: true,
+                            can_launch: true,
+                            show_in_launcher: true
+                        });
+                    }
+                }
+            } catch (_) {}
+        }
     }
 
     if (dbVersions.length === 0) {
@@ -936,6 +958,22 @@ function getVersionFolder(versionName) {
     return path.join(userData, 'versions', versionName);
 }
 
+function findExeInFolder(folder) {
+    if (!folder || !fs.existsSync(folder)) return null;
+    let files = [];
+    try { files = fs.readdirSync(folder); } catch (_) {}
+    let exeFile = files.find(f => f.endsWith('.exe') && !f.toLowerCase().includes('uninstall'));
+    if (exeFile) return path.join(folder, exeFile);
+    let subFolder = path.join(folder, 'win-unpacked');
+    if (fs.existsSync(subFolder)) {
+        let subFiles = [];
+        try { subFiles = fs.readdirSync(subFolder); } catch (_) {}
+        let subExe = subFiles.find(f => f.endsWith('.exe') && !f.toLowerCase().includes('uninstall'));
+        if (subExe) return path.join(subFolder, subExe);
+    }
+    return null;
+}
+
 function getLocalBuildInfo(folder) {
     try {
         const buildFile = path.join(folder, 'build_info.json');
@@ -962,24 +1000,8 @@ function checkLocalVersion(versionName) {
     }
 
     const folder = getVersionFolder(versionName);
-    let hasLocalCopy = false;
-    
-    // Check main folder for any .exe
-    if (fs.existsSync(folder)) {
-        let files = [];
-        try { files = fs.readdirSync(folder); } catch(e){}
-        let exeFile = files.find(f => f.endsWith('.exe') && !f.toLowerCase().includes('uninstall'));
-        if (exeFile) hasLocalCopy = true;
-        
-        // Check subfolder
-        let subFolder = path.join(folder, 'win-unpacked');
-        if (!hasLocalCopy && fs.existsSync(subFolder)) {
-            let subFiles = [];
-            try { subFiles = fs.readdirSync(subFolder); } catch(e){}
-            let subExe = subFiles.find(f => f.endsWith('.exe') && !f.toLowerCase().includes('uninstall'));
-            if (subExe) hasLocalCopy = true;
-        }
-    }
+    const exePath = findExeInFolder(folder);
+    const hasLocalCopy = Boolean(exePath);
 
     if (hasLocalCopy) {
         // Zabezpečení
@@ -1005,27 +1027,37 @@ function checkLocalVersion(versionName) {
             launchIcon.className = "fas fa-lock";
             btnLaunch.classList.add('btn-locked');
             btnLaunch.title = "Administrátor zakázal spouštění této verze.\nPro více informací navštivte Discord.";
+        } else if (isOfflineMode) {
+            // V OFFLINE REŽIMU: Neřešíme online databázi ani nové patche, rovnou povolíme spuštění naposledy uložené hry
+            launchText.innerText = "SPUSTIT (OFFLINE)";
+            launchIcon.className = "fas fa-play";
+            btnLaunch.classList.remove('btn-locked');
+            btnLaunch.disabled = false;
+            btnLaunch.dataset.action = 'play';
+            btnLaunch.title = "Spustit hru v offline režimu bez nutnosti internetového připojení.";
         } else {
             const localInfo = getLocalBuildInfo(folder);
             const localBuild = localInfo ? (localInfo.build || localInfo.current_build) : null;
             const remoteBuild = selectedVersion.current_build || selectedVersion.db_version;
             const patchUrl = selectedVersion.patch_url ? selectedVersion.patch_url.trim() : "";
 
-            // Detekce novějšího buildu a nabídnutí rychlé aktualizace
-            if (patchUrl && remoteBuild && localBuild && (localBuild !== remoteBuild)) {
+            // Detekce novějšího buildu a zákaz spuštění dokud se nestáhne patch
+            const isOutdated = Boolean(remoteBuild && localBuild && (localBuild.trim() !== remoteBuild.trim()));
+
+            if (isOutdated) {
                 launchText.innerText = `AKTUALIZOVAT (${remoteBuild})`;
                 launchIcon.className = "fas fa-sync-alt";
                 btnLaunch.classList.remove('btn-locked');
                 btnLaunch.disabled = false;
                 btnLaunch.dataset.action = 'patch';
-                btnLaunch.title = `Dostupný opravný patch ${remoteBuild} (aktuálně máte ${localBuild}).\nKliknutím stáhnete rychlou aktualizaci bez mazání souborů.`;
+                btnLaunch.title = `Je vyžadována aktualizace na build ${remoteBuild} (aktuálně máte ${localBuild}).\nSpuštění hry je zablokováno, dokud nestáhnete patch.`;
             } else if (patchUrl && remoteBuild && !localBuild && remoteBuild !== selectedVersion.db_version) {
                 launchText.innerText = `AKTUALIZOVAT (${remoteBuild})`;
                 launchIcon.className = "fas fa-sync-alt";
                 btnLaunch.classList.remove('btn-locked');
                 btnLaunch.disabled = false;
                 btnLaunch.dataset.action = 'patch';
-                btnLaunch.title = `Dostupný nový build ${remoteBuild}.\nKliknutím stáhnete rychlou aktualizaci.`;
+                btnLaunch.title = `Je vyžadována aktualizace na build ${remoteBuild}.\nKliknutím stáhnete rychlou aktualizaci bez mazání souborů.`;
             } else {
                 launchText.innerText = "HRÁT";
                 launchIcon.className = "fas fa-play";
@@ -1036,7 +1068,14 @@ function checkLocalVersion(versionName) {
             }
         }
     } else {
-        if (!selectedVersion.has_access) {
+        if (isOfflineMode) {
+            launchText.innerText = "OFFLINE (NENÍ STAŽENO)";
+            launchIcon.className = "fas fa-ban";
+            btnLaunch.classList.add('btn-locked');
+            btnLaunch.disabled = true;
+            btnLaunch.dataset.action = 'download';
+            btnLaunch.title = "Tato verze není na tomto počítači stažena. Pro její první stažení se připojte k internetu.";
+        } else if (!selectedVersion.has_access) {
             const tr = selectedVersion.target_role ? selectedVersion.target_role.toLowerCase() : '';
             if (tr === 'bt' || tr.includes('beta') || tr.includes('tester')) {
                 launchText.innerText = "PŘEDPLATITELÉ";
@@ -1088,42 +1127,56 @@ btnLaunch.addEventListener('click', async () => {
     isLaunchingApp = true;
     btnLaunch.classList.add('btn-locked');
 
-    // Blesková ověřovací kontrola
-    try {
-        let cfg = loadConfig();
-        let id_param = cfg.discord_id;
-        if (!id_param && cfg.email) id_param = 'email-' + cfg.email;
-        const resCheck = await fetch(`${API_BASE}/api/launcher/versions?discord_id=${id_param}`);
-        const dataCheck = await resCheck.json();
-        if (dataCheck.status === 'ok') {
-            const currentV = dataCheck.versions.find(v => v.db_version === versionName);
-            if (currentV) {
-                // Aktualizace lokálního pole pro správný refresh
-                let localV = availableVersions.find(v => v.db_version === versionName);
-                if (localV) {
-                    localV.can_launch = currentV.can_launch;
-                    localV.can_download = currentV.can_download;
-                    localV.has_access = currentV.has_access;
-                }
-                
-                // Pokud už ztratil právo
-                if (!currentV.has_access) {
-                    alert("Ztratil jsi oprávnění k této verzi.");
-                    isLaunchingApp = false;
-                    checkLocalVersion(versionName);
-                    return;
-                }
-                
-                // Je stažená, ale nelze spustit? (Pokud se teprve bude stahovat, to řešíme níž)
-            }
-        } else if (dataCheck.status === 'error') {
-            alert(dataCheck.message || "Launcher je dočasně uzamčen.");
+    // Pokud jsme v Offline režimu, spouštíme ihned bez online dotazování na server
+    if (isOfflineMode) {
+        const versionName = versionSelect.value;
+        const folder = getVersionFolder(versionName);
+        const exePath = findExeInFolder(folder);
+        if (exePath) {
+            launchApp(exePath);
+        } else {
+            alert("Spustitelný soubor .exe nebyl ve složce nalezen.");
             isLaunchingApp = false;
-            btnLaunch.classList.add('btn-locked');
-            return;
+            checkLocalVersion(versionName);
         }
-    } catch (e) {
-        console.error("Nepodařilo se ověřit oprávnění", e);
+        return;
+    }
+
+    // Blesková ověřovací kontrola (pouze pokud jsme online)
+    if (navigator.onLine) {
+        try {
+            let cfg = loadConfig();
+            let id_param = cfg.discord_id;
+            if (!id_param && cfg.email) id_param = 'email-' + cfg.email;
+            const resCheck = await fetch(`${API_BASE}/api/launcher/versions?discord_id=${id_param}`);
+            const dataCheck = await resCheck.json();
+            if (dataCheck.status === 'ok') {
+                const currentV = dataCheck.versions.find(v => v.db_version === versionName);
+                if (currentV) {
+                    let localV = availableVersions.find(v => v.db_version === versionName);
+                    if (localV) {
+                        localV.can_launch = currentV.can_launch;
+                        localV.can_download = currentV.can_download;
+                        localV.has_access = currentV.has_access;
+                        localV.current_build = currentV.current_build;
+                        localV.patch_url = currentV.patch_url;
+                    }
+                    if (!currentV.has_access) {
+                        alert("Ztratil jsi oprávnění k této verzi.");
+                        isLaunchingApp = false;
+                        checkLocalVersion(versionName);
+                        return;
+                    }
+                }
+            } else if (dataCheck.status === 'error') {
+                alert(dataCheck.message || "Launcher je dočasně uzamčen.");
+                isLaunchingApp = false;
+                btnLaunch.classList.add('btn-locked');
+                return;
+            }
+        } catch (e) {
+            console.error("Nepodařilo se ověřit oprávnění po síti:", e);
+        }
     }
         
     const versionName = versionSelect.value;
@@ -1134,6 +1187,11 @@ btnLaunch.addEventListener('click', async () => {
     if (btnLaunch.dataset.action === 'patch') {
         const patchUrl = selectedVersion ? (selectedVersion.patch_url || "").trim() : "";
         const targetBuild = selectedVersion ? (selectedVersion.current_build || selectedVersion.db_version) : versionName;
+        if (!patchUrl) {
+            alert(`Tato verze vyžaduje aktualizaci na build ${targetBuild}, ale v administraci zatím není zadán odkaz na patch balíček.`);
+            isLaunchingApp = false;
+            return;
+        }
         isLaunchingApp = false;
         await downloadAndApplyPatch(versionName, folder, patchUrl, targetBuild);
         return;

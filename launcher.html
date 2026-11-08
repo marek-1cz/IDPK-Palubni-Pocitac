@@ -146,7 +146,10 @@
                     <i class="fas fa-user-circle"></i>
                     <div class="user-details">
                         <span id="hwid-display">Načítám...</span>
-                        <span id="role-display" class="role-badge">...</span>
+                        <div style="display:flex; align-items:center; gap:6px; margin-top:2px;">
+                            <span id="role-display" class="role-badge">...</span>
+                            <span id="offline-badge" style="display:none; font-size:10px; font-weight:800; background:#f59e0b; color:#000; padding:2px 8px; border-radius:10px; text-transform:uppercase; letter-spacing:0.5px;"><i class="fas fa-wifi-slash"></i> OFFLINE</span>
+                        </div>
                     </div>
                 </div>
                 <button id="btn-logout" title="Odhlásit" style="background: none; border: none; color: #ef4444; cursor: pointer; font-size: 18px; padding: 5px; transition: 0.2s;"><i class="fas fa-sign-out-alt"></i></button>
