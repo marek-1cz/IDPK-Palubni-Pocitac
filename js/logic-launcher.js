@@ -48,6 +48,8 @@ const { ipcRenderer } = require('electron');
 const fs = require('fs');
 const path = require('path');
 const https = require('https');
+const http = require('http');
+const { URL } = require('url');
 const extract = require('extract-zip');
 const { exec, spawn } = require('child_process');
 const os = require('os');
@@ -406,8 +408,183 @@ async function checkForLauncherUpdate() {
     return false;
 }
 
+function downloadFileWithProgress({
+    url,
+    destPath,
+    onProgress, // (downloaded, total, percent, speedMBps)
+    timeoutMs = 120000,
+    headers = {}
+}) {
+    return new Promise((resolve, reject) => {
+        let redirects = 0;
+        const maxRedirects = 10;
+        let activeReq = null;
+        let activeStream = null;
+        let timer = null;
+        let isCleanedUp = false;
+
+        function cleanup(deleteFile = false) {
+            if (isCleanedUp) return;
+            isCleanedUp = true;
+            if (timer) { clearTimeout(timer); timer = null; }
+            if (activeReq) {
+                try { activeReq.destroy(); } catch (_) {}
+                activeReq = null;
+            }
+            if (activeStream) {
+                try { activeStream.close(); } catch (_) {}
+                activeStream = null;
+            }
+            if (deleteFile && fs.existsSync(destPath)) {
+                try { fs.unlinkSync(destPath); } catch (_) {}
+            }
+        }
+
+        function resetTimeout() {
+            if (timer) clearTimeout(timer);
+            timer = setTimeout(() => {
+                cleanup(true);
+                reject(new Error(`Časový limit pro stahování vypršel (${Math.round(timeoutMs / 1000)}s bez odezvy serveru).`));
+            }, timeoutMs);
+        }
+
+        function attempt(currentUrl) {
+            resetTimeout();
+            let parsedUrl;
+            try {
+                parsedUrl = new URL(currentUrl);
+            } catch (err) {
+                cleanup(false);
+                return reject(new Error(`Neplatná adresa ke stažení: ${currentUrl}`));
+            }
+
+            const client = parsedUrl.protocol === 'http:' ? http : https;
+            const reqOptions = {
+                protocol: parsedUrl.protocol,
+                hostname: parsedUrl.hostname,
+                port: parsedUrl.port || (parsedUrl.protocol === 'http:' ? 80 : 443),
+                path: parsedUrl.pathname + parsedUrl.search,
+                headers: {
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 IDPK-Launcher/' + LAUNCHER_VERSION,
+                    'Accept': '*/*',
+                    ...headers
+                }
+            };
+
+            const req = client.get(reqOptions, (res) => {
+                resetTimeout();
+
+                // Sledování přesměrování (301, 302, 303, 307, 308)
+                if ([301, 302, 303, 307, 308].includes(res.statusCode)) {
+                    res.resume();
+                    if (++redirects > maxRedirects) {
+                        cleanup(true);
+                        return reject(new Error('Příliš mnoho přesměrování při stahování souboru.'));
+                    }
+                    const loc = res.headers.location;
+                    if (!loc) {
+                        cleanup(true);
+                        return reject(new Error(`Přesměrování bez cílové adresy (HTTP ${res.statusCode}).`));
+                    }
+                    const nextUrl = new URL(loc, currentUrl).toString();
+                    return attempt(nextUrl);
+                }
+
+                // Kontrola HTTP stavového kódu (povoleno pouze 200 OK)
+                if (res.statusCode !== 200) {
+                    res.resume();
+                    cleanup(true);
+                    return reject(new Error(`Server vrátil chybu stahování: HTTP ${res.statusCode} ${res.statusMessage || ''}`));
+                }
+
+                const total = parseInt(res.headers['content-length'], 10) || 0;
+                let downloaded = 0;
+                const startTime = Date.now();
+
+                // Zajistit cílový adresář
+                const dir = path.dirname(destPath);
+                if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+
+                const fileStream = fs.createWriteStream(destPath);
+                activeStream = fileStream;
+
+                res.on('data', (chunk) => {
+                    resetTimeout();
+                    downloaded += chunk.length;
+                    if (onProgress) {
+                        const percent = total > 0 ? Math.round((downloaded / total) * 100) : 0;
+                        const elapsedSec = (Date.now() - startTime) / 1000;
+                        const speedMBps = elapsedSec > 0.5 ? ((downloaded / (1024 * 1024)) / elapsedSec).toFixed(1) : "0.0";
+                        onProgress(downloaded, total, percent, speedMBps);
+                    }
+                });
+
+                res.pipe(fileStream);
+
+                fileStream.on('finish', () => {
+                    fileStream.close(() => {
+                        if (timer) clearTimeout(timer);
+                        isCleanedUp = true;
+                        resolve({ total, downloaded, destPath });
+                    });
+                });
+
+                fileStream.on('error', (err) => {
+                    cleanup(true);
+                    reject(err);
+                });
+
+                res.on('error', (err) => {
+                    cleanup(true);
+                    reject(err);
+                });
+            });
+
+            activeReq = req;
+
+            req.on('error', (err) => {
+                cleanup(true);
+                reject(new Error(`Chyba připojení při stahování: ${err.message}`));
+            });
+        }
+
+        attempt(url);
+    });
+}
+
+function isValidZipFile(filePath) {
+    if (!fs.existsSync(filePath)) return { valid: false, reason: "Soubor neexistuje." };
+    let size = 0;
+    try {
+        size = fs.statSync(filePath).size;
+    } catch (e) {
+        return { valid: false, reason: "Nelze zjistit velikost souboru: " + e.message };
+    }
+    if (size < 100) {
+        try {
+            const preview = fs.readFileSync(filePath, 'utf8').trim();
+            if (preview.startsWith('<') || preview.includes('<html>') || preview.includes('504')) {
+                return { valid: false, reason: `Server vrátil HTML chybovou stránku namísto ZIP archivu (${preview.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').slice(0, 100)}).` };
+            }
+        } catch (_) {}
+        return { valid: false, reason: `Stažený soubor je poškozený nebo neúplný (má pouze ${size} bajtů).` };
+    }
+    try {
+        const fd = fs.openSync(filePath, 'r');
+        const buf = Buffer.alloc(4);
+        fs.readSync(fd, buf, 0, 4, 0);
+        fs.closeSync(fd);
+        if (buf[0] === 0x50 && buf[1] === 0x4B) { // 'P', 'K'
+            return { valid: true };
+        }
+        return { valid: false, reason: "Soubor nemá platnou hlavičku ZIP archivu (chybí signatura PK)." };
+    } catch (e) {
+        return { valid: false, reason: "Chyba při kontrole souboru: " + e.message };
+    }
+}
+
 function downloadAndInstallLauncherUpdate(url, newVersion) {
-    return new Promise((resolve) => {
+    return new Promise(async (resolve) => {
         const modal = document.getElementById('launcher-update-modal');
         const statusEl = document.getElementById('launcher-update-status');
         const pBar = document.getElementById('launcher-update-progress-bar');
@@ -418,85 +595,50 @@ function downloadAndInstallLauncherUpdate(url, newVersion) {
         if (statusEl) statusEl.innerText = `Nalezena nová verze Launcheru (v${newVersion}). Stahuji aktualizaci...`;
 
         const tempExePath = path.join(os.tmpdir(), `IDPK-Launcher-Setup-${newVersion}.exe`);
-        const fileStream = fs.createWriteStream(tempExePath);
 
-        const doDownload = (targetUrl) => {
-            const client = targetUrl.startsWith('https:') ? https : require('http');
-            const options = {
-                headers: {
-                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) IDPK-Launcher/' + LAUNCHER_VERSION
-                }
-            };
-            const req = client.get(targetUrl, options, (res) => {
-                if ([301, 302, 307, 308].includes(res.statusCode) && res.headers.location) {
-                    return doDownload(res.headers.location);
-                }
-
-                if (res.statusCode !== 200) {
-                    if (modal) modal.style.display = 'none';
-                    console.error("[LauncherUpdate] Download failed with HTTP " + res.statusCode);
-                    return resolve(false);
-                }
-
-                const totalBytes = parseInt(res.headers['content-length'], 10) || 0;
-                let downloadedBytes = 0;
-                let startTime = Date.now();
-
-                res.on('data', (chunk) => {
-                    downloadedBytes += chunk.length;
-                    if (totalBytes > 0) {
-                        const pct = Math.round((downloadedBytes / totalBytes) * 100);
-                        if (pBar) pBar.style.width = pct + '%';
-                        if (pPct) pPct.innerText = `${pct} %`;
-
-                        const elapsedSec = (Date.now() - startTime) / 1000;
-                        if (elapsedSec > 0.5) {
-                            const speedMBps = ((downloadedBytes / (1024 * 1024)) / elapsedSec).toFixed(1);
-                            const downloadedMB = (downloadedBytes / (1024 * 1024)).toFixed(1);
-                            const totalMB = (totalBytes / (1024 * 1024)).toFixed(1);
-                            if (pSpd) pSpd.innerText = `${downloadedMB} / ${totalMB} MB (${speedMBps} MB/s)`;
-                        }
+        try {
+            await downloadFileWithProgress({
+                url: url,
+                destPath: tempExePath,
+                onProgress: (downloaded, total, percent, speedMBps) => {
+                    if (total > 0) {
+                        if (pBar) pBar.style.width = percent + '%';
+                        if (pPct) pPct.innerText = `${percent} %`;
+                        const downloadedMB = (downloaded / (1024 * 1024)).toFixed(1);
+                        const totalMB = (total / (1024 * 1024)).toFixed(1);
+                        if (pSpd) pSpd.innerText = `${downloadedMB} / ${totalMB} MB (${speedMBps} MB/s)`;
                     } else {
-                        const dlMB = (downloadedBytes / (1024 * 1024)).toFixed(1);
+                        const dlMB = (downloaded / (1024 * 1024)).toFixed(1);
                         if (pPct) pPct.innerText = `${dlMB} MB`;
                     }
-                });
-
-                res.pipe(fileStream);
-
-                fileStream.on('finish', () => {
-                    fileStream.close(() => {
-                        if (statusEl) statusEl.innerText = `Aktualizace stažena. Restartuji a instaluji Launcher...`;
-                        if (pBar) pBar.style.width = '100%';
-                        if (pPct) pPct.innerText = '100 %';
-
-                        const isPackaged = !process.defaultApp && !/[\\/]electron\.exe$/i.test(process.execPath);
-                        if (!isPackaged) {
-                            console.log("[LauncherUpdate] Běží v DEV režimu (electron.exe). Instalátor stažen:", tempExePath);
-                            setTimeout(() => {
-                                if (modal) modal.style.display = 'none';
-                                resolve(false);
-                            }, 2500);
-                            return;
-                        }
-
-                        setTimeout(() => {
-                            ipcRenderer.send('install-launcher-update', tempExePath);
-                            resolve(true);
-                        }, 1000);
-                    });
-                });
+                }
             });
 
-            req.on('error', (err) => {
-                console.error("[LauncherUpdate] Download error:", err);
-                if (modal) modal.style.display = 'none';
-                try { fs.unlinkSync(tempExePath); } catch(e){}
-                resolve(false);
-            });
-        };
+            if (statusEl) statusEl.innerText = `Aktualizace stažena. Restartuji a instaluji Launcher...`;
+            if (pBar) pBar.style.width = '100%';
+            if (pPct) pPct.innerText = '100 %';
 
-        doDownload(url);
+            const isPackaged = !process.defaultApp && !/[\\/]electron\.exe$/i.test(process.execPath);
+            if (!isPackaged) {
+                console.log("[LauncherUpdate] Běží v DEV režimu (electron.exe). Instalátor stažen:", tempExePath);
+                setTimeout(() => {
+                    if (modal) modal.style.display = 'none';
+                    resolve(false);
+                }, 2500);
+                return;
+            }
+
+            setTimeout(() => {
+                ipcRenderer.send('install-launcher-update', tempExePath);
+                resolve(true);
+            }, 1000);
+        } catch (err) {
+            console.error("[LauncherUpdate] Download error:", err);
+            if (modal) modal.style.display = 'none';
+            try { if (fs.existsSync(tempExePath)) fs.unlinkSync(tempExePath); } catch (_) {}
+            alert(`Nepodařilo se stáhnout aktualizaci Launcheru:\n${err.message}`);
+            resolve(false);
+        }
     });
 }
 
@@ -1478,150 +1620,160 @@ const cs1 = document.getElementById('custom-version-select'); if(cs1) cs1.classL
     }
 }
 
-function downloadAndExtract(url, folder, versionName) {
-    if (!fs.existsSync(folder)) fs.mkdirSync(folder, {recursive: true});
+async function downloadAndExtract(url, folder, versionName) {
+    if (!fs.existsSync(folder)) fs.mkdirSync(folder, { recursive: true });
     const zipPath = path.join(folder, 'app_download.zip');
-    
-    progressText.innerText = 'Stahování dat...';
-    
-    const file = fs.createWriteStream(zipPath);
-    
-    const doDownload = (downloadUrl) => {
-        const options = {
-            headers: {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 IDPK-Launcher/1.0'
-            }
-        };
-        https.get(downloadUrl, options, (response) => {
-            if (response.statusCode === 302 || response.statusCode === 301) {
-                return doDownload(response.headers.location);
-            }
-            
-            const total = parseInt(response.headers['content-length'], 10);
-            let downloaded = 0;
-            
-            response.on('data', (chunk) => {
-                downloaded += chunk.length;
-                if(total) {
-                    const percent = Math.round((downloaded / total) * 100);
+
+    btnLaunch.classList.add('btn-locked');
+    btnLaunch.disabled = true;
+    versionSelect.disabled = true;
+    const cs1 = document.getElementById('custom-version-select');
+    if (cs1) cs1.classList.add('disabled');
+
+    launchText.innerText = "STAHOVÁNÍ...";
+    launchIcon.className = "fas fa-spinner fa-spin";
+    progressContainer.style.display = 'block';
+    progressFill.style.width = '0%';
+    progressText.innerText = 'Příprava ke stažení...';
+
+    try {
+        await downloadFileWithProgress({
+            url: url,
+            destPath: zipPath,
+            onProgress: (downloaded, total, percent, speedMBps) => {
+                if (total > 0) {
                     progressFill.style.width = percent + '%';
-                    progressText.innerText = `Stahování: ${percent}%`;
+                    const dlMB = (downloaded / (1024 * 1024)).toFixed(1);
+                    const totMB = (total / (1024 * 1024)).toFixed(1);
+                    progressText.innerText = `Stahování: ${percent}% (${dlMB} / ${totMB} MB, ${speedMBps} MB/s)`;
+                } else {
+                    const dlMB = (downloaded / (1024 * 1024)).toFixed(1);
+                    progressText.innerText = `Stahování: ${dlMB} MB (${speedMBps} MB/s)`;
                 }
-            });
-            
-            response.pipe(file);
-            file.on('finish', () => {
-                file.close(async () => {
-                    progressText.innerText = 'Rozbalování... (může trvat minutu)';
-                    launchText.innerText = 'ROZBALOVÁNÍ...';
-                    
+            }
+        });
+
+        // 1. Ověřit platnost ZIPu před jakoukoliv operací
+        const zipCheck = isValidZipFile(zipPath);
+        if (!zipCheck.valid) {
+            try { if (fs.existsSync(zipPath)) fs.unlinkSync(zipPath); } catch (_) {}
+            throw new Error(`Stažený soubor je neplatný: ${zipCheck.reason}`);
+        }
+
+        progressText.innerText = 'Rozbalování... (může trvat minutu)';
+        launchText.innerText = 'ROZBALOVÁNÍ...';
+
+        // 2. Smazat existující soubory před rozbalením (kromě ZIPu) pro prevenci chyb ENOENT
+        if (fs.existsSync(folder)) {
+            let existingFiles = await fs.promises.readdir(folder);
+            for (let f of existingFiles) {
+                if (f !== 'app_download.zip') {
                     try {
-                        // Smazat existující soubory před rozbalením (kromě ZIPu) pro prevenci chyb ENOENT
-                        if (fs.existsSync(folder)) {
-                            let existingFiles = await fs.promises.readdir(folder);
-                            for (let f of existingFiles) {
-                                if (f !== 'app_download.zip') {
-                                    try {
-                                        await fs.promises.rm(path.join(folder, f), { recursive: true, force: true, maxRetries: 3, retryDelay: 300 });
-                                    } catch (err) {
-                                        console.warn("Nemohu smazat soubor před rozbalením (je pravděpodobně uzamčen):", f, err);
-                                    }
-                                }
-                            }
-                            // Dáme Windows 2.5 vteřiny na dokončení smazání složek na pozadí, abychom předešli ENOENT
-                            await new Promise(r => setTimeout(r, 2500));
-                        }
-                        let originalNoAsar = process.noAsar;
-                        process.noAsar = true;
-                        await extract(zipPath, { dir: folder });
-                        process.noAsar = originalNoAsar;
-
-                        await fs.promises.unlink(zipPath); // Smazat zip
-
-                        // Uložit výchozí build_info.json po plném stažení
-                        try {
-                            const curV = availableVersions.find(v => v.db_version === versionName);
-                            const initBuild = (curV && curV.current_build) ? curV.current_build : versionName;
-                            const bData = {
-                                version: versionName,
-                                build: initBuild,
-                                updated_at: new Date().toLocaleString('cs-CZ')
-                            };
-                            const bJson = JSON.stringify(bData, null, 2);
-                            fs.writeFileSync(path.join(folder, 'build_info.json'), bJson, 'utf8');
-                            const subWinF = path.join(folder, 'win-unpacked');
-                            if (fs.existsSync(subWinF)) {
-                                fs.writeFileSync(path.join(subWinF, 'build_info.json'), bJson, 'utf8');
-                            }
-                        } catch (eBuild) {
-                            console.warn("Nepodařilo se uložit výchozí build_info.json:", eBuild);
-                        }
-                    
-                    // Najít EXE
-                    let exePath = null;
-                    let files = await fs.promises.readdir(folder);
-                    let exeFile = files.find(f => f.endsWith('.exe') && !f.toLowerCase().includes('uninstall'));
-                    if (exeFile) {
-                        exePath = path.join(folder, exeFile);
-                    } else if (fs.existsSync(path.join(folder, 'win-unpacked'))) {
-                        let subFiles = await fs.promises.readdir(path.join(folder, 'win-unpacked'));
-                        let subExe = subFiles.find(f => f.endsWith('.exe') && !f.toLowerCase().includes('uninstall'));
-                        if (subExe) exePath = path.join(folder, 'win-unpacked', subExe);
+                        await fs.promises.rm(path.join(folder, f), { recursive: true, force: true, maxRetries: 3, retryDelay: 300 });
+                    } catch (err) {
+                        console.warn("Nemohu smazat soubor před rozbalením:", f, err);
                     }
-
-                    if (!exePath) {
-                        showError("Staženo, ale nenašel jsem spouštěcí .exe soubor.");
-                        return;
-                    }
-
-                    // 1. Zabezpečení
-                    const selectedVersion = availableVersions.find(v => v.db_version === versionName);
-                    const isBlocked = (!selectedVersion || !selectedVersion.has_access || !selectedVersion.can_launch);
-                    secureExecutable(path.dirname(exePath), isBlocked);
-
-                    // 2. Synchronizace uživatelských dat (linky a data vázána na launcher)
-                    const versionsDir = path.join(userDataPath, 'versions');
-                    let otherVersions = [];
-                    if (fs.existsSync(versionsDir)) {
-                        try {
-                            const allDirs = fs.readdirSync(versionsDir);
-                            otherVersions = allDirs.filter(d => d !== versionName && findExeInFolder(path.join(versionsDir, d)));
-                        } catch (_) {}
-                    }
-
-                    otherVersions.forEach(oldV => {
-                        backupUserRoutesFromVersion(path.join(versionsDir, oldV));
-                    });
-                    syncUserRoutesToVersion(folder);
-
-                    progressContainer.style.display = 'none';
-                    launchText.innerText = "STAŽENO";
-                    launchIcon.className = "fas fa-check";
-
-                    // 3. Otázkové okno pro odinstalaci starých verzí
-                    if (otherVersions.length > 0) {
-                        btnLaunch.classList.remove('btn-locked');
-                        showNewVersionCleanupPrompt(versionName, otherVersions, exePath, !isBlocked);
-                    } else {
-                        if (!isBlocked) {
-                            launchApp(exePath);
-                        } else {
-                            btnLaunch.classList.add('btn-locked');
-                            checkLocalVersion(versionName);
-                        }
-                    }
-                } catch(e) {
-                    showError("Chyba při rozbalování: " + e.message);
                 }
-            });
+            }
+            await new Promise(r => setTimeout(r, 1500));
+        }
+
+        // 3. Rozbalení archivu
+        let originalNoAsar = process.noAsar;
+        process.noAsar = true;
+        try {
+            await extract(zipPath, { dir: folder });
+        } finally {
+            process.noAsar = originalNoAsar;
+            try { if (fs.existsSync(zipPath)) await fs.promises.unlink(zipPath); } catch (_) {}
+        }
+
+        // 4. Uložit výchozí build_info.json po plném stažení
+        try {
+            const curV = availableVersions.find(v => v.db_version === versionName);
+            const initBuild = (curV && curV.current_build) ? curV.current_build : versionName;
+            const bData = {
+                version: versionName,
+                build: initBuild,
+                updated_at: new Date().toLocaleString('cs-CZ')
+            };
+            const bJson = JSON.stringify(bData, null, 2);
+            fs.writeFileSync(path.join(folder, 'build_info.json'), bJson, 'utf8');
+            const subWinF = path.join(folder, 'win-unpacked');
+            if (fs.existsSync(subWinF)) {
+                fs.writeFileSync(path.join(subWinF, 'build_info.json'), bJson, 'utf8');
+            }
+        } catch (eBuild) {
+            console.warn("Nepodařilo se uložit výchozí build_info.json:", eBuild);
+        }
+
+        // 5. Najít EXE
+        let exePath = null;
+        let files = await fs.promises.readdir(folder);
+        let exeFile = files.find(f => f.endsWith('.exe') && !f.toLowerCase().includes('uninstall'));
+        if (exeFile) {
+            exePath = path.join(folder, exeFile);
+        } else if (fs.existsSync(path.join(folder, 'win-unpacked'))) {
+            let subFiles = await fs.promises.readdir(path.join(folder, 'win-unpacked'));
+            let subExe = subFiles.find(f => f.endsWith('.exe') && !f.toLowerCase().includes('uninstall'));
+            if (subExe) exePath = path.join(folder, 'win-unpacked', subExe);
+        }
+
+        if (!exePath) {
+            showError("Staženo a rozbaleno, ale nenašel jsem spouštěcí .exe soubor.");
+            return;
+        }
+
+        // 6. Zabezpečení
+        const selectedVersion = availableVersions.find(v => v.db_version === versionName);
+        const isBlocked = (!selectedVersion || !selectedVersion.has_access || !selectedVersion.can_launch);
+        secureExecutable(path.dirname(exePath), isBlocked);
+
+        // 7. Synchronizace uživatelských dat
+        const versionsDir = path.join(userDataPath, 'versions');
+        let otherVersions = [];
+        if (fs.existsSync(versionsDir)) {
+            try {
+                const allDirs = fs.readdirSync(versionsDir);
+                otherVersions = allDirs.filter(d => d !== versionName && findExeInFolder(path.join(versionsDir, d)));
+            } catch (_) {}
+        }
+
+        otherVersions.forEach(oldV => {
+            backupUserRoutesFromVersion(path.join(versionsDir, oldV));
         });
-        }).on('error', (e) => {
-            fs.unlinkSync(zipPath);
-            showError("Chyba sítě: " + e.message);
-        });
-    };
-    
-    doDownload(url);
+        syncUserRoutesToVersion(folder);
+
+        progressContainer.style.display = 'none';
+        launchText.innerText = "STAŽENO";
+        launchIcon.className = "fas fa-check";
+
+        // 8. Otázkové okno pro odinstalaci starých verzí
+        if (otherVersions.length > 0) {
+            btnLaunch.classList.remove('btn-locked');
+            btnLaunch.disabled = false;
+            versionSelect.disabled = false;
+            if (cs1) cs1.classList.remove('disabled');
+            showNewVersionCleanupPrompt(versionName, otherVersions, exePath, !isBlocked);
+        } else {
+            if (!isBlocked) {
+                launchApp(exePath);
+            } else {
+                btnLaunch.classList.add('btn-locked');
+                btnLaunch.disabled = true;
+                checkLocalVersion(versionName);
+            }
+        }
+    } catch (e) {
+        try { if (fs.existsSync(zipPath)) fs.unlinkSync(zipPath); } catch (_) {}
+        progressContainer.style.display = 'none';
+        btnLaunch.classList.remove('btn-locked');
+        btnLaunch.disabled = false;
+        versionSelect.disabled = false;
+        if (cs1) cs1.classList.remove('disabled');
+        showError("Chyba při stahování/rozbalování: " + e.message);
+        checkLocalVersion(versionName);
+    }
 }
 
 async function downloadAndApplyPatch(versionName, folder, patchUrl, targetBuild) {
@@ -1646,121 +1798,86 @@ async function downloadAndApplyPatch(versionName, folder, patchUrl, targetBuild)
     if (!fs.existsSync(folder)) fs.mkdirSync(folder, { recursive: true });
     const patchZipPath = path.join(folder, 'patch_download.zip');
 
-    const file = fs.createWriteStream(patchZipPath);
-
-    const doPatchDownload = (downloadUrl) => {
-        const options = {
-            headers: {
-                'User-Agent': `Mozilla/5.0 (Windows NT 10.0; Win64; x64) IDPK-Launcher/${LAUNCHER_VERSION}`
-            }
-        };
-        https.get(downloadUrl, options, (response) => {
-            if (response.statusCode === 302 || response.statusCode === 301) {
-                return doPatchDownload(response.headers.location);
-            }
-            if (response.statusCode !== 200) {
-                try { fs.unlinkSync(patchZipPath); } catch(_) {}
-                progressContainer.style.display = 'none';
-                btnLaunch.disabled = false;
-                versionSelect.disabled = false;
-                if (cs1) cs1.classList.remove('disabled');
-                showError(`Chyba stahování opravy: HTTP ${response.statusCode}`);
-                checkLocalVersion(versionName);
-                return;
-            }
-
-            const total = parseInt(response.headers['content-length'], 10);
-            let downloaded = 0;
-
-            response.on('data', (chunk) => {
-                downloaded += chunk.length;
-                if (total) {
-                    const percent = Math.round((downloaded / total) * 100);
+    try {
+        await downloadFileWithProgress({
+            url: patchUrl.trim(),
+            destPath: patchZipPath,
+            onProgress: (downloaded, total, percent, speedMBps) => {
+                if (total > 0) {
                     progressFill.style.width = percent + '%';
-                    const mbDl = (downloaded / 1024 / 1024).toFixed(1);
-                    const mbTot = (total / 1024 / 1024).toFixed(1);
-                    progressText.innerText = `Stahování aktualizace: ${percent}% (${mbDl} MB / ${mbTot} MB)`;
+                    const dlMB = (downloaded / (1024 * 1024)).toFixed(1);
+                    const totMB = (total / (1024 * 1024)).toFixed(1);
+                    progressText.innerText = `Stahování aktualizace: ${percent}% (${dlMB} / ${totMB} MB, ${speedMBps} MB/s)`;
                 } else {
-                    const mbDl = (downloaded / 1024 / 1024).toFixed(1);
-                    progressText.innerText = `Stahování aktualizace: ${mbDl} MB`;
+                    const dlMB = (downloaded / (1024 * 1024)).toFixed(1);
+                    progressText.innerText = `Stahování aktualizace: ${dlMB} MB (${speedMBps} MB/s)`;
                 }
-            });
-
-            response.pipe(file);
-            file.on('finish', () => {
-                file.close(async () => {
-                    progressText.innerText = 'Instalace aktualizace... (přepisování souborů)';
-                    launchText.innerText = 'INSTALACE...';
-
-                    try {
-                        let originalNoAsar = process.noAsar;
-                        process.noAsar = true;
-
-                        // Určit cílový adresář pro extrakci: pokud je aplikace v win-unpacked, rozbalit do win-unpacked
-                        let extractDir = folder;
-                        if (!fs.existsSync(path.join(folder, 'resources')) && fs.existsSync(path.join(folder, 'win-unpacked', 'resources'))) {
-                            extractDir = path.join(folder, 'win-unpacked');
-                        }
-
-                        await extract(patchZipPath, { dir: extractDir });
-                        process.noAsar = originalNoAsar;
-
-                        // Smazat dočasný ZIP
-                        try { await fs.promises.unlink(patchZipPath); } catch (_) {}
-
-                        // Uložit build_info.json s novým číslem buildu
-                        const buildData = {
-                            version: versionName,
-                            build: targetBuild,
-                            current_build: targetBuild,
-                            updated_at: new Date().toLocaleString('cs-CZ')
-                        };
-                        const buildJsonStr = JSON.stringify(buildData, null, 2);
-                        try { fs.writeFileSync(path.join(folder, 'build_info.json'), buildJsonStr, 'utf8'); } catch (_) {}
-                        try {
-                            const subF = path.join(folder, 'win-unpacked');
-                            if (fs.existsSync(subF)) {
-                                fs.writeFileSync(path.join(subF, 'build_info.json'), buildJsonStr, 'utf8');
-                            }
-                        } catch (_) {}
-
-                        progressFill.style.width = '100%';
-                        progressText.innerText = `Aktualizace na ${targetBuild} byla úspěšně dokončena!`;
-                        await new Promise(r => setTimeout(r, 600));
-                        progressContainer.style.display = 'none';
-
-                        btnLaunch.classList.remove('btn-locked');
-                        btnLaunch.disabled = false;
-                        versionSelect.disabled = false;
-                        if (cs1) cs1.classList.remove('disabled');
-
-                        checkLocalVersion(versionName);
-                        alert(`✅ Aktualizace na build ${targetBuild} byla úspěšně nainstalována!\nNyní můžete spustit hru tlačítkem HRÁT.`);
-                    } catch (err) {
-                        try { fs.unlinkSync(patchZipPath); } catch (_) {}
-                        progressContainer.style.display = 'none';
-                        btnLaunch.classList.remove('btn-locked');
-                        btnLaunch.disabled = false;
-                        versionSelect.disabled = false;
-                        if (cs1) cs1.classList.remove('disabled');
-                        showError("Chyba při instalaci aktualizace: " + err.message);
-                        checkLocalVersion(versionName);
-                    }
-                });
-            });
-        }).on('error', (e) => {
-            try { fs.unlinkSync(patchZipPath); } catch (_) {}
-            progressContainer.style.display = 'none';
-            btnLaunch.classList.remove('btn-locked');
-            btnLaunch.disabled = false;
-            versionSelect.disabled = false;
-            if (cs1) cs1.classList.remove('disabled');
-            showError("Chyba stahování: " + e.message);
-            checkLocalVersion(versionName);
+            }
         });
-    };
 
-    doPatchDownload(patchUrl);
+        // Ověřit platnost archivu před rozbalením
+        const zipCheck = isValidZipFile(patchZipPath);
+        if (!zipCheck.valid) {
+            try { if (fs.existsSync(patchZipPath)) fs.unlinkSync(patchZipPath); } catch (_) {}
+            throw new Error(`Stažený patch balíček je neplatný: ${zipCheck.reason}`);
+        }
+
+        progressText.innerText = 'Instalace aktualizace... (přepisování souborů)';
+        launchText.innerText = 'INSTALACE...';
+
+        let originalNoAsar = process.noAsar;
+        process.noAsar = true;
+
+        let extractDir = folder;
+        if (!fs.existsSync(path.join(folder, 'resources')) && fs.existsSync(path.join(folder, 'win-unpacked', 'resources'))) {
+            extractDir = path.join(folder, 'win-unpacked');
+        }
+
+        try {
+            await extract(patchZipPath, { dir: extractDir });
+        } finally {
+            process.noAsar = originalNoAsar;
+            try { if (fs.existsSync(patchZipPath)) await fs.promises.unlink(patchZipPath); } catch (_) {}
+        }
+
+        // Uložit build_info.json s novým číslem buildu
+        const buildData = {
+            version: versionName,
+            build: targetBuild,
+            current_build: targetBuild,
+            updated_at: new Date().toLocaleString('cs-CZ')
+        };
+        const buildJsonStr = JSON.stringify(buildData, null, 2);
+        try { fs.writeFileSync(path.join(folder, 'build_info.json'), buildJsonStr, 'utf8'); } catch (_) {}
+        try {
+            const subF = path.join(folder, 'win-unpacked');
+            if (fs.existsSync(subF)) {
+                fs.writeFileSync(path.join(subF, 'build_info.json'), buildJsonStr, 'utf8');
+            }
+        } catch (_) {}
+
+        progressFill.style.width = '100%';
+        progressText.innerText = `Aktualizace na ${targetBuild} byla úspěšně dokončena!`;
+        await new Promise(r => setTimeout(r, 600));
+        progressContainer.style.display = 'none';
+
+        btnLaunch.classList.remove('btn-locked');
+        btnLaunch.disabled = false;
+        versionSelect.disabled = false;
+        if (cs1) cs1.classList.remove('disabled');
+
+        checkLocalVersion(versionName);
+        alert(`✅ Aktualizace na build ${targetBuild} byla úspěšně nainstalována!\nNyní můžete spustit hru tlačítkem HRÁT.`);
+    } catch (err) {
+        try { if (fs.existsSync(patchZipPath)) fs.unlinkSync(patchZipPath); } catch (_) {}
+        progressContainer.style.display = 'none';
+        btnLaunch.classList.remove('btn-locked');
+        btnLaunch.disabled = false;
+        versionSelect.disabled = false;
+        if (cs1) cs1.classList.remove('disabled');
+        showError("Chyba při instalaci aktualizace: " + err.message);
+        checkLocalVersion(versionName);
+    }
 }
 
 function launchApp(exePath) {
@@ -1928,9 +2045,9 @@ function updateSettingsVersionList() {
     // Zjistit nejnovější verzi z načtených (největší ID, pole je už seřazené od nejnovější v loadAvailableVersions)
     if (appVerEl && availableVersions && availableVersions.length > 0) {
         const latest = availableVersions[0];
-        appVerEl.innerHTML = `Nejnovější verze ke stažení: <strong style="color:white;">${latest.version_name}</strong>`;
+        appVerEl.innerHTML = `Poslední dostupná hra: <strong style="color:white;">${latest.version_name}</strong>`;
     } else if (appVerEl) {
-        appVerEl.textContent = `Zjišťuji nejnovější verzi...`;
+        appVerEl.textContent = `Poslední dostupná hra: Žádná`;
     }
 
     if (!availableVersions || availableVersions.length === 0) {
@@ -2300,9 +2417,8 @@ function updateCustomSelectUI(versions) {
 // Verze launcheru a Discord – přímá inicializace
 (function initSettings() {
     try {
-        const pkg = require(path.join(__dirname, '..', 'package.json'));
-        const verEl = document.getElementById('settings-app-version');
-        if (verEl) verEl.innerText = 'Verze Launcheru: v' + pkg.version;
+        const setLauncherVerEl = document.getElementById('settings-launcher-version');
+        if (setLauncherVerEl) setLauncherVerEl.innerText = `Verze Launcheru: v${LAUNCHER_VERSION}`;
     } catch(e) {}
     
     const discLink = document.getElementById('settings-discord-link');
