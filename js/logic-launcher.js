@@ -114,6 +114,188 @@ function loadLauncherCache() {
     return null;
 }
 
+// =========================================================================
+// CENTRÁLNÍ UŽIVATELSKÁ DATA (VLASTNÍ LINKY NAVÁZÁNY NA LAUNCHER)
+// =========================================================================
+const centralUserDataPath = path.join(userDataPath, 'userdata');
+
+const KNOWN_DEFAULT_LINKS = new Set([
+    '336_auto.txt', '424_auto.txt', '621_auto.txt', '711_auto.txt', '722_auto.txt',
+    '723_auto.txt', '731_auto.txt', '734_auto.txt', '735_auto.txt', '736_auto.txt',
+    '737_auto.txt', '738_auto.txt', '739_auto.txt', '749_auto.txt', '750_auto.txt',
+    '752_auto.txt', '753_auto.txt', '754_auto.txt', '755_auto.txt', '757_auto.txt',
+    '759_auto.txt', '760_auto.txt', '911_auto.txt'
+]);
+
+function ensureCentralUserDataFolders() {
+    try {
+        if (!fs.existsSync(centralUserDataPath)) fs.mkdirSync(centralUserDataPath, { recursive: true });
+        const subs = ['linky', 'data', 'zvuky', 'obraz'];
+        subs.forEach(s => {
+            const p = path.join(centralUserDataPath, s);
+            if (!fs.existsSync(p)) fs.mkdirSync(p, { recursive: true });
+        });
+    } catch (e) {
+        console.warn("Chyba při přípravě složek userdata:", e);
+    }
+}
+
+function findLinkyFoldersInVersion(versionFolder) {
+    if (!versionFolder || !fs.existsSync(versionFolder)) return [];
+    const candidateDirs = [
+        path.join(versionFolder, 'linky'),
+        path.join(versionFolder, 'resources', 'linky'),
+        path.join(versionFolder, 'win-unpacked', 'resources', 'linky'),
+        path.join(versionFolder, 'win-unpacked', 'linky')
+    ];
+    return candidateDirs.filter(d => fs.existsSync(d));
+}
+
+function findDataFoldersInVersion(versionFolder) {
+    if (!versionFolder || !fs.existsSync(versionFolder)) return [];
+    const candidateDirs = [
+        path.join(versionFolder, 'data'),
+        path.join(versionFolder, 'resources', 'data'),
+        path.join(versionFolder, 'win-unpacked', 'resources', 'data'),
+        path.join(versionFolder, 'win-unpacked', 'data')
+    ];
+    return candidateDirs.filter(d => fs.existsSync(d));
+}
+
+function backupUserRoutesFromVersion(versionFolder) {
+    ensureCentralUserDataFolders();
+    if (!versionFolder || !fs.existsSync(versionFolder)) return 0;
+    const targetLinkyDir = path.join(centralUserDataPath, 'linky');
+    const linkyDirs = findLinkyFoldersInVersion(versionFolder);
+    let copiedCount = 0;
+
+    linkyDirs.forEach(dir => {
+        try {
+            const files = fs.readdirSync(dir);
+            files.forEach(file => {
+                if (!file.endsWith('.txt')) return;
+                const srcPath = path.join(dir, file);
+                const destPath = path.join(targetLinkyDir, file);
+                try {
+                    if (!fs.existsSync(destPath) || !KNOWN_DEFAULT_LINKS.has(file)) {
+                        fs.copyFileSync(srcPath, destPath);
+                        copiedCount++;
+                    }
+                } catch (_) {}
+            });
+        } catch (_) {}
+    });
+
+    const targetDataDir = path.join(centralUserDataPath, 'data');
+    const dataDirs = findDataFoldersInVersion(versionFolder);
+    dataDirs.forEach(dir => {
+        try {
+            const files = fs.readdirSync(dir);
+            files.forEach(file => {
+                if (!file.endsWith('.json') || file === 'gtfs_version.json' || file === 'build_info.json') return;
+                const srcPath = path.join(dir, file);
+                const destPath = path.join(targetDataDir, file);
+                try {
+                    if (!fs.existsSync(destPath)) {
+                        fs.copyFileSync(srcPath, destPath);
+                    }
+                } catch (_) {}
+            });
+        } catch (_) {}
+    });
+
+    return copiedCount;
+}
+
+function syncUserRoutesToVersion(targetVersionFolder) {
+    ensureCentralUserDataFolders();
+    if (!targetVersionFolder || !fs.existsSync(targetVersionFolder)) return;
+    const centralLinkyDir = path.join(centralUserDataPath, 'linky');
+    if (!fs.existsSync(centralLinkyDir)) return;
+
+    const linkyDirs = findLinkyFoldersInVersion(targetVersionFolder);
+    if (linkyDirs.length === 0) return;
+
+    try {
+        const userFiles = fs.readdirSync(centralLinkyDir);
+        userFiles.forEach(file => {
+            if (!file.endsWith('.txt')) return;
+            const src = path.join(centralLinkyDir, file);
+            linkyDirs.forEach(destDir => {
+                try {
+                    const dest = path.join(destDir, file);
+                    if (!fs.existsSync(dest)) {
+                        fs.copyFileSync(src, dest);
+                    }
+                } catch (_) {}
+            });
+        });
+    } catch (_) {}
+}
+
+function showNewVersionCleanupPrompt(newVersionName, otherVersions, targetExePath, canLaunch) {
+    const modal = document.getElementById('new-version-cleanup-modal');
+    if (!modal) {
+        if (canLaunch && targetExePath) launchApp(targetExePath);
+        else checkLocalVersion(newVersionName);
+        return;
+    }
+
+    const titleEl = document.getElementById('cleanup-modal-title');
+    const oldListEl = document.getElementById('cleanup-old-versions-list');
+    const btnDeleteOld = document.getElementById('btn-cleanup-delete-old');
+    const btnKeepAll = document.getElementById('btn-cleanup-keep-all');
+
+    if (titleEl) titleEl.innerText = `Nová verze ${newVersionName} byla stažena!`;
+    if (oldListEl) oldListEl.innerText = otherVersions.join(', ');
+
+    modal.style.display = 'flex';
+
+    btnDeleteOld.onclick = async () => {
+        btnDeleteOld.disabled = true;
+        btnKeepAll.disabled = true;
+        btnDeleteOld.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Mažu staré verze...';
+
+        const versionsDir = path.join(userDataPath, 'versions');
+        for (const oldV of otherVersions) {
+            const oldPath = path.join(versionsDir, oldV);
+            backupUserRoutesFromVersion(oldPath);
+            await forceDeleteFolderAsync(oldPath);
+        }
+
+        modal.style.display = 'none';
+        btnDeleteOld.disabled = false;
+        btnKeepAll.disabled = false;
+        btnDeleteOld.innerHTML = '<i class="fas fa-trash-alt"></i> ODINSTALOVAT STARÉ VERZE';
+
+        versionSelect.innerHTML = '';
+        ensureCentralUserDataFolders();
+        try {
+            const versionsDir = path.join(userDataPath, 'versions');
+            if (fs.existsSync(versionsDir)) {
+                const dirs = fs.readdirSync(versionsDir);
+                dirs.forEach(d => backupUserRoutesFromVersion(path.join(versionsDir, d)));
+            }
+        } catch (_) {}
+
+        await loadAvailableVersions();
+        versionSelect.value = newVersionName;
+        checkLocalVersion(newVersionName);
+
+        if (canLaunch && targetExePath) {
+            launchApp(targetExePath);
+        }
+    };
+
+    btnKeepAll.onclick = () => {
+        modal.style.display = 'none';
+        checkLocalVersion(newVersionName);
+        if (canLaunch && targetExePath) {
+            launchApp(targetExePath);
+        }
+    };
+}
+
 // Auth UI elements
 const loginOverlay = document.getElementById('login-overlay');
 const loginDiscordView = document.getElementById('login-discord-view');
@@ -772,11 +954,29 @@ async function initLauncher(config) {
             roleDisplay.style.backgroundColor = color;
         }
 
+        ensureCentralUserDataFolders();
+        try {
+            const versionsDir = path.join(userDataPath, 'versions');
+            if (fs.existsSync(versionsDir)) {
+                const dirs = fs.readdirSync(versionsDir);
+                dirs.forEach(d => backupUserRoutesFromVersion(path.join(versionsDir, d)));
+            }
+        } catch (_) {}
+
         await loadAvailableVersions();
     } catch(e) {
         console.error("Chyba při startu launcheru:", e);
         const overlay = document.getElementById('initial-loading-overlay');
         if (overlay) overlay.style.display = 'none';
+        ensureCentralUserDataFolders();
+        try {
+            const versionsDir = path.join(userDataPath, 'versions');
+            if (fs.existsSync(versionsDir)) {
+                const dirs = fs.readdirSync(versionsDir);
+                dirs.forEach(d => backupUserRoutesFromVersion(path.join(versionsDir, d)));
+            }
+        } catch (_) {}
+
         await loadAvailableVersions();
     }
 }
@@ -1359,46 +1559,57 @@ function downloadAndExtract(url, folder, versionName) {
                         }
                     
                     // Najít EXE
+                    let exePath = null;
                     let files = await fs.promises.readdir(folder);
                     let exeFile = files.find(f => f.endsWith('.exe') && !f.toLowerCase().includes('uninstall'));
-                    
                     if (exeFile) {
-                        const selectedVersion = availableVersions.find(v => v.db_version === versionName);
-                        if (selectedVersion && selectedVersion.can_launch && selectedVersion.has_access) {
-                            launchApp(path.join(folder, exeFile));
+                        exePath = path.join(folder, exeFile);
+                    } else if (fs.existsSync(path.join(folder, 'win-unpacked'))) {
+                        let subFiles = await fs.promises.readdir(path.join(folder, 'win-unpacked'));
+                        let subExe = subFiles.find(f => f.endsWith('.exe') && !f.toLowerCase().includes('uninstall'));
+                        if (subExe) exePath = path.join(folder, 'win-unpacked', subExe);
+                    }
+
+                    if (!exePath) {
+                        showError("Staženo, ale nenašel jsem spouštěcí .exe soubor.");
+                        return;
+                    }
+
+                    // 1. Zabezpečení
+                    const selectedVersion = availableVersions.find(v => v.db_version === versionName);
+                    const isBlocked = (!selectedVersion || !selectedVersion.has_access || !selectedVersion.can_launch);
+                    secureExecutable(path.dirname(exePath), isBlocked);
+
+                    // 2. Synchronizace uživatelských dat (linky a data vázána na launcher)
+                    const versionsDir = path.join(userDataPath, 'versions');
+                    let otherVersions = [];
+                    if (fs.existsSync(versionsDir)) {
+                        try {
+                            const allDirs = fs.readdirSync(versionsDir);
+                            otherVersions = allDirs.filter(d => d !== versionName && findExeInFolder(path.join(versionsDir, d)));
+                        } catch (_) {}
+                    }
+
+                    otherVersions.forEach(oldV => {
+                        backupUserRoutesFromVersion(path.join(versionsDir, oldV));
+                    });
+                    syncUserRoutesToVersion(folder);
+
+                    progressContainer.style.display = 'none';
+                    launchText.innerText = "STAŽENO";
+                    launchIcon.className = "fas fa-check";
+
+                    // 3. Otázkové okno pro odinstalaci starých verzí
+                    if (otherVersions.length > 0) {
+                        btnLaunch.classList.remove('btn-locked');
+                        showNewVersionCleanupPrompt(versionName, otherVersions, exePath, !isBlocked);
+                    } else {
+                        if (!isBlocked) {
+                            launchApp(exePath);
                         } else {
-                            // Je zablokovaná, po stažení nespouštět!
-                            const isBlocked = (!selectedVersion || !selectedVersion.has_access || !selectedVersion.can_launch);
-                            secureExecutable(folder, isBlocked);
-                            progressContainer.style.display = 'none';
-                            launchText.innerText = "STAŽENO";
-                            launchIcon.className = "fas fa-check";
                             btnLaunch.classList.add('btn-locked');
                             checkLocalVersion(versionName);
                         }
-                    } else {
-                        // Možná je to o složku níž v win-unpacked?
-                        if(fs.existsSync(path.join(folder, 'win-unpacked'))) {
-                            let subFiles = await fs.promises.readdir(path.join(folder, 'win-unpacked'));
-                            let subExe = subFiles.find(f => f.endsWith('.exe') && !f.toLowerCase().includes('uninstall'));
-                            if(subExe) {
-                                const selectedVersion = availableVersions.find(v => v.db_version === versionName);
-                                if (selectedVersion && selectedVersion.can_launch && selectedVersion.has_access) {
-                                    launchApp(path.join(folder, 'win-unpacked', subExe));
-                                } else {
-                                    // Zablokovaná
-                                    const isBlocked = (!selectedVersion || !selectedVersion.has_access || !selectedVersion.can_launch);
-                                    secureExecutable(path.join(folder, 'win-unpacked'), isBlocked);
-                                    progressContainer.style.display = 'none';
-                                    launchText.innerText = "STAŽENO";
-                                    launchIcon.className = "fas fa-check";
-                                    btnLaunch.classList.add('btn-locked');
-                                    checkLocalVersion(versionName);
-                                }
-                                return;
-                            }
-                        }
-                        showError("Staženo, ale nenašel jsem spouštěcí .exe soubor.");
                     }
                 } catch(e) {
                     showError("Chyba při rozbalování: " + e.message);
@@ -1739,7 +1950,16 @@ if (btnCheckUpdate) {
         btnCheckUpdate.disabled = true;
         btnCheckUpdate.innerHTML = '<i class="fas fa-spinner fa-spin" style="margin-right:10px; color:#3b82f6;"></i>Kontroluji...';
         try {
-            await loadAvailableVersions();
+            ensureCentralUserDataFolders();
+        try {
+            const versionsDir = path.join(userDataPath, 'versions');
+            if (fs.existsSync(versionsDir)) {
+                const dirs = fs.readdirSync(versionsDir);
+                dirs.forEach(d => backupUserRoutesFromVersion(path.join(versionsDir, d)));
+            }
+        } catch (_) {}
+
+        await loadAvailableVersions();
             updateSettingsVersionList();
             alert('Aktualizace zkontrolovány! Seznam verzí byl obnoven.');
         } catch(e) {
@@ -1764,10 +1984,19 @@ if (btnBuyCoffee) {
 const btnOpenUserdata = document.getElementById('btn-open-userdata');
 if (btnOpenUserdata) {
     btnOpenUserdata.addEventListener('click', () => {
+        ensureCentralUserDataFolders();
         const { shell } = require('electron');
-        const udPath = path.join(process.env.APPDATA || os.homedir(), 'idpk-palubni-pocitac', 'userdata');
-        if (!fs.existsSync(udPath)) fs.mkdirSync(udPath, { recursive: true });
-        shell.openPath(udPath);
+        shell.openPath(centralUserDataPath);
+    });
+}
+
+// Otevřít složku vlastních linek
+const btnOpenCustomRoutes = document.getElementById('btn-open-custom-routes');
+if (btnOpenCustomRoutes) {
+    btnOpenCustomRoutes.addEventListener('click', () => {
+        ensureCentralUserDataFolders();
+        const { shell } = require('electron');
+        shell.openPath(path.join(centralUserDataPath, 'linky'));
     });
 }
 
@@ -1856,6 +2085,8 @@ if (btnCleanOldVersions && deleteModal) {
             try {
                 for (const d of toDelete) {
                     const fullPath = path.join(versionsDir, d);
+                    // Záloha uživatelských linek a dat před smazáním složky
+                    backupUserRoutesFromVersion(fullPath);
                     // Voláme asynchronní mazání
                     await forceDeleteFolderAsync(fullPath);
                     success++;
