@@ -2088,6 +2088,7 @@ if (sidebarBtnGame && sidebarBtnSettings) {
 
 const sidebarBtnEditor = document.getElementById('sidebar-btn-editor');
 const btnOpenEditorMain = document.getElementById('btn-open-editor-main');
+const btnOpenEditorSettings = document.getElementById('btn-open-editor-settings');
 
 function openEditorWindow() {
     const { ipcRenderer } = require('electron');
@@ -2096,6 +2097,7 @@ function openEditorWindow() {
 
 if (sidebarBtnEditor) sidebarBtnEditor.addEventListener('click', openEditorWindow);
 if (btnOpenEditorMain) btnOpenEditorMain.addEventListener('click', openEditorWindow);
+if (btnOpenEditorSettings) btnOpenEditorSettings.addEventListener('click', openEditorWindow);
 
 async function refreshLauncherCrStatus() {
     try {

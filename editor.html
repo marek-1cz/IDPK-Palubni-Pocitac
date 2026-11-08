@@ -3,16 +3,19 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Editor vlastních linek a hlášení • OIS IDPK</title>
+    <title>Editor vlastních linek & komunitní centrum • OIS IDPK</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
         :root {
-            --bg-main: #0b1120;
-            --bg-panel: #111c34;
+            --bg-main: #0a0e1a;
+            --bg-panel: #111827;
             --bg-card: #1e293b;
-            --border-color: #334155;
+            --bg-card-hover: #24344d;
+            --border-color: rgba(56, 189, 248, 0.2);
+            --border-highlight: rgba(56, 189, 248, 0.5);
             --primary: #38bdf8;
             --primary-hover: #0284c7;
+            --secondary: #a855f7;
             --success: #10b981;
             --warning: #f59e0b;
             --danger: #ef4444;
@@ -35,6 +38,9 @@
             display: flex;
             flex-direction: column;
             overflow: hidden;
+            background-image: 
+                radial-gradient(circle at 10% 20%, rgba(56, 189, 248, 0.05) 0%, transparent 40%),
+                radial-gradient(circle at 90% 80%, rgba(168, 85, 247, 0.05) 0%, transparent 40%);
         }
 
         /* HLAVIČKA */
@@ -43,15 +49,23 @@
             justify-content: space-between;
             align-items: center;
             padding: 14px 24px;
-            background: linear-gradient(90deg, #0f172a 0%, #1e293b 100%);
+            background: linear-gradient(90deg, #0b1120 0%, #111827 50%, #0b1120 100%);
             border-bottom: 1px solid var(--border-color);
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+            z-index: 10;
+        }
+
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 16px;
         }
 
         .header-title {
             display: flex;
             align-items: center;
             gap: 12px;
-            font-size: 18px;
+            font-size: 17px;
             font-weight: 800;
             color: #fff;
             letter-spacing: 0.5px;
@@ -59,528 +73,1021 @@
 
         .header-title i {
             color: var(--primary);
-            font-size: 22px;
+            font-size: 20px;
+            filter: drop-shadow(0 0 8px rgba(56, 189, 248, 0.6));
         }
 
         .header-badge {
-            font-size: 11px;
+            font-size: 10px;
+            font-weight: 800;
             padding: 3px 8px;
             border-radius: 6px;
             background: rgba(56, 189, 248, 0.15);
             color: var(--primary);
-            border: 1px solid rgba(56, 189, 248, 0.3);
-            font-weight: 600;
+            border: 1px solid rgba(56, 189, 248, 0.35);
+            letter-spacing: 1px;
         }
 
-        /* TABS */
+        .header-right {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+        }
+
+        .user-pill {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 14px;
+            background: rgba(30, 41, 59, 0.7);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+            color: #e2e8f0;
+        }
+
+        .user-pill i {
+            color: #5865F2;
+        }
+
+        /* LIŠTA ZÁLOŽEK */
         .tabs-bar {
             display: flex;
             gap: 6px;
             padding: 10px 24px 0 24px;
-            background: #0f172a;
+            background: #0d1424;
             border-bottom: 1px solid var(--border-color);
+            overflow-x: auto;
         }
 
         .tab-btn {
-            background: transparent;
-            border: none;
-            color: var(--text-muted);
-            padding: 10px 18px;
-            font-size: 13px;
-            font-weight: 700;
-            cursor: pointer;
-            border-bottom: 3px solid transparent;
             display: flex;
             align-items: center;
             gap: 8px;
-            transition: all 0.2s;
-            border-top-left-radius: 6px;
-            border-top-right-radius: 6px;
+            padding: 10px 18px;
+            background: transparent;
+            border: 1px solid transparent;
+            border-bottom: none;
+            border-radius: 8px 8px 0 0;
+            color: var(--text-muted);
+            font-size: 13px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.2s ease;
         }
 
         .tab-btn:hover {
             color: #fff;
-            background: rgba(255, 255, 255, 0.03);
+            background: rgba(255, 255, 255, 0.04);
         }
 
         .tab-btn.active {
             color: var(--primary);
-            border-bottom-color: var(--primary);
             background: var(--bg-panel);
+            border-color: var(--border-color);
+            border-bottom: 2px solid var(--bg-panel);
+            margin-bottom: -1px;
+            box-shadow: 0 -4px 12px rgba(56, 189, 248, 0.15);
         }
 
-        /* OBSAH ZÁLOŽEK */
+        .tab-btn i {
+            font-size: 14px;
+        }
+
+        /* HLAVNÍ OBSAH */
         .content-area {
             flex: 1;
-            padding: 24px;
+            padding: 22px 26px;
             overflow-y: auto;
-            background: var(--bg-main);
+            background: var(--bg-panel);
         }
 
         .tab-pane {
             display: none;
-            max-width: 1100px;
-            margin: 0 auto;
+            animation: fadeIn 0.25s ease-out;
         }
 
         .tab-pane.active {
             display: block;
-            animation: fadeIn 0.2s ease-in;
         }
 
         @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(4px); }
+            from { opacity: 0; transform: translateY(6px); }
             to { opacity: 1; transform: translateY(0); }
-        }
-
-        /* FORM PRVKY & KARTY */
-        .card {
-            background: var(--bg-panel);
-            border: 1px solid var(--border-color);
-            border-radius: 10px;
-            padding: 20px;
-            margin-bottom: 20px;
-            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
-        }
-
-        .card-header {
-            font-size: 15px;
-            font-weight: 700;
-            color: var(--primary);
-            margin-bottom: 15px;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-
-        .form-row {
-            display: flex;
-            gap: 15px;
-            margin-bottom: 15px;
-            flex-wrap: wrap;
-        }
-
-        .form-group {
-            flex: 1;
-            min-width: 200px;
-        }
-
-        label {
-            display: block;
-            font-size: 12px;
-            color: var(--text-muted);
-            margin-bottom: 6px;
-            font-weight: 600;
-        }
-
-        input[type="text"], input[type="time"], select, textarea {
-            width: 100%;
-            background: #0f172a;
-            border: 1px solid var(--border-color);
-            color: #fff;
-            padding: 10px 14px;
-            border-radius: 6px;
-            font-size: 13px;
-            outline: none;
-            transition: border-color 0.2s;
-            user-select: text;
-        }
-
-        input[type="text"]:focus, select:focus, textarea:focus {
-            border-color: var(--primary);
         }
 
         /* TLAČÍTKA */
         .btn {
-            background: #334155;
-            color: #fff;
-            border: none;
-            padding: 10px 18px;
-            border-radius: 6px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            padding: 9px 16px;
+            border-radius: 8px;
             font-size: 13px;
             font-weight: 700;
             cursor: pointer;
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-            transition: all 0.2s;
-        }
-
-        .btn:hover {
-            filter: brightness(1.1);
+            border: none;
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            text-decoration: none;
         }
 
         .btn-primary {
-            background: var(--primary);
-            color: #0b1120;
+            background: linear-gradient(135deg, #0284c7, #38bdf8);
+            color: #0f172a;
+            box-shadow: 0 4px 14px rgba(56, 189, 248, 0.3);
+        }
+        .btn-primary:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 6px 20px rgba(56, 189, 248, 0.45);
+            background: linear-gradient(135deg, #0369a1, #0ea5e9);
+        }
+
+        .btn-secondary {
+            background: #1e293b;
+            color: #e2e8f0;
+            border: 1px solid rgba(255, 255, 255, 0.12);
+        }
+        .btn-secondary:hover {
+            background: #334155;
+            color: #fff;
         }
 
         .btn-success {
-            background: var(--success);
+            background: linear-gradient(135deg, #059669, #10b981);
             color: #fff;
+            box-shadow: 0 4px 14px rgba(16, 185, 129, 0.3);
+        }
+        .btn-success:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 6px 20px rgba(16, 185, 129, 0.45);
+        }
+
+        .btn-purple {
+            background: linear-gradient(135deg, #7e22ce, #a855f7);
+            color: #fff;
+            box-shadow: 0 4px 14px rgba(168, 85, 247, 0.3);
+        }
+        .btn-purple:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 6px 20px rgba(168, 85, 247, 0.45);
         }
 
         .btn-danger {
-            background: var(--danger);
+            background: rgba(239, 68, 68, 0.15);
+            border: 1px solid #ef4444;
+            color: #fca5a5;
+        }
+        .btn-danger:hover {
+            background: #ef4444;
             color: #fff;
         }
 
-        .btn-warning {
-            background: var(--warning);
-            color: #000;
+        /* FORM PRVKY */
+        .form-group {
+            margin-bottom: 16px;
         }
 
-        /* TABULKA ZASTÁVEK */
-        .stops-table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-top: 15px;
-        }
-
-        .stops-table th {
-            text-align: left;
-            padding: 10px 12px;
-            font-size: 11px;
+        .form-label {
+            display: block;
+            font-size: 12px;
+            font-weight: 700;
             color: var(--text-muted);
             text-transform: uppercase;
-            border-bottom: 1px solid var(--border-color);
-            background: rgba(15, 23, 42, 0.5);
+            letter-spacing: 0.8px;
+            margin-bottom: 6px;
         }
 
-        .stops-table td {
-            padding: 10px 12px;
-            font-size: 13px;
-            border-bottom: 1px solid rgba(51, 65, 85, 0.4);
-            vertical-align: middle;
+        .form-control {
+            width: 100%;
+            padding: 10px 14px;
+            background: #0b1120;
+            border: 1px solid #334155;
+            border-radius: 8px;
+            color: #fff;
+            font-size: 13.5px;
+            outline: none;
+            transition: all 0.2s;
         }
 
-        .stops-table tr:hover {
-            background: rgba(255, 255, 255, 0.02);
+        .form-control:focus {
+            border-color: var(--primary);
+            box-shadow: 0 0 10px rgba(56, 189, 248, 0.3);
         }
 
-        /* AUDIO SLOT */
-        .audio-slot {
+        /* KARTY */
+        .card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+
+        .card:hover {
+            border-color: var(--border-highlight);
+        }
+
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 14px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+        }
+
+        .card-title {
+            font-size: 15px;
+            font-weight: 800;
+            color: #f8fafc;
             display: flex;
             align-items: center;
             gap: 10px;
         }
 
-        .audio-badge-ok {
-            color: var(--success);
+        .card-title i {
+            color: var(--primary);
+        }
+
+        /* TABULKA ZASTÁVEK */
+        .stops-table {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 0 6px;
+        }
+
+        .stops-table th {
+            text-align: left;
+            padding: 8px 12px;
+            font-size: 11px;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.8px;
+        }
+
+        .stops-table td {
+            background: #0f172a;
+            padding: 10px 12px;
+            font-size: 13px;
+            border-top: 1px solid rgba(255, 255, 255, 0.05);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .stops-table tr td:first-child {
+            border-left: 1px solid rgba(255, 255, 255, 0.05);
+            border-radius: 8px 0 0 8px;
+            font-weight: 800;
+            color: var(--primary);
+            text-align: center;
+            width: 44px;
+        }
+
+        .stops-table tr td:last-child {
+            border-right: 1px solid rgba(255, 255, 255, 0.05);
+            border-radius: 0 8px 8px 0;
+        }
+
+        .audio-upload-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 5px 10px;
+            border-radius: 6px;
+            background: rgba(56, 189, 248, 0.12);
+            border: 1px dashed rgba(56, 189, 248, 0.4);
+            color: var(--primary);
+            font-size: 11.5px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .audio-upload-btn:hover {
+            background: rgba(56, 189, 248, 0.22);
+            border-style: solid;
+        }
+
+        .audio-upload-btn.has-audio {
+            background: rgba(16, 185, 129, 0.15);
+            border: 1px solid #10b981;
+            color: #34d399;
+        }
+
+        /* KOMUNITNÍ KATALOG */
+        .catalog-filter-bar {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            margin-bottom: 20px;
+            background: #0d1424;
+            padding: 16px;
+            border-radius: 12px;
+            border: 1px solid var(--border-color);
+        }
+
+        .tag-pills-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            align-items: center;
+        }
+
+        .tag-pill {
+            padding: 6px 14px;
+            border-radius: 20px;
+            background: rgba(30, 41, 59, 0.8);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            color: #cbd5e1;
             font-size: 12px;
-            font-weight: bold;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .tag-pill:hover {
+            background: rgba(56, 189, 248, 0.15);
+            border-color: rgba(56, 189, 248, 0.4);
+            color: #fff;
+        }
+
+        .tag-pill.active {
+            background: linear-gradient(135deg, #0284c7, #38bdf8);
+            color: #0f172a;
+            border-color: #38bdf8;
+            box-shadow: 0 0 12px rgba(56, 189, 248, 0.4);
+        }
+
+        .catalog-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+            gap: 16px;
+        }
+
+        .route-card {
+            background: linear-gradient(135deg, #0f172a, #1e293b);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 12px;
+            padding: 18px;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+            overflow: hidden;
+            box-shadow: 0 4px 18px rgba(0, 0, 0, 0.3);
+        }
+
+        .route-card:hover {
+            transform: translateY(-3px);
+            border-color: var(--border-highlight);
+            box-shadow: 0 8px 30px rgba(56, 189, 248, 0.2);
+        }
+
+        .rc-top {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            margin-bottom: 12px;
+        }
+
+        .rc-badge-group {
             display: flex;
             align-items: center;
-            gap: 4px;
+            gap: 8px;
         }
 
-        .audio-badge-missing {
-            color: var(--text-muted);
+        .rc-num-badge {
+            background: linear-gradient(135deg, #38bdf8, #2563eb);
+            color: #fff;
+            font-size: 18px;
+            font-weight: 900;
+            padding: 4px 12px;
+            border-radius: 8px;
+            letter-spacing: 0.5px;
+            box-shadow: 0 0 10px rgba(56, 189, 248, 0.3);
+        }
+
+        .rc-tag-badge {
+            font-size: 10px;
+            font-weight: 800;
+            padding: 3px 8px;
+            border-radius: 6px;
+            letter-spacing: 0.8px;
+            text-transform: uppercase;
+        }
+
+        .tag-idpk { background: rgba(56, 189, 248, 0.2); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.4); }
+        .tag-pid { background: rgba(239, 68, 68, 0.2); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.4); }
+        .tag-duk { background: rgba(16, 185, 129, 0.2); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.4); }
+        .tag-iredo { background: rgba(245, 158, 11, 0.2); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.4); }
+        .tag-odis { background: rgba(168, 85, 247, 0.2); color: #c084fc; border: 1px solid rgba(168, 85, 247, 0.4); }
+        .tag-idsjmk { background: rgba(236, 72, 153, 0.2); color: #f472b6; border: 1px solid rgba(236, 72, 153, 0.4); }
+        .tag-custom { background: rgba(139, 92, 246, 0.2); color: #a78bfa; border: 1px solid rgba(139, 92, 246, 0.4); }
+
+        .rc-name {
+            font-size: 15px;
+            font-weight: 800;
+            color: #fff;
+            margin-bottom: 6px;
+            line-height: 1.35;
+        }
+
+        .rc-desc {
             font-size: 12px;
-            font-style: italic;
+            color: #94a3b8;
+            margin-bottom: 14px;
+            line-height: 1.5;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
         }
 
-        /* MODAL */
+        .rc-meta {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            font-size: 11.5px;
+            color: #64748b;
+            padding-top: 10px;
+            border-top: 1px solid rgba(255, 255, 255, 0.06);
+            margin-bottom: 12px;
+        }
+
+        .rc-meta span {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .rc-actions {
+            display: flex;
+            gap: 8px;
+        }
+
+        /* MODÁLNÍ OKNA */
         .modal-overlay {
             position: fixed;
-            inset: 0;
-            background: rgba(0, 0, 0, 0.85);
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: rgba(5, 10, 20, 0.85);
+            backdrop-filter: blur(8px);
+            z-index: 1000;
             display: none;
             justify-content: center;
             align-items: center;
-            z-index: 1000;
-            backdrop-filter: blur(4px);
+            padding: 20px;
         }
 
-        .modal-box {
-            background: var(--bg-panel);
-            border: 1px solid var(--border-color);
-            border-radius: 12px;
-            width: 90%;
-            max-width: 580px;
-            padding: 26px;
-            box-shadow: 0 15px 40px rgba(0, 0, 0, 0.6);
+        .modal-card {
+            background: #111827;
+            border: 1px solid var(--border-highlight);
+            border-radius: 14px;
+            width: 100%;
+            max-width: 520px;
+            padding: 24px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.6);
+            animation: modalPop 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275);
         }
 
-        /* FOOTER / ATRIBUCE */
-        .footer {
-            padding: 10px 24px;
-            background: #0f172a;
-            border-top: 1px solid var(--border-color);
+        @keyframes modalPop {
+            from { opacity: 0; transform: scale(0.92); }
+            to { opacity: 1; transform: scale(1); }
+        }
+
+        /* PULSING PROGRESS BAR PRO ČR DATA */
+        .cr-progress-wrap {
+            background: #090d16;
+            height: 14px;
+            border-radius: 8px;
+            overflow: hidden;
+            position: relative;
+            border: 1px solid rgba(56, 189, 248, 0.3);
+            box-shadow: inset 0 2px 6px rgba(0,0,0,0.5);
+            margin: 12px 0;
+        }
+
+        .cr-progress-fill {
+            height: 100%;
+            width: 0%;
+            background: linear-gradient(90deg, #38bdf8, #818cf8, #c084fc);
+            border-radius: 8px;
+            transition: width 0.2s ease;
+            box-shadow: 0 0 16px rgba(56, 189, 248, 0.8);
+            position: relative;
+        }
+
+        .cr-progress-fill::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.4), transparent);
+            animation: progressShine 1.5s infinite;
+        }
+
+        @keyframes progressShine {
+            0% { transform: translateX(-100%); }
+            100% { transform: translateX(100%); }
+        }
+
+        /* DRAWER SE ZASTÁVKAMI V KATALOGU */
+        .stops-drawer {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.3s ease-out;
+            background: #090d16;
+            border-radius: 8px;
+            margin-top: 10px;
+        }
+
+        .stops-drawer.open {
+            max-height: 260px;
+            overflow-y: auto;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            padding: 10px;
+        }
+
+        .drawer-stop-item {
             display: flex;
-            justify-content: space-between;
             align-items: center;
-            font-size: 11px;
-            color: var(--text-muted);
+            justify-content: space-between;
+            padding: 6px 8px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+            font-size: 12px;
+        }
+
+        .drawer-stop-item:last-child {
+            border-bottom: none;
+        }
+
+        audio {
+            height: 28px;
+            outline: none;
+        }
+
+        /* NOTIFIKACE */
+        .toast-container {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            z-index: 2000;
+        }
+
+        .toast {
+            background: #1e293b;
+            color: #fff;
+            padding: 12px 20px;
+            border-radius: 8px;
+            border-left: 4px solid var(--primary);
+            box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+            font-size: 13px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            animation: slideInRight 0.3s ease;
+        }
+
+        @keyframes slideInRight {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
         }
     </style>
 </head>
 <body>
 
     <!-- HLAVIČKA -->
-    <div class="header">
-        <div class="header-title">
-            <i class="fas fa-sliders-h"></i>
-            <span>Editor vlastních linek a hlášení</span>
-            <span class="header-badge">OIS IDPK V1.6</span>
+    <header class="header">
+        <div class="header-left">
+            <div class="header-title">
+                <i class="fas fa-route"></i>
+                <span>Editor vlastních linek & komunitní centrum</span>
+            </div>
+            <span class="header-badge">OIS IDPK</span>
         </div>
-        <div style="font-size: 12px; color: var(--text-muted); display: flex; align-items: center; gap: 15px;">
-            <span id="user-display"><i class="fab fa-discord" style="color:#5865F2;"></i> Ověřený uživatel</span>
+        <div class="header-right">
+            <div class="user-pill" id="user-display">
+                <i class="fab fa-discord"></i> Načítám účet...
+            </div>
+            <button class="btn btn-secondary" style="padding:6px 12px; font-size:12px;" onclick="window.close()">
+                <i class="fas fa-times"></i> Zavřít
+            </button>
         </div>
-    </div>
+    </header>
 
-    <!-- ZÁLOŽKY -->
-    <div class="tabs-bar">
+    <!-- LIŠTA ZÁLOŽEK -->
+    <nav class="tabs-bar">
         <button class="tab-btn active" onclick="switchTab('gtfs-import')">
-            <i class="fas fa-search"></i> Import z GTFS (Licenční číslo)
+            <i class="fas fa-search"></i> Linka z GTFS dat
         </button>
-        <button class="tab-btn" onclick="switchTab('custom-line')">
-            <i class="fas fa-pencil-alt"></i> Vlastní fiktivní linka
+        <button class="tab-btn" onclick="switchTab('custom-creator')">
+            <i class="fas fa-magic"></i> Fiktivní linka od nuly
         </button>
         <button class="tab-btn" onclick="switchTab('community-catalog')">
-            <i class="fas fa-cloud-download-alt"></i> Komunitní linky ke stažení
-        </button>
-        <button class="tab-btn" onclick="switchTab('my-routes')">
-            <i class="fas fa-user-check"></i> Moje publikované linky
+            <i class="fas fa-globe"></i> Komunitní katalog linek
         </button>
         <button class="tab-btn" onclick="switchTab('cr-data-tab')">
-            <i class="fas fa-database"></i> GTFS Data ČR
+            <i class="fas fa-map-marked-alt"></i> Celostátní GTFS ČR
         </button>
-    </div>
+    </nav>
 
-    <!-- OBSAH -->
-    <div class="content-area">
+    <!-- OBSAH ZÁLOŽEK -->
+    <main class="content-area">
 
-        <!-- 1. IMPORT Z GTFS -->
-        <div id="pane-gtfs-import" class="tab-pane active">
+        <!-- ═══════════════════════════════════════════════════════════════════ -->
+        <!-- ZÁLOŽKA 1: IMPORT Z GTFS -->
+        <!-- ═══════════════════════════════════════════════════════════════════ -->
+        <section class="tab-pane active" id="pane-gtfs-import">
             <div class="card">
-                <div class="card-header"><i class="fas fa-search-location"></i> Vyhledání linky podle licenčního čísla</div>
-                <p style="font-size:13px; color:var(--text-muted); margin-bottom:15px; line-height:1.5;">
-                    Zadejte 6místné licenční číslo linky (např. <b>490732</b>, <b>400634</b>, <b>490722</b> apod.). Systém prohledá data IDPK a v případě potřeby celostátní databázi ČR.
-                </p>
-                <div style="display:flex; gap:10px; align-items:center;">
-                    <input type="text" id="gtfs-search-input" placeholder="Zadejte licenční číslo linky (např. 490732)..." style="max-width:350px;">
-                    <button class="btn btn-primary" id="btn-search-gtfs"><i class="fas fa-search"></i> Vyhledat linku</button>
-                    <span id="gtfs-search-status" style="font-size:12px; margin-left:10px;"></span>
+                <div class="card-header">
+                    <span class="card-title">
+                        <i class="fas fa-search"></i> Vyhledat linku v oficiálních GTFS datech
+                    </span>
+                    <span style="font-size:11.5px; color:var(--text-muted);">
+                        Hledá v datech IDPK (Plzeňský kraj) a volitelně v celostátních datech ČR
+                    </span>
                 </div>
+
+                <div style="display:flex; gap:12px; align-items:flex-end; flex-wrap:wrap;">
+                    <div style="flex:1; min-width:240px;">
+                        <label class="form-label">Číslo linky nebo licenční číslo:</label>
+                        <input type="text" id="gtfs-search-input" class="form-control" placeholder="Např. 732, 490732, 301, 100...">
+                    </div>
+                    <button class="btn btn-primary" id="btn-search-gtfs" style="height:42px; padding:0 22px;">
+                        <i class="fas fa-search"></i> Vyhledat trasu
+                    </button>
+                </div>
+                <div id="gtfs-search-status" style="margin-top:12px; font-size:12.5px;"></div>
             </div>
 
-            <!-- Nalezená linka & varianty -->
-            <div id="gtfs-results-container" style="display:none;" class="card">
-                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px; flex-wrap:wrap; gap:10px;">
-                    <div>
-                        <h3 id="gtfs-line-title" style="color:#fff; font-size:18px;"></h3>
-                        <div id="gtfs-line-meta" style="font-size:12px; color:var(--text-muted); margin-top:4px;"></div>
-                    </div>
-                    <div>
-                        <label>Vyberte variantu / směr:</label>
-                        <select id="gtfs-variants-select" style="min-width:280px;"></select>
-                    </div>
-                </div>
-
-                <!-- Seznam zastávek vybrané varianty -->
-                <div style="margin-top:20px;">
-                    <div style="display:flex; justify-content:space-between; align-items:center;">
-                        <h4 style="color:var(--primary); font-size:14px;"><i class="fas fa-list-ol"></i> Zastávky a přiřazení hlášení:</h4>
-                        <span id="stops-counter" style="font-size:12px; color:var(--text-muted);"></span>
+            <!-- Výsledky GTFS vyhledávání -->
+            <div id="gtfs-results-container" style="display:none;">
+                <div class="card" style="border-left:4px solid var(--primary);">
+                    <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:12px; margin-bottom:16px;">
+                        <div>
+                            <h3 id="gtfs-line-title" style="font-size:18px; font-weight:800; color:#fff; margin-bottom:4px;">Linka ---</h3>
+                            <div id="gtfs-line-meta" style="font-size:12px; color:var(--primary); font-weight:700;"></div>
+                        </div>
+                        <div style="min-width:280px;">
+                            <label class="form-label">Vyberte variantu / směr jízdy:</label>
+                            <select id="gtfs-variants-select" class="form-control" style="background:#090d16; font-weight:600;"></select>
+                        </div>
                     </div>
 
-                    <table class="stops-table">
-                        <thead>
-                            <tr>
-                                <th style="width:40px;">#</th>
-                                <th>Název zastávky</th>
-                                <th style="width:90px;">Čas</th>
-                                <th style="width:70px;">Zóna</th>
-                                <th style="width:90px;">Znamení</th>
-                                <th style="width:340px;">Zvukové hlášení (.wav / .mp3)</th>
-                            </tr>
-                        </thead>
-                        <tbody id="gtfs-stops-tbody">
-                            <!-- Dynamicky naplněno -->
-                        </tbody>
-                    </table>
+                    <!-- Seznam zastávek vybrané varianty -->
+                    <div style="margin-top:20px;">
+                        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+                            <span style="font-size:13px; font-weight:800; color:var(--text-main); text-transform:uppercase; letter-spacing:0.5px;">
+                                Zastávky linky a přiřazení vlastních hlášení:
+                            </span>
+                            <span id="gtfs-stops-count-badge" class="header-badge">0 ZASTÁVEK</span>
+                        </div>
+
+                        <div style="max-height:420px; overflow-y:auto; border-radius:8px; border:1px solid rgba(255,255,255,0.06); padding:4px;">
+                            <table class="stops-table">
+                                <thead>
+                                    <tr>
+                                        <th>#</th>
+                                        <th>Název zastávky</th>
+                                        <th>Čas</th>
+                                        <th>Zóna</th>
+                                        <th>Znamení</th>
+                                        <th>Zvuková nahrávka (.mp3, .wav, .ogg)</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="gtfs-stops-tbody">
+                                    <!-- Generováno JS -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
 
                     <!-- Spodní akční lišta -->
-                    <div style="display:flex; justify-content:space-between; align-items:center; margin-top:20px; padding-top:15px; border-top:1px solid var(--border-color); flex-wrap:wrap; gap:10px;">
-                        <div style="font-size:12px; color:var(--text-muted);">
-                            Data se uloží do permanentního profilu <code>userdata</code> a nezmizí při updatu.
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-top:22px; padding-top:16px; border-top:1px solid rgba(255,255,255,0.08); flex-wrap:wrap; gap:12px;">
+                        <div style="font-size:12px; color:var(--text-muted); display:flex; align-items:center; gap:6px;">
+                            <i class="fas fa-shield-alt" style="color:var(--success);"></i>
+                            Při uložení se linka uloží do vašich uživatelských dat (nezmizí při updatu).
                         </div>
                         <div style="display:flex; gap:10px;">
-                            <button class="btn btn-success" id="btn-save-gtfs-local"><i class="fas fa-save"></i> Uložit do mých linek</button>
-                            <button class="btn btn-primary" id="btn-publish-gtfs-community"><i class="fas fa-cloud-upload-alt"></i> Publikovat do komunity</button>
+                            <button class="btn btn-success" id="btn-save-gtfs-local">
+                                <i class="fas fa-save"></i> Uložit do mých linek
+                            </button>
+                            <button class="btn btn-purple" id="btn-open-publish-gtfs">
+                                <i class="fas fa-cloud-upload-alt"></i> Publikovat pro ostatní hráče
+                            </button>
                         </div>
                     </div>
                 </div>
             </div>
-        </div>
+        </section>
 
-        <!-- 2. VLASTNÍ FIKTIVNÍ LINKA -->
-        <div id="pane-custom-line" class="tab-pane">
+        <!-- ═══════════════════════════════════════════════════════════════════ -->
+        <!-- ZÁLOŽKA 2: FIKTIVNÍ LINKA OD NULY -->
+        <!-- ═══════════════════════════════════════════════════════════════════ -->
+        <section class="tab-pane" id="pane-custom-creator">
             <div class="card">
-                <div class="card-header"><i class="fas fa-magic"></i> Tvorba fiktivní nebo vlastní linky od nuly</div>
-                <div class="form-row">
-                    <div class="form-group" style="max-width:180px;">
-                        <label>Označení linky:</label>
-                        <input type="text" id="cust-line-num" placeholder="Např. X99 nebo 999">
-                    </div>
-                    <div class="form-group">
-                        <label>Název / Trasa linky:</label>
-                        <input type="text" id="cust-line-name" placeholder="Např. Plzeň, CAN - Rokycany, aut. nádr.">
-                    </div>
-                </div>
-                <div class="form-group" style="margin-bottom:15px;">
-                    <label>Popis linky (volitelné):</label>
-                    <input type="text" id="cust-line-desc" placeholder="Např. Speciální víkendový spoj s vlastním hlášením">
+                <div class="card-header">
+                    <span class="card-title">
+                        <i class="fas fa-magic"></i> Tvorba fiktivní linky a vlastního spoje
+                    </span>
+                    <span style="font-size:11.5px; color:var(--text-muted);">
+                        Vytvořte si libovolnou linku od nuly, zadejte vlastní zastávky a nahrajte k nim hlášení
+                    </span>
                 </div>
 
-                <!-- Seznam zastávek -->
-                <div style="display:flex; justify-content:space-between; align-items:center; margin:20px 0 10px 0;">
-                    <h4 style="color:var(--primary); font-size:14px;"><i class="fas fa-map-pin"></i> Zastávky trasy:</h4>
-                    <button class="btn" id="btn-cust-add-stop" style="background:#1e293b; color:var(--primary); border:1px solid var(--border-color); font-size:12px;">
-                        <i class="fas fa-plus"></i> Přidat zastávku
+                <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap:14px; margin-bottom:16px;">
+                    <div>
+                        <label class="form-label">Číslo linky:</label>
+                        <input type="text" id="custom-route-num" class="form-control" placeholder="Např. 999, X1, 755...">
+                    </div>
+                    <div>
+                        <label class="form-label">Název trasy:</label>
+                        <input type="text" id="custom-route-name" class="form-control" placeholder="Např. Plzeň, CAN – Letiště Líně">
+                    </div>
+                    <div>
+                        <label class="form-label">Systémový Tag:</label>
+                        <select id="custom-system-tag" class="form-control" style="background:#090d16; font-weight:600;">
+                            <option value="IDPK">IDPK (Plzeňský kraj)</option>
+                            <option value="PID">PID (Praha a Středočeský kraj)</option>
+                            <option value="DÚK">DÚK (Ústecký kraj)</option>
+                            <option value="IREDO">IREDO (Královéhradecký & Pardubický)</option>
+                            <option value="ODIS">ODIS (Moravskoslezský kraj)</option>
+                            <option value="IDS JMK">IDS JMK (Jihomoravský kraj)</option>
+                            <option value="KORID">KORID (Liberecký kraj)</option>
+                            <option value="IDSOK">IDSOK (Olomoucký kraj)</option>
+                            <option value="Fiktivní" selected>Fiktivní linka</option>
+                            <option value="Vlastní">Vlastní úprava</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="form-label">Stručný popis linky:</label>
+                        <input type="text" id="custom-route-desc" class="form-control" placeholder="Např. Expresní linka na letiště se zvukovým hlášením">
+                    </div>
+                </div>
+
+                <!-- Tvorba zastávek -->
+                <div style="margin-top:20px;">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+                        <span style="font-size:13px; font-weight:800; color:var(--text-main); text-transform:uppercase; letter-spacing:0.5px;">
+                            Seznam zastávek:
+                        </span>
+                        <button class="btn btn-primary" id="btn-add-custom-stop" style="padding:6px 14px; font-size:12px;">
+                            <i class="fas fa-plus"></i> Přidat zastávku
+                        </button>
+                    </div>
+
+                    <div style="max-height:420px; overflow-y:auto; border-radius:8px; border:1px solid rgba(255,255,255,0.06); padding:4px;">
+                        <table class="stops-table">
+                            <thead>
+                                <tr>
+                                    <th>#</th>
+                                    <th>Název zastávky</th>
+                                    <th>Čas (HH:MM)</th>
+                                    <th>Zóna</th>
+                                    <th>Znamení</th>
+                                    <th>Zvuková nahrávka</th>
+                                    <th style="text-align:right;">Akce</th>
+                                </tr>
+                            </thead>
+                            <tbody id="custom-stops-tbody">
+                                <!-- Generováno JS -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Akční lišta -->
+                <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:22px; padding-top:16px; border-top:1px solid rgba(255,255,255,0.08);">
+                    <button class="btn btn-success" id="btn-save-custom-local">
+                        <i class="fas fa-save"></i> Uložit linku do mých dat
+                    </button>
+                    <button class="btn btn-purple" id="btn-open-publish-custom">
+                        <i class="fas fa-cloud-upload-alt"></i> Publikovat pro ostatní hráče
+                    </button>
+                </div>
+            </div>
+        </section>
+
+        <!-- ═══════════════════════════════════════════════════════════════════ -->
+        <!-- ZÁLOŽKA 3: KOMUNITNÍ KATALOG LINEK -->
+        <!-- ═══════════════════════════════════════════════════════════════════ -->
+        <section class="tab-pane" id="pane-community-catalog">
+            <div class="catalog-filter-bar">
+                <div style="display:flex; justify-content:space-between; align-items:center; gap:14px; flex-wrap:wrap;">
+                    <div style="flex:1; min-width:280px; position:relative;">
+                        <i class="fas fa-search" style="position:absolute; left:14px; top:12px; color:var(--text-muted);"></i>
+                        <input type="text" id="catalog-search-input" class="form-control" style="padding-left:38px;" placeholder="Hledat podle čísla, názvu trasy, autora...">
+                    </div>
+                    <button class="btn btn-secondary" id="btn-refresh-catalog" style="padding:10px 16px;">
+                        <i class="fas fa-sync-alt"></i> Obnovit nabídku
                     </button>
                 </div>
 
-                <table class="stops-table">
-                    <thead>
-                        <tr>
-                            <th style="width:40px;">#</th>
-                            <th>Název zastávky</th>
-                            <th style="width:100px;">Čas (HH:MM)</th>
-                            <th style="width:80px;">Zóna</th>
-                            <th style="width:80px;">Znamení</th>
-                            <th style="width:280px;">Audio soubor</th>
-                            <th style="width:80px; text-align:right;">Akce</th>
-                        </tr>
-                    </thead>
-                    <tbody id="cust-stops-tbody">
-                        <!-- Dynamicky přidávané zastávky -->
-                    </tbody>
-                </table>
-
-                <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:20px; padding-top:15px; border-top:1px solid var(--border-color);">
-                    <button class="btn btn-success" id="btn-save-cust-local"><i class="fas fa-save"></i> Uložit linku</button>
-                    <button class="btn btn-primary" id="btn-publish-cust-community"><i class="fas fa-cloud-upload-alt"></i> Publikovat do komunity</button>
+                <!-- Výběr systémových tagů -->
+                <div class="tag-pills-row">
+                    <span style="font-size:11px; font-weight:bold; color:var(--text-muted); text-transform:uppercase; margin-right:4px;">Systém:</span>
+                    <button class="tag-pill active" data-tag="ALL">Všechny linky</button>
+                    <button class="tag-pill" data-tag="IDPK">IDPK</button>
+                    <button class="tag-pill" data-tag="PID">PID</button>
+                    <button class="tag-pill" data-tag="DÚK">DÚK</button>
+                    <button class="tag-pill" data-tag="IREDO">IREDO</button>
+                    <button class="tag-pill" data-tag="ODIS">ODIS</button>
+                    <button class="tag-pill" data-tag="IDS JMK">IDS JMK</button>
+                    <button class="tag-pill" data-tag="KORID">KORID</button>
+                    <button class="tag-pill" data-tag="IDSOK">IDSOK</button>
+                    <button class="tag-pill" data-tag="Fiktivní">Fiktivní</button>
+                    <button class="tag-pill" data-tag="MY" style="margin-left:auto; border-color:var(--primary); color:var(--primary);">
+                        <i class="fas fa-user"></i> Moje vydané linky
+                    </button>
                 </div>
             </div>
-        </div>
 
-        <!-- 3. KOMUNITNÍ LINKY KE STAŽENÍ -->
-        <div id="pane-community-catalog" class="tab-pane">
-            <div class="card">
-                <div class="card-header"><i class="fas fa-users"></i> Komunitní linky od ostatních hráčů</div>
-                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px; gap:10px; flex-wrap:wrap;">
-                    <input type="text" id="comm-search-input" placeholder="Hledat linku podle čísla nebo názvu..." style="max-width:350px;">
-                    <button class="btn" id="btn-comm-refresh"><i class="fas fa-sync-alt"></i> Obnovit nabídku</button>
-                </div>
-
-                <div id="comm-routes-grid" style="display:grid; grid-template-columns:repeat(auto-fill, minmax(320px, 1fr)); gap:15px;">
-                    <div style="color:var(--text-muted); font-size:13px; text-align:center; grid-column:1/-1; padding:30px;">
-                        <i class="fas fa-spinner fa-spin"></i> Načítám komunitní linky...
-                    </div>
-                </div>
+            <!-- Mřížka karet komunitních linek -->
+            <div id="catalog-loading" style="text-align:center; padding:50px; color:var(--primary);">
+                <i class="fas fa-spinner fa-spin" style="font-size:32px; margin-bottom:12px; display:block;"></i>
+                <span>Načítám schválené linky od komunity...</span>
             </div>
-        </div>
 
-        <!-- 4. MOJE PUBLIKOVANÉ LINKY -->
-        <div id="pane-my-routes" class="tab-pane">
-            <div class="card">
-                <div class="card-header"><i class="fas fa-user-edit"></i> Moje odeslané komunitní linky</div>
-                <p style="font-size:13px; color:var(--text-muted); margin-bottom:15px;">
-                    Přehled vámi odeslaných linek, jejich schvalovací status a možnost stažení z veřejné nabídky.
+            <div class="catalog-grid" id="catalog-routes-grid" style="display:none;">
+                <!-- Karty linek plněny přes JS -->
+            </div>
+
+            <div id="catalog-empty" style="display:none; text-align:center; padding:60px 20px; color:var(--text-muted);">
+                <i class="fas fa-folder-open" style="font-size:36px; margin-bottom:14px; display:block; opacity:0.4;"></i>
+                <div style="font-size:15px; font-weight:700; color:#cbd5e1; margin-bottom:6px;">Nebyly nalezeny žádné komunitní linky</div>
+                <div style="font-size:12px;">Zkuste změnit filtr nebo vyhledávání, nebo buďte první a publikujte svou linku!</div>
+            </div>
+        </section>
+
+        <!-- ═══════════════════════════════════════════════════════════════════ -->
+        <!-- ZÁLOŽKA 4: CELOSTÁTNÍ GTFS ČR -->
+        <!-- ═══════════════════════════════════════════════════════════════════ -->
+        <section class="tab-pane" id="pane-cr-data-tab">
+            <div class="card" style="border-top:4px solid var(--primary);">
+                <div class="card-header">
+                    <span class="card-title">
+                        <i class="fas fa-map-marked-alt"></i> Celostátní jízdní řády České republiky (GTFS ČR)
+                    </span>
+                    <span id="cr-status-badge" class="header-badge">STAV: KONTROLUJI...</span>
+                </div>
+
+                <p style="font-size:13.5px; color:#cbd5e1; line-height:1.6; margin-bottom:16px;">
+                    Simulátor OIS IDPK obsahuje standardně v základní instalaci kompletní jízdní řády <b>Plzeňského kraje (IDPK)</b>, které se automaticky každý den aktualizují.<br>
+                    Pokud si chcete vytvořit linku nebo nahrát hlášení pro jakékoliv jiné linky v České republice (např. <b>PID, DÚK, IDS JMK, IREDO, ODIS</b> atd.), můžete si zde stáhnout celostátní databázi.
                 </p>
-                <div id="my-routes-list">
-                    <div style="text-align:center; padding:20px; color:var(--text-muted); font-size:13px;">
-                        <i class="fas fa-spinner fa-spin"></i> Načítám vaše linky...
-                    </div>
-                </div>
-            </div>
-        </div>
 
-        <!-- 5. GTFS DATA ČR -->
-        <div id="pane-cr-data-tab" class="tab-pane">
-            <div class="card">
-                <div class="card-header"><i class="fas fa-database"></i> Celostátní GTFS data České republiky (CIS JŘ)</div>
-                <p style="font-size:14px; color:#cbd5e1; line-height:1.6; margin-bottom:15px;">
-                    Zatímco data <b>IDPK</b> (Plzeňský kraj) jsou v aplikaci instalována povinně a denně aktualizována, data <b>celé České republiky</b> (všechny železniční a meziměstské autobusové linky v ČR) jsou <b>volitelná</b>.
-                </p>
-                
-                <div style="background:#0f172a; border:1px solid var(--border-color); border-radius:8px; padding:18px; margin-bottom:20px;">
-                    <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
+                <div style="background:#090d16; border:1px solid rgba(255,255,255,0.08); border-radius:10px; padding:18px; margin-bottom:20px;">
+                    <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:14px;">
                         <div>
-                            <div style="font-size:14px; font-weight:bold; color:#fff;" id="cr-status-title">Stav celostátní databáze: Kontroluji...</div>
-                            <div style="font-size:12px; color:var(--text-muted); margin-top:4px;" id="cr-status-details"></div>
+                            <div id="cr-status-title" style="font-size:15px; font-weight:800; color:#fff; margin-bottom:4px;">Načítám stav databáze...</div>
+                            <div id="cr-status-details" style="font-size:12px; color:var(--text-muted);">Velikost databáze: neznámá</div>
                         </div>
-                        <button class="btn btn-primary" id="btn-download-cr-gtfs">
-                            <i class="fas fa-download"></i> <span id="cr-btn-label">Stáhnout data celé ČR</span>
+
+                        <button class="btn btn-primary" id="btn-download-cr-gtfs" style="padding:12px 24px; font-size:13.5px;">
+                            <i class="fas fa-cloud-download-alt"></i>
+                            <span id="btn-cr-label">Stáhnout celostátní data ČR (cca 30 MB)</span>
                         </button>
                     </div>
 
                     <!-- Progress bar -->
-                    <div id="cr-download-progress-container" style="display:none; margin-top:15px;">
-                        <div style="background:#1e293b; height:12px; border-radius:6px; overflow:hidden;">
-                            <div id="cr-download-progress-bar" style="background:var(--primary); height:100%; width:0%; transition:width 0.2s;"></div>
+                    <div id="cr-progress-container" style="display:none; margin-top:18px;">
+                        <div style="display:flex; justify-content:space-between; font-size:12px; font-weight:bold; margin-bottom:6px;">
+                            <span style="color:#93c5fd;"><i class="fas fa-sync fa-spin"></i> Stahuji a sestavuji databázi ČR...</span>
+                            <span style="color:var(--primary);" id="cr-progress-percent">0%</span>
                         </div>
-                        <div style="display:flex; justify-content:space-between; font-size:11px; color:var(--text-muted); margin-top:5px;">
-                            <span id="cr-progress-percent">0%</span>
-                            <span id="cr-progress-bytes">Stahuji z Azure CDN...</span>
+                        <div class="cr-progress-wrap">
+                            <div class="cr-progress-fill" id="cr-progress-bar"></div>
                         </div>
+                        <div style="font-size:11px; color:#94a3b8; text-align:right;" id="cr-progress-bytes">0 MB / 0 MB</div>
                     </div>
                 </div>
 
-                <div style="font-size:12px; color:var(--text-muted); line-height:1.5;">
-                    <i class="fas fa-info-circle" style="color:var(--primary); margin-right:4px;"></i>
-                    Stažená databáze je uložena v <code>%APPDATA%/idpk-palubni-pocitac/userdata/data/gtfs_stops_cr.db</code>. Můžete ji kdykoliv smazat nebo aktualizovat.
+                <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(240px, 1fr)); gap:14px;">
+                    <div style="background:#0f172a; padding:14px; border-radius:8px; border:1px solid rgba(255,255,255,0.05);">
+                        <div style="font-size:11px; color:var(--text-muted); text-transform:uppercase; font-weight:bold; margin-bottom:4px;">Denní obnova</div>
+                        <div style="font-size:13px; color:#fff;">Data IDPK se obnovují denně a jsou povinná pro provoz.</div>
+                    </div>
+                    <div style="background:#0f172a; padding:14px; border-radius:8px; border:1px solid rgba(255,255,255,0.05);">
+                        <div style="font-size:11px; color:var(--text-muted); text-transform:uppercase; font-weight:bold; margin-bottom:4px;">Uživatelská volba</div>
+                        <div style="font-size:13px; color:#fff;">Celá ČR se stahuje pouze pokud kliknete na tlačítko a nezabírá zbytečně místo.</div>
+                    </div>
+                    <div style="background:#0f172a; padding:14px; border-radius:8px; border:1px solid rgba(255,255,255,0.05);">
+                        <div style="font-size:11px; color:var(--text-muted); text-transform:uppercase; font-weight:bold; margin-bottom:4px;">Zachování dat</div>
+                        <div style="font-size:13px; color:#fff;">Všechna data a vaše linky zůstávají v bezpečí i po odinstalaci nebo přechodu na jinou verzi.</div>
+                    </div>
                 </div>
             </div>
-        </div>
+        </section>
 
+    </main>
+
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <!-- DIALOG DUPLIKACE LINKY (PŘEPSÁNÍ VS DUPLIKÁT) -->
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <div class="modal-overlay" id="duplicate-modal">
+        <div class="modal-card">
+            <div style="display:flex; align-items:center; gap:12px; margin-bottom:14px;">
+                <div style="width:42px; height:42px; border-radius:50%; background:rgba(245, 158, 11, 0.2); border:1px solid #f59e0b; display:flex; align-items:center; justify-content:center; color:#f59e0b; font-size:18px;">
+                    <i class="fas fa-exclamation-triangle"></i>
+                </div>
+                <div>
+                    <h3 style="font-size:16px; font-weight:800; color:#fff; margin:0;">Linka již v aplikaci existuje</h3>
+                    <div style="font-size:12px; color:var(--text-muted);" id="dup-modal-subtitle">Detekována základní linka</div>
+                </div>
+            </div>
+
+            <div style="background:#090d16; padding:14px; border-radius:8px; border:1px solid rgba(255,255,255,0.08); font-size:13px; line-height:1.5; color:#cbd5e1; margin-bottom:20px;">
+                Zadali jste číslo linky <b style="color:var(--primary);" id="dup-route-num-display">---</b>, které již existuje v základních herních datech.<br><br>
+                <b>Opravdu chcete vytvořit vlastní komunitní úpravu?</b><br>
+                Základní linka hry zůstane <b>zcela zachována a nedotčena</b>. Vaše verze se zduplikuje a ve hře se zobrazí s odlišeným fialovým štítkem <b>[VLASTNÍ ÚPRAVA]</b>.
+            </div>
+
+            <div style="display:flex; justify-content:flex-end; gap:10px;">
+                <button class="btn btn-secondary" id="btn-cancel-duplicate">
+                    Zrušit
+                </button>
+                <button class="btn btn-primary" id="btn-confirm-duplicate">
+                    <i class="fas fa-clone"></i> Ano, vytvořit komunitní úpravu
+                </button>
+            </div>
+        </div>
     </div>
 
-    <!-- MODAL: PRÁVNÍ PROHLÁŠENÍ & LICENCE PŘED PUBLIKOVÁNÍM -->
-    <div class="modal-overlay" id="legal-modal">
-        <div class="modal-box">
-            <h3 style="color:#fff; font-size:17px; margin-bottom:12px; display:flex; align-items:center; gap:8px;">
-                <i class="fas fa-balance-scale" style="color:var(--primary);"></i> Právní doložka & Podmínky komunity
-            </h3>
-            <p style="font-size:13px; color:var(--text-muted); line-height:1.5; margin-bottom:15px;">
-                Před odesláním linky ke schválení do veřejné komunitní databáze prosím potvrďte následující náležitosti:
-            </p>
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <!-- DIALOG PUBLIKACE LINKY PRO KOMUNITU -->
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <div class="modal-overlay" id="publish-modal">
+        <div class="modal-card">
+            <div style="display:flex; align-items:center; gap:12px; margin-bottom:14px;">
+                <div style="width:42px; height:42px; border-radius:50%; background:rgba(168, 85, 247, 0.2); border:1px solid #a855f7; display:flex; align-items:center; justify-content:center; color:#a855f7; font-size:18px;">
+                    <i class="fas fa-cloud-upload-alt"></i>
+                </div>
+                <div>
+                    <h3 style="font-size:16px; font-weight:800; color:#fff; margin:0;">Publikovat linku do komunitního katalogu</h3>
+                    <div style="font-size:12px; color:var(--text-muted);">Po odeslání projde linka schválením administrátora</div>
+                </div>
+            </div>
 
-            <div style="display:flex; flex-direction:column; gap:12px; margin-bottom:20px;">
-                <label style="display:flex; align-items:flex-start; gap:10px; font-size:12px; color:#e2e8f0; cursor:pointer;">
-                    <input type="checkbox" id="legal-check-1" style="margin-top:2px;">
-                    <span>Potvrzuji, že jsem <b>autorem těchto zvukových nahrávek</b> (vlastní hlas, TTS syntéza), nebo k nim vlastním platnou licenci k šíření. Nejedná se o neautorizovaný rip komerčních nahrávek.</span>
-                </label>
-                <label style="display:flex; align-items:flex-start; gap:10px; font-size:12px; color:#e2e8f0; cursor:pointer;">
-                    <input type="checkbox" id="legal-check-2" style="margin-top:2px;">
-                    <span>Zavazuji se, že nahrávky ani trasa <b>neobsahují vulgarismy, urážlivý či protiprávní obsah</b>.</span>
-                </label>
-                <label style="display:flex; align-items:flex-start; gap:10px; font-size:12px; color:#e2e8f0; cursor:pointer;">
-                    <input type="checkbox" id="legal-check-3" style="margin-top:2px;">
-                    <span>Souhlasím s poskytnutím těchto dat k <b>bezplatnému komunitnímu užívání</b> ostatními hráči projektu OIS IDPK.</span>
+            <div style="background:#090d16; padding:12px; border-radius:8px; border:1px solid rgba(255,255,255,0.08); margin-bottom:16px;">
+                <div style="font-size:14px; font-weight:bold; color:#fff;" id="publish-preview-name">Linka ---</div>
+                <div style="font-size:11.5px; color:var(--primary); margin-top:2px;" id="publish-preview-meta">0 zastávek • 0 audio nahrávek</div>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Systémový tag linky:</label>
+                <select id="publish-system-tag" class="form-control" style="background:#090d16; font-weight:bold;">
+                    <option value="IDPK">IDPK (Plzeňský kraj)</option>
+                    <option value="PID">PID (Praha a Středočeský)</option>
+                    <option value="DÚK">DÚK (Ústecký kraj)</option>
+                    <option value="IREDO">IREDO (Východní Čechy)</option>
+                    <option value="ODIS">ODIS (Moravskoslezský)</option>
+                    <option value="IDS JMK">IDS JMK (Jihomoravský)</option>
+                    <option value="KORID">KORID (Liberecký)</option>
+                    <option value="IDSOK">IDSOK (Olomoucký)</option>
+                    <option value="Fiktivní">Fiktivní linka</option>
+                    <option value="Vlastní">Vlastní úprava</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Popis linky pro ostatní hráče:</label>
+                <textarea id="publish-description" class="form-control" rows="3" placeholder="Popište linku, odkud pochází hlášení, zajímavosti..."></textarea>
+            </div>
+
+            <!-- Právní ověření (Legal requirement) -->
+            <div style="background:rgba(245, 158, 11, 0.1); border:1px solid rgba(245, 158, 11, 0.3); border-radius:8px; padding:12px; margin-bottom:20px;">
+                <label style="display:flex; align-items:flex-start; gap:10px; cursor:pointer; font-size:12px; color:#cbd5e1; line-height:1.4;">
+                    <input type="checkbox" id="publish-legal-check" style="margin-top:2px;">
+                    <span>
+                        <b style="color:#f59e0b;">Závazné právní prohlášení:</b><br>
+                        Čestně prohlašuji, že jsem autorem všech nahraných zvukových stop nebo k nim vlastním autorská práva. Potvrzuji, že zvukové stopy neobsahují vulgarismy, urážlivý obsah ani chráněná díla třetích stran.
+                    </span>
                 </label>
             </div>
 
             <div style="display:flex; justify-content:flex-end; gap:10px;">
-                <button class="btn" onclick="closeLegalModal()">Zrušit</button>
-                <button class="btn btn-primary" id="btn-submit-legal-confirmed" disabled>
+                <button class="btn btn-secondary" id="btn-cancel-publish">
+                    Zrušit
+                </button>
+                <button class="btn btn-purple" id="btn-submit-publish">
                     <i class="fas fa-paper-plane"></i> Odeslat ke schválení
                 </button>
             </div>
         </div>
     </div>
 
-    <!-- PATIČKA -->
-    <div class="footer">
-        <div>
-            Otevřená data jízdních řádů: CIS JŘ (MD ČR) a IDPK pod licencí <b>Creative Commons CC BY 4.0</b>.
-        </div>
-        <div>
-            OIS IDPK Systém komunitních linek
-        </div>
-    </div>
+    <!-- TOAST NOTIFIKACE -->
+    <div class="toast-container" id="toast-container"></div>
 
     <script src="js/editor.js"></script>
 </body>

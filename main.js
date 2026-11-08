@@ -477,21 +477,36 @@ ipcMain.handle('get-link-files', async () => {
         } catch(e) { console.error(e); }
 
         let files = new Set();
-        function processDir(dir) {
+        function processDir(dir, isUserData = false) {
             if (!fs.existsSync(dir)) return;
             let fileList = fs.readdirSync(dir).filter(f => f.endsWith('.txt'));
             fileList.forEach(f => {
                 let name = f.replace('.txt', '');
-                let routeNum = name.replace(/\D/g, ''); // Extract just the number e.g. 739
+                let routeNum = name.replace(/_custom$/i, '').replace(/_vlastni$/i, '').replace(/\D/g, '');
                 let dest = routeNameMap.get(routeNum) || "";
                 
-                if (dest) {
-                    files.add(name + ' | ' + dest);
+                // Zkusit načíst název trasy z hlavičky souboru
+                if (!dest) {
+                    try {
+                        let preview = fs.readFileSync(path.join(dir, f), 'utf8', { flag: 'r' }).slice(0, 300);
+                        let trasaMatch = preview.match(/Trasa:\s*([^\r\n]+)/i);
+                        if (trasaMatch) dest = trasaMatch[1].trim();
+                    } catch (_) {}
+                }
+
+                if (isUserData) {
+                    let displayName = name.replace(/_custom$/i, '').replace(/_vlastni$/i, '');
+                    files.add(`${displayName} [VLASTNÍ] | ${dest || 'Vlastní úprava ' + displayName} | custom`);
                 } else {
-                    files.add(name);
+                    if (dest) {
+                        files.add(name + ' | ' + dest);
+                    } else {
+                        files.add(name);
+                    }
                 }
             });
         }
+        processDir(path.join(PATH_USERDATA, 'linky'), true);
         processDir(path.join(PATH_EXE, 'linky'));
         processDir(path.join(PATH_DEV, 'linky'));
         processDir(path.join(process.resourcesPath, 'linky'));
@@ -500,11 +515,26 @@ ipcMain.handle('get-link-files', async () => {
 });
 
 ipcMain.handle('read-route-file', async (event, filename) => {
-    let cleanName = filename.split('|')[0].toLowerCase().replace('.txt', '').replace(/[\r\n]+/g, '').trim();
-    let p = getUniversalPath('linky', `${cleanName}.txt`); if (p) return fs.readFileSync(p, 'utf-8');
-    let pAuto = getUniversalPath('linky', `${cleanName}_auto.txt`); if (pAuto) return fs.readFileSync(pAuto, 'utf-8');
-    let pOde = getUniversalPath('linky', `${cleanName}_ode.txt`); if (pOde) return fs.readFileSync(pOde, 'utf-8');
-    let pBeta = getUniversalPath('linky', `${cleanName}_auto-beta.txt`); if (pBeta) return fs.readFileSync(pBeta, 'utf-8');
+    let cleanName = filename.split('|')[0].replace('.txt', '').replace(/[\r\n]+/g, '').trim();
+    let isCustom = cleanName.includes('[VLASTNÍ]') || cleanName.includes('(VLASTNÍ)') || filename.includes('| custom');
+    let baseName = cleanName.replace(/\[VLASTNÍ\]/gi, '').replace(/\(VLASTNÍ\)/gi, '').trim().toLowerCase();
+
+    if (isCustom) {
+        let userCandidates = [
+            path.join(PATH_USERDATA, 'linky', `${baseName}_custom.txt`),
+            path.join(PATH_USERDATA, 'linky', `${baseName}_vlastni.txt`),
+            path.join(PATH_USERDATA, 'linky', `${baseName}.txt`),
+            path.join(PATH_USERDATA, 'linky', `${cleanName}.txt`)
+        ];
+        for (let candidate of userCandidates) {
+            if (fs.existsSync(candidate)) return fs.readFileSync(candidate, 'utf-8');
+        }
+    }
+
+    let p = getUniversalPath('linky', `${baseName}.txt`); if (p) return fs.readFileSync(p, 'utf-8');
+    let pAuto = getUniversalPath('linky', `${baseName}_auto.txt`); if (pAuto) return fs.readFileSync(pAuto, 'utf-8');
+    let pOde = getUniversalPath('linky', `${baseName}_ode.txt`); if (pOde) return fs.readFileSync(pOde, 'utf-8');
+    let pBeta = getUniversalPath('linky', `${baseName}_auto-beta.txt`); if (pBeta) return fs.readFileSync(pBeta, 'utf-8');
     return null;
 });
 
@@ -1250,12 +1280,76 @@ ipcMain.handle('editor-get-variant-stops', async (event, { tripId, source }) => 
     }
 });
 
+ipcMain.handle('editor-check-route-exists', async (event, routeNumber) => {
+    try {
+        if (!routeNumber) return { exists: false };
+        let rNumStr = String(routeNumber).trim();
+        let rClean = rNumStr.replace(/\D/g, '');
+
+        // 1. Zkontrolovat výchozí linky v EXE a DEV
+        const baseDirs = [path.join(PATH_EXE, 'linky'), path.join(PATH_DEV, 'linky'), path.join(process.resourcesPath || '', 'linky')];
+        for (let d of baseDirs) {
+            if (fs.existsSync(d)) {
+                let found = fs.readdirSync(d).some(f => {
+                    let base = f.replace('.txt', '').replace(/_auto.*/i, '').replace(/_ode/i, '');
+                    return base.toLowerCase() === rNumStr.toLowerCase() || (rClean && base.toLowerCase() === rClean.toLowerCase());
+                });
+                if (found) return { exists: true, source: 'Základní linky hry' };
+            }
+        }
+
+        // 2. Zkontrolovat IDPK GTFS databázi
+        await ensureGtfsCache();
+        if (idpkDb) {
+            try {
+                let stmt = idpkDb.prepare("SELECT route_short_name FROM routes WHERE route_short_name = ? OR route_id = ?");
+                stmt.bind([rNumStr, rNumStr]);
+                if (stmt.step()) {
+                    stmt.free();
+                    return { exists: true, source: 'Jízdní řády IDPK' };
+                }
+                stmt.free();
+                if (rClean.length >= 3) {
+                    let stmt2 = idpkDb.prepare("SELECT route_short_name FROM routes WHERE route_short_name LIKE ?");
+                    stmt2.bind(['%' + rClean]);
+                    if (stmt2.step()) {
+                        stmt2.free();
+                        return { exists: true, source: 'Jízdní řády IDPK' };
+                    }
+                    stmt2.free();
+                }
+            } catch (_) {}
+        }
+
+        // 3. Zkontrolovat Celostátní ČR GTFS databázi
+        await ensureCrGtfsCache();
+        if (crDb) {
+            try {
+                let stmt = crDb.prepare("SELECT route_short_name FROM routes WHERE route_short_name = ? OR route_id = ?");
+                stmt.bind([rNumStr, rNumStr]);
+                if (stmt.step()) {
+                    stmt.free();
+                    return { exists: true, source: 'Celostátní GTFS ČR' };
+                }
+                stmt.free();
+            } catch (_) {}
+        }
+
+        return { exists: false };
+    } catch (e) {
+        return { exists: false, error: e.message };
+    }
+});
+
 ipcMain.handle('editor-save-local-route', async (event, payload) => {
     try {
-        const { routeNumber, routeName, routeType, description, stops, audioFilesMap } = payload;
+        const { routeNumber, routeName, routeType, description, stops, audioFilesMap, isDuplicateCustom, systemTag } = payload;
         if (!routeNumber || !stops || stops.length === 0) {
             return { success: false, error: "Chybí číslo linky nebo zastávky." };
         }
+
+        const tag = systemTag || 'IDPK';
+        const fileBaseName = isDuplicateCustom ? `${routeNumber}_custom` : routeNumber;
 
         const linkyDir = path.join(PATH_USERDATA, 'linky');
         const dataDir = path.join(PATH_USERDATA, 'data');
@@ -1281,6 +1375,8 @@ ipcMain.handle('editor-save-local-route', async (event, payload) => {
         const txtLines = [];
         txtLines.push(`Linka: ${routeNumber}`);
         txtLines.push(`Trasa: ${routeName}`);
+        txtLines.push(`Tag: ${tag}`);
+        txtLines.push(`Komunitni: ${isDuplicateCustom ? 'true' : 'false'}`);
         txtLines.push("GTFS-DATA");
         stops.forEach(s => {
             let sEntry = `${s.name}=${s.name}`;
@@ -1290,18 +1386,20 @@ ipcMain.handle('editor-save-local-route', async (event, payload) => {
             if (s.na_znameni) sEntry += `|Další znaky:ZZ`;
             txtLines.push(sEntry);
         });
-        fs.writeFileSync(path.join(linkyDir, `${routeNumber}.txt`), txtLines.join('\r\n'), 'utf8');
+        fs.writeFileSync(path.join(linkyDir, `${fileBaseName}.txt`), txtLines.join('\r\n'), 'utf8');
 
         // 3. Vytvořit .json soubor spojů
         const jsonPayload = [{
             spoj: 1,
             linka: routeNumber,
             nazev: routeName,
+            tag: tag,
+            is_custom: true,
             zastavky: stops
         }];
-        fs.writeFileSync(path.join(dataDir, `${routeNumber}.json`), JSON.stringify(jsonPayload, null, 4), 'utf8');
+        fs.writeFileSync(path.join(dataDir, `${fileBaseName}.json`), JSON.stringify(jsonPayload, null, 4), 'utf8');
 
-        return { success: true };
+        return { success: true, fileBaseName, isDuplicate: !!isDuplicateCustom };
     } catch (e) {
         return { success: false, error: e.message };
     }
@@ -1419,9 +1517,28 @@ ipcMain.handle('gtfs-load-routes', async () => {
     const results = [];
     let customRoutes = getUnlockedCustomRoutes();
 
-    // JSON linky ze složky data
+    // 1. JSON linky ze složky PATH_USERDATA/data (vlastní / komunitní úpravy)
     try {
-        let dirsToScan = [path.join(PATH_USERDATA, 'data'), path.join(PATH_EXE, 'data'), path.join(PATH_DEV, 'data')];
+        let userDir = path.join(PATH_USERDATA, 'data');
+        if (fs.existsSync(userDir)) {
+            fs.readdirSync(userDir).filter(f => f.endsWith('.json')).forEach(f => {
+                let num = f.replace('.json', '');
+                let cleanNum = num.replace(/_custom$/i, '').replace(/_vlastni$/i, '');
+                let jsonTitle = `Vlastní úprava ${cleanNum}`;
+                try {
+                    let parsed = JSON.parse(fs.readFileSync(path.join(userDir, f), 'utf8'));
+                    if (Array.isArray(parsed) && parsed[0] && parsed[0].nazev) {
+                        jsonTitle = parsed[0].nazev;
+                    }
+                } catch(_) {}
+                results.push(`${cleanNum} [VLASTNÍ] | ${jsonTitle} | ${num} | custom`);
+            });
+        }
+    } catch(e) { console.error(e); }
+
+    // 2. Základní JSON linky ze hry (EXE a DEV)
+    try {
+        let dirsToScan = [path.join(PATH_EXE, 'data'), path.join(PATH_DEV, 'data')];
         dirsToScan.forEach(dir => {
             if (fs.existsSync(dir)) {
                 fs.readdirSync(dir).filter(f => f.endsWith('.json')).forEach(f => {
