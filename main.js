@@ -382,6 +382,18 @@ ipcMain.on('install-launcher-update', (event, installerPath) => {
         const path = require('path');
         const os = require('os');
 
+        if (!installerPath || !fs.existsSync(installerPath)) {
+            console.error('[install-launcher-update] Soubor instalátoru neexistuje:', installerPath);
+            return;
+        }
+
+        const stat = fs.statSync(installerPath);
+        if (stat.size < 5000000) {
+            console.error('[install-launcher-update] Instalátor je neúplný nebo poškozený (velikost: ' + stat.size + ' B):', installerPath);
+            try { fs.unlinkSync(installerPath); } catch (_) {}
+            return;
+        }
+
         const appExe = process.execPath;
         const tempBatch = path.join(os.tmpdir(), `idpk_updater_${Date.now()}.bat`);
 
@@ -406,7 +418,6 @@ ipcMain.on('install-launcher-update', (event, installerPath) => {
         app.quit();
     } catch (e) {
         console.error('Error starting launcher updater:', e);
-        app.quit();
     }
 });
 ipcMain.on('minimize-app', () => { 
