@@ -499,8 +499,8 @@
                 <button type="button" class="glass-btn gb-yellow" onclick="window.openUserdataFolder()" style="margin-bottom:0; padding:8px 10px; font-size:11px;">
                     <span class="gb-icon"><i class="fas fa-folder-open"></i></span> Moje data
                 </button>
-                <button type="button" class="glass-btn" onclick="if(typeof window.showNotification === 'function') window.showNotification('Tato funkce je momentálně ve fázi vývoje a zatím není dostupná.', 'error', 4000); else alert('Tato funkce je momentálně ve fázi vývoje a zatím není dostupná.');" style="margin-bottom:0; padding:8px 10px; font-size:11px; grid-column: 1 / -1; background: #475569; color: #94a3b8; border-color: #334155;">
-                    <span class="gb-icon"><i class="fas fa-edit"></i></span> Editor vlastních linek (Ve vývoji)
+                <button type="button" class="glass-btn" onclick="require('electron').ipcRenderer.send('open-editor');" style="margin-bottom:0; padding:8px 10px; font-size:11px; grid-column: 1 / -1; background: rgba(56, 189, 248, 0.2); color: #38bdf8; border-color: rgba(56, 189, 248, 0.4);">
+                    <span class="gb-icon"><i class="fas fa-edit"></i></span> Vlastní linky & Editor hlášení
                 </button>
             </div>
 
@@ -689,8 +689,8 @@
             <span class="gb-icon"><i class="fas fa-folder-open"></i></span> Moje data
         </button>
     </div>
-    <button type="button" class="glass-btn" onclick="if(typeof window.showNotification === 'function') window.showNotification('Tato funkce je momentálně ve fázi vývoje a zatím není dostupná.', 'error', 4000); else alert('Tato funkce je momentálně ve fázi vývoje a zatím není dostupná.');" style="margin-bottom:0; padding:8px 10px; font-size:11px; background: #475569; color: #94a3b8; border-color: #334155;">
-        <span class="gb-icon"><i class="fas fa-edit"></i></span> Editor vlastních linek (Ve vývoji)
+    <button type="button" class="glass-btn" onclick="require('electron').ipcRenderer.send('open-editor');" style="margin-bottom:0; padding:8px 10px; font-size:11px; background: rgba(56, 189, 248, 0.2); color: #38bdf8; border-color: rgba(56, 189, 248, 0.4);">
+        <span class="gb-icon"><i class="fas fa-edit"></i></span> Vlastní linky & Editor hlášení
     </button>
     <button type="button" class="glass-btn gb-blue" onclick="window.open('navod.html', 'Návod', 'width=1024,height=768,nodeIntegration=yes')" style="margin-bottom:0; padding:8px 10px; font-size:11px;">
         <span class="gb-icon"><i class="fas fa-book"></i></span> Návod k aplikaci

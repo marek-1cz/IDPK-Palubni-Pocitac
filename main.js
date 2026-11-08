@@ -665,6 +665,22 @@ async function findRouteId(shortName, exactRouteId = null) {
             stmt.free();
         } catch(e) { console.error(e); }
     }
+
+    if (fs.existsSync(getCrDbPath())) {
+        await ensureCrGtfsCache();
+        if (crDb) {
+            try {
+                let stmt = crDb.prepare("SELECT route_id, route_short_name FROM routes WHERE route_short_name = $val OR route_id = $val");
+                stmt.bind({ $val: exactRouteId || shortName });
+                if (stmt.step()) {
+                    let row = stmt.getAsObject();
+                    stmt.free();
+                    return row.route_id;
+                }
+                stmt.free();
+            } catch(e) { console.error(e); }
+        }
+    }
     
     return null;
 }
@@ -806,6 +822,18 @@ async function getHeadsign(tripId) {
             stmt.free();
         } catch(e) { console.error(e); }
     }
+
+    if (fs.existsSync(getCrDbPath())) {
+        await ensureCrGtfsCache();
+        if (crDb) {
+            try {
+                let stmt = crDb.prepare(query);
+                stmt.bind({$t: tripId.trim()});
+                if (stmt.step()) { let res = stmt.getAsObject().headsign; stmt.free(); return res; }
+                stmt.free();
+            } catch(e) { console.error(e); }
+        }
+    }
     
     return "";
 }
@@ -851,6 +879,51 @@ async function ensureGtfsCache() {
 function invalidateGtfsCache() {
     if (idpkDb) { idpkDb.close(); idpkDb = null; }
     log.info('[GTFS Cache] DB invalidována.');
+}
+
+// ============================================================
+// CELOSTÁTNÍ GTFS DATABÁZE ČR (VOLITELNÁ)
+// ============================================================
+let crDb = null;
+let crGtfsCachePromise = null;
+
+function getCrDbPath() {
+    const udPath = path.join(PATH_USERDATA, 'data', 'gtfs_stops_cr.db');
+    if (fs.existsSync(udPath)) return udPath;
+    const fbPath = path.join(PATH_USERDATA, 'data', 'gtfs_stops_fallback.db');
+    if (fs.existsSync(fbPath)) return fbPath;
+    const defaultDataPath = getDataFilePath('gtfs_stops_fallback.db');
+    if (fs.existsSync(defaultDataPath)) return defaultDataPath;
+    return udPath;
+}
+
+async function ensureCrGtfsCache() {
+    if (crDb) return crDb;
+    if (crGtfsCachePromise) return crGtfsCachePromise;
+    crGtfsCachePromise = (async () => {
+        try {
+            const dbPath = getCrDbPath();
+            if (fs.existsSync(dbPath)) {
+                log.info('[GTFS CR DB] Načítám celostátní DB ČR (' + dbPath + ')...');
+                const SQL = await getSqlJs();
+                const fileBuffer = fs.readFileSync(dbPath);
+                crDb = new SQL.Database(fileBuffer);
+                log.info('[GTFS CR DB] Celostátní DB úspěšně načtena.');
+            }
+            return crDb;
+        } catch(e) {
+            log.error('[GTFS CR DB] Chyba při načítání celostátní DB: ' + e);
+            return null;
+        } finally {
+            crGtfsCachePromise = null;
+        }
+    })();
+    return crGtfsCachePromise;
+}
+
+function invalidateCrGtfsCache() {
+    if (crDb) { try { crDb.close(); } catch(_) {} crDb = null; }
+    log.info('[GTFS CR Cache] Celostátní DB invalidována.');
 }
 
 async function interpolateMissingTimes(stops) {
@@ -947,6 +1020,27 @@ async function getGtfsStopsForTrip(tripId) {
             }
         }
     }
+
+    if (results.length === 0 && fs.existsSync(getCrDbPath())) {
+        await ensureCrGtfsCache();
+        if (crDb) {
+            try {
+                let stmt = crDb.prepare(query);
+                stmt.bind({$tripId: tripId.trim()});
+                while(stmt.step()) processRow(stmt.getAsObject());
+                stmt.free();
+            } catch(e) {
+                try {
+                    let stmt = crDb.prepare(fallbackQuery);
+                    stmt.bind({$tripId: tripId.trim()});
+                    while(stmt.step()) processRow(stmt.getAsObject());
+                    stmt.free();
+                } catch(e2) {
+                    console.error("CR DB query failed:", e2);
+                }
+            }
+        }
+    }
     
     await interpolateMissingTimes(results);
     return results;
@@ -954,12 +1048,304 @@ async function getGtfsStopsForTrip(tripId) {
 
 ipcMain.on('open-editor', () => {
     let editorWin = new BrowserWindow({
-        width: 1000, height: 700, frame: true, title: "Editor vlastních linek",
+        width: 1100, height: 750, minWidth: 950, minHeight: 650, frame: true, title: "Editor vlastních linek a hlášení • OIS IDPK",
         webPreferences: { nodeIntegration: true, contextIsolation: false },
         icon: path.join(__dirname, 'icon.ico'),
         backgroundColor: '#0f172a'
     });
     loadWindowFile(editorWin, 'editor.html');
+});
+
+// ── CELOSTÁTNÍ GTFS DATA ČR IPC HANDLERY ────────────────────────────────────
+
+ipcMain.handle('cr-gtfs-get-status', () => {
+    const crPath = getCrDbPath();
+    if (fs.existsSync(crPath)) {
+        try {
+            const stats = fs.statSync(crPath);
+            return {
+                installed: true,
+                path: crPath,
+                sizeBytes: stats.size,
+                sizeFormatted: (stats.size / (1024 * 1024)).toFixed(1) + ' MB',
+                updatedAt: stats.mtime.toLocaleDateString('cs-CZ') + ' ' + stats.mtime.toLocaleTimeString('cs-CZ', { hour: '2-digit', minute: '2-digit' })
+            };
+        } catch (_) {}
+    }
+    return { installed: false, sizeBytes: 0 };
+});
+
+ipcMain.handle('cr-gtfs-download', async (event) => {
+    return new Promise((resolve) => {
+        try {
+            const destDir = path.join(PATH_USERDATA, 'data');
+            if (!fs.existsSync(destDir)) fs.mkdirSync(destDir, { recursive: true });
+            const finalPath = path.join(destDir, 'gtfs_stops_cr.db');
+            const tempPath = finalPath + '.downloading';
+
+            invalidateCrGtfsCache();
+
+            const crDownloadUrl = 'https://github.com/marek-1cz/DataCoreBot/releases/latest/download/gtfs_stops_fallback.db';
+
+            const doDownload = (targetUrl) => {
+                const client = targetUrl.startsWith('https') ? https : http;
+                client.get(targetUrl, { headers: { 'User-Agent': 'IDPK-Palubni-Pocitac' } }, (res) => {
+                    if (res.statusCode === 301 || res.statusCode === 302) {
+                        return doDownload(res.headers.location);
+                    }
+                    if (res.statusCode !== 200) {
+                        return resolve({ success: false, error: `HTTP ${res.statusCode}` });
+                    }
+
+                    const totalBytes = parseInt(res.headers['content-length'] || '652931072', 10);
+                    let downloadedBytes = 0;
+                    const fileStream = fs.createWriteStream(tempPath);
+
+                    let lastPercent = 0;
+                    res.on('data', (chunk) => {
+                        downloadedBytes += chunk.length;
+                        const percent = Math.min(100, Math.round((downloadedBytes / totalBytes) * 100));
+                        if (percent !== lastPercent) {
+                            lastPercent = percent;
+                            if (event.sender && !event.sender.isDestroyed()) {
+                                event.sender.send('cr-gtfs-progress', { percent, downloadedBytes, totalBytes });
+                            }
+                        }
+                    });
+
+                    res.pipe(fileStream);
+
+                    fileStream.on('finish', () => {
+                        fileStream.close(async () => {
+                            try {
+                                if (fs.existsSync(finalPath)) fs.unlinkSync(finalPath);
+                                fs.renameSync(tempPath, finalPath);
+                                await ensureCrGtfsCache();
+                                resolve({ success: true });
+                            } catch (err) {
+                                resolve({ success: false, error: err.message });
+                            }
+                        });
+                    });
+
+                    fileStream.on('error', (err) => {
+                        try { if (fs.existsSync(tempPath)) fs.unlinkSync(tempPath); } catch (_) {}
+                        resolve({ success: false, error: err.message });
+                    });
+                }).on('error', (err) => {
+                    resolve({ success: false, error: err.message });
+                });
+            };
+
+            doDownload(crDownloadUrl);
+        } catch (e) {
+            resolve({ success: false, error: e.message });
+        }
+    });
+});
+
+// ── EDITOR VLASTNÍCH LINEK IPC HANDLERY ──────────────────────────────────────
+
+ipcMain.handle('editor-search-gtfs', async (event, queryStr) => {
+    await ensureGtfsCache();
+    const q = String(queryStr || '').trim();
+    if (!q) return { found: false, msg: "Zadejte číslo linky" };
+
+    // 1. Prohledat IDPK
+    if (idpkDb) {
+        try {
+            let stmt = idpkDb.prepare("SELECT route_id, route_short_name, route_long_name, route_type FROM routes WHERE route_short_name = $q OR route_id = $q LIMIT 5");
+            stmt.bind({ $q: q });
+            let routes = [];
+            while (stmt.step()) routes.push(stmt.getAsObject());
+            stmt.free();
+            if (routes.length > 0) return { found: true, source: 'idpk', routes };
+        } catch(e) { console.error(e); }
+    }
+
+    // 2. Zkontrolovat celostátní databázi ČR
+    const crPath = getCrDbPath();
+    if (!fs.existsSync(crPath)) {
+        return {
+            found: false,
+            crMissing: true,
+            msg: `Linka "${q}" nebyla nalezena v IDPK. Pro vyhledání linek z celé ČR si můžete stáhnout celostátní GTFS data ČR.`
+        };
+    }
+
+    await ensureCrGtfsCache();
+    if (crDb) {
+        try {
+            let stmt = crDb.prepare("SELECT route_id, route_short_name, route_long_name, route_type FROM routes WHERE route_short_name = $q OR route_id = $q LIMIT 5");
+            stmt.bind({ $q: q });
+            let routes = [];
+            while (stmt.step()) routes.push(stmt.getAsObject());
+            stmt.free();
+            if (routes.length > 0) return { found: true, source: 'cr', routes };
+        } catch(e) { console.error(e); }
+    }
+
+    return { found: false, msg: `Linka "${q}" nebyla nalezena ani v celostátních datech ČR.` };
+});
+
+ipcMain.handle('editor-get-route-variants', async (event, { routeId, source }) => {
+    const db = (source === 'cr') ? await ensureCrGtfsCache() : await ensureGtfsCache();
+    if (!db) return [];
+    try {
+        let stmt = db.prepare(`
+            SELECT t.trip_id,
+                   CASE WHEN t.trip_headsign != '' AND t.trip_headsign IS NOT NULL THEN t.trip_headsign
+                        ELSE (SELECT s2.name FROM stop_times st2 JOIN stops s2 ON st2.stop_id = s2.stop_id WHERE st2.trip_id = t.trip_id ORDER BY st2.stop_sequence DESC LIMIT 1)
+                   END as trip_headsign,
+                   t.spoj_cislo,
+                   COUNT(st.stop_sequence) as stop_count
+            FROM trips t
+            JOIN stop_times st ON t.trip_id = st.trip_id
+            WHERE t.route_id = $r
+            GROUP BY t.trip_id
+            ORDER BY stop_count DESC
+            LIMIT 10
+        `);
+        stmt.bind({ $r: String(routeId).trim() });
+        let variants = [];
+        while (stmt.step()) variants.push(stmt.getAsObject());
+        stmt.free();
+        return variants;
+    } catch(e) {
+        console.error(e);
+        return [];
+    }
+});
+
+ipcMain.handle('editor-get-variant-stops', async (event, { tripId, source }) => {
+    const db = (source === 'cr') ? await ensureCrGtfsCache() : await ensureGtfsCache();
+    if (!db) return [];
+    try {
+        let stmt = db.prepare(`
+            SELECT st.stop_sequence, st.arrival_time, st.pickup_type, s.name, s.zone_id
+            FROM stop_times st
+            JOIN stops s ON st.stop_id = s.stop_id
+            WHERE st.trip_id = $t
+            ORDER BY st.stop_sequence
+        `);
+        stmt.bind({ $t: String(tripId).trim() });
+        let stops = [];
+        while (stmt.step()) {
+            let row = stmt.getAsObject();
+            let timeStr = row.arrival_time ? row.arrival_time.substring(0, 5) : "";
+            stops.push({
+                sequence: row.stop_sequence,
+                name: row.name,
+                zone: row.zone_id || "P",
+                time: timeStr,
+                na_znameni: (row.pickup_type === '2' || row.pickup_type === '3' || row.pickup_type === 2 || row.pickup_type === 3),
+                audio_file: ""
+            });
+        }
+        stmt.free();
+        return stops;
+    } catch(e) {
+        console.error(e);
+        return [];
+    }
+});
+
+ipcMain.handle('editor-save-local-route', async (event, payload) => {
+    try {
+        const { routeNumber, routeName, routeType, description, stops, audioFilesMap } = payload;
+        if (!routeNumber || !stops || stops.length === 0) {
+            return { success: false, error: "Chybí číslo linky nebo zastávky." };
+        }
+
+        const linkyDir = path.join(PATH_USERDATA, 'linky');
+        const dataDir = path.join(PATH_USERDATA, 'data');
+        const zvukyDir = path.join(PATH_USERDATA, 'zvuky');
+
+        if (!fs.existsSync(linkyDir)) fs.mkdirSync(linkyDir, { recursive: true });
+        if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true });
+        if (!fs.existsSync(zvukyDir)) fs.mkdirSync(zvukyDir, { recursive: true });
+
+        // 1. Zkopírovat audio soubory do userdata/zvuky
+        if (audioFilesMap) {
+            for (const [idxStr, srcPath] of Object.entries(audioFilesMap)) {
+                if (srcPath && fs.existsSync(srcPath)) {
+                    const destAudio = path.join(zvukyDir, path.basename(srcPath));
+                    try {
+                        fs.copyFileSync(srcPath, destAudio);
+                    } catch (_) {}
+                }
+            }
+        }
+
+        // 2. Vytvořit .txt soubor linky
+        const txtLines = [];
+        txtLines.push(`Linka: ${routeNumber}`);
+        txtLines.push(`Trasa: ${routeName}`);
+        txtLines.push("GTFS-DATA");
+        stops.forEach(s => {
+            let sEntry = `${s.name}=${s.name}`;
+            if (s.audio_file) sEntry += `|${s.audio_file}`;
+            if (s.time) sEntry += `|Čas:${s.time}`;
+            if (s.zone) sEntry += `|Tarifní zona:${s.zone}`;
+            if (s.na_znameni) sEntry += `|Další znaky:ZZ`;
+            txtLines.push(sEntry);
+        });
+        fs.writeFileSync(path.join(linkyDir, `${routeNumber}.txt`), txtLines.join('\r\n'), 'utf8');
+
+        // 3. Vytvořit .json soubor spojů
+        const jsonPayload = [{
+            spoj: 1,
+            linka: routeNumber,
+            nazev: routeName,
+            zastavky: stops
+        }];
+        fs.writeFileSync(path.join(dataDir, `${routeNumber}.json`), JSON.stringify(jsonPayload, null, 4), 'utf8');
+
+        return { success: true };
+    } catch (e) {
+        return { success: false, error: e.message };
+    }
+});
+
+ipcMain.handle('community-install-package', async (event, { packageUrl, routeNumber }) => {
+    return new Promise(async (resolve) => {
+        try {
+            const extractZip = require('extract-zip');
+            const tempZipPath = path.join(app.getPath('temp'), `comm_pkg_${routeNumber}_${Date.now()}.zip`);
+            const targetDir = PATH_USERDATA;
+            if (!fs.existsSync(targetDir)) fs.mkdirSync(targetDir, { recursive: true });
+
+            const doDownload = (targetUrl) => {
+                const client = targetUrl.startsWith('https') ? https : http;
+                client.get(targetUrl, { headers: { 'User-Agent': 'IDPK-Palubni-Pocitac' } }, (res) => {
+                    if (res.statusCode === 301 || res.statusCode === 302) {
+                        return doDownload(res.headers.location);
+                    }
+                    if (res.statusCode !== 200) {
+                        return resolve({ success: false, error: `HTTP ${res.statusCode}` });
+                    }
+                    const fStream = fs.createWriteStream(tempZipPath);
+                    res.pipe(fStream);
+                    fStream.on('finish', () => {
+                        fStream.close(async () => {
+                            try {
+                                await extractZip(tempZipPath, { dir: targetDir });
+                                try { fs.unlinkSync(tempZipPath); } catch (_) {}
+                                resolve({ success: true });
+                            } catch (e) {
+                                resolve({ success: false, error: e.message });
+                            }
+                        });
+                    });
+                    fStream.on('error', (e) => resolve({ success: false, error: e.message }));
+                }).on('error', (e) => resolve({ success: false, error: e.message }));
+            };
+
+            doDownload(packageUrl);
+        } catch (e) {
+            resolve({ success: false, error: e.message });
+        }
+    });
 });
 
 ipcMain.handle('editor-get-routes', () => {

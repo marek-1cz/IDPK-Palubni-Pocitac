@@ -2082,6 +2082,70 @@ if (sidebarBtnGame && sidebarBtnSettings) {
         if (mainContentGame) mainContentGame.style.display = 'none';
         if (mainContentSettings) mainContentSettings.style.display = '';
         updateSettingsVersionList();
+        refreshLauncherCrStatus();
+    });
+}
+
+const sidebarBtnEditor = document.getElementById('sidebar-btn-editor');
+const btnOpenEditorMain = document.getElementById('btn-open-editor-main');
+
+function openEditorWindow() {
+    const { ipcRenderer } = require('electron');
+    ipcRenderer.send('open-editor');
+}
+
+if (sidebarBtnEditor) sidebarBtnEditor.addEventListener('click', openEditorWindow);
+if (btnOpenEditorMain) btnOpenEditorMain.addEventListener('click', openEditorWindow);
+
+async function refreshLauncherCrStatus() {
+    try {
+        const { ipcRenderer } = require('electron');
+        const status = await ipcRenderer.invoke('cr-gtfs-get-status');
+        const textEl = document.getElementById('settings-cr-status-text');
+        const btnLabel = document.getElementById('settings-cr-btn-label');
+        if (textEl && status.installed) {
+            textEl.innerHTML = '<span style="color:#10b981;"><i class="fas fa-check-circle"></i> Celostátní data ČR jsou nainstalována (' + status.sizeFormatted + ')</span>';
+            if (btnLabel) btnLabel.innerText = 'Aktualizovat data ČR';
+        } else if (textEl) {
+            textEl.innerHTML = '<span style="color:#f59e0b;"><i class="fas fa-exclamation-triangle"></i> Celostátní data ČR nejsou stažena (volitelné)</span>';
+            if (btnLabel) btnLabel.innerText = 'Stáhnout data ČR (cca 650 MB)';
+        }
+    } catch (_) {}
+}
+
+const btnDownloadCr = document.getElementById('settings-btn-download-cr');
+if (btnDownloadCr) {
+    btnDownloadCr.addEventListener('click', async () => {
+        const { ipcRenderer } = require('electron');
+        const progressContainer = document.getElementById('settings-cr-progress-container');
+        const progressBar = document.getElementById('settings-cr-progress-bar');
+        const progressText = document.getElementById('settings-cr-progress-text');
+        
+        btnDownloadCr.disabled = true;
+        if (progressContainer) progressContainer.style.display = 'block';
+        if (progressBar) progressBar.style.width = '0%';
+        if (progressText) progressText.innerText = 'Zahajuji stahování z CDN...';
+
+        ipcRenderer.on('cr-gtfs-progress', (event, data) => {
+            if (progressBar) progressBar.style.width = data.percent + '%';
+            if (progressText) progressText.innerText = `${data.percent}% (${(data.downloadedBytes / (1024*1024)).toFixed(1)} MB z ${(data.totalBytes / (1024*1024)).toFixed(1)} MB)`;
+        });
+
+        try {
+            const res = await ipcRenderer.invoke('cr-gtfs-download');
+            if (res.success) {
+                alert('✅ Celostátní GTFS data České republiky byla úspěšně stažena!');
+                refreshLauncherCrStatus();
+            } else {
+                alert('Chyba při stahování: ' + res.error);
+            }
+        } catch (e) {
+            alert('Chyba: ' + e.message);
+        } finally {
+            btnDownloadCr.disabled = false;
+            if (progressContainer) progressContainer.style.display = 'none';
+            ipcRenderer.removeAllListeners('cr-gtfs-progress');
+        }
     });
 }
 

@@ -157,6 +157,7 @@
             
             <div class="sidebar-menu">
                 <button class="menu-item active" id="sidebar-btn-game"><i class="fas fa-play"></i> Hra</button>
+                <button class="menu-item" id="sidebar-btn-editor"><i class="fas fa-edit"></i> Editor linek</button>
                 <button class="menu-item" id="sidebar-btn-settings"><i class="fas fa-cog"></i> Nastavení</button>
             </div>
         </div>
@@ -199,6 +200,9 @@
                     </button>
                     <button id="btn-dev-build" class="btn-launch" style="display: none; background: #ca8a04; border-color: #a16207; font-size: 14px; padding: 10px;">
                         <i class="fas fa-hammer"></i> SPUSTIT LOKÁLNÍ DEV BUILD
+                    </button>
+                    <button id="btn-open-editor-main" class="btn-launch" style="background: rgba(56, 189, 248, 0.15); border: 1px solid rgba(56, 189, 248, 0.4); color: #38bdf8; font-size: 13px; padding: 11px; cursor: pointer;">
+                        <i class="fas fa-edit" style="margin-right: 8px;"></i> VLASTNÍ & KOMUNITNÍ LINKY (EDITOR)
                     </button>
                 </div>
                 
@@ -264,6 +268,28 @@
                     </button>
                 </div>
 
+                <!-- GTFS DATA ČR -->
+                <div style="margin-bottom:20px;">
+                    <div style="color:#64748b; font-size:10px; letter-spacing:2px; text-transform:uppercase; margin-bottom:10px;">🗺️ CELOSTÁTNÍ GTFS DATA ČR (VOLITELNÉ)</div>
+                    <div style="background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.08); border-radius:8px; padding:14px; margin-bottom:8px;">
+                        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
+                            <div>
+                                <div id="settings-cr-status-text" style="color:#f8fafc; font-weight:600; font-size:13px;">Kontroluji data celé ČR...</div>
+                                <div style="font-size:11px; color:#64748b; margin-top:3px;">Data IDPK (Plzeňský kraj) se aktualizují denně. Celá ČR se stahuje na vyžádání.</div>
+                            </div>
+                            <button id="settings-btn-download-cr" style="padding:8px 14px; background:rgba(56,189,248,0.2); border:1px solid #38bdf8; border-radius:6px; color:#38bdf8; font-weight:bold; font-size:12px; cursor:pointer;">
+                                <i class="fas fa-download"></i> <span id="settings-cr-btn-label">Stáhnout data ČR</span>
+                            </button>
+                        </div>
+                        <div id="settings-cr-progress-container" style="display:none; margin-top:10px;">
+                            <div style="background:#0f172a; height:8px; border-radius:4px; overflow:hidden;">
+                                <div id="settings-cr-progress-bar" style="background:#38bdf8; height:100%; width:0%; transition:width 0.2s;"></div>
+                            </div>
+                            <div style="font-size:11px; color:#94a3b8; margin-top:4px;" id="settings-cr-progress-text">0%</div>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- O aplikaci -->
                 <div style="background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.06); border-radius:8px; padding:14px;">
                     <div style="color:#64748b; font-size:10px; letter-spacing:2px; text-transform:uppercase; margin-bottom:8px;">ℹ️ O APLIKACI</div>
@@ -278,6 +304,10 @@
                             <i class="fas fa-sync-alt" id="btn-check-launcher-icon"></i>
                             <span id="btn-check-launcher-text">Zkontrolovat aktualizace Launcheru</span>
                         </button>
+                    </div>
+                    <div style="font-size:11px; color:#475569; text-align:center; padding:12px 0 0 0; border-top:1px solid rgba(255,255,255,0.05); margin-top:15px; line-height:1.5;">
+                        Jízdní řády využívají otevřená data CIS JŘ (MD ČR) a IDPK pod licencí Creative Commons CC BY 4.0.<br>
+                        OIS IDPK &copy; 2026
                     </div>
                 </div>
             </div>
