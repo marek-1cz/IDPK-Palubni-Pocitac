@@ -408,6 +408,33 @@ async function checkForLauncherUpdate() {
     return false;
 }
 
+async function resolveGitHubReleaseAssetUrl(dlUrl) {
+    if (!dlUrl || typeof dlUrl !== 'string') return null;
+    if (!dlUrl.includes('github.com') || !dlUrl.includes('/releases/download/')) return null;
+    const match = dlUrl.match(/github\.com\/([^\/]+)\/([^\/]+)\/releases\/download\/([^\/]+)\/([^\/]+)/);
+    if (!match) return null;
+    const [, owner, repo, tag, rawFilename] = match;
+    const filename = decodeURIComponent(rawFilename);
+    const apiUrl = `https://api.github.com/repos/${owner}/${repo}/releases/tags/${tag}`;
+    try {
+        const resp = await safeFetch(apiUrl, {
+            headers: {
+                'User-Agent': 'IDPK-Launcher/' + LAUNCHER_VERSION,
+                'Accept': 'application/vnd.github.v3+json'
+            }
+        }, 6000);
+        if (!resp.ok) return null;
+        const data = await resp.json();
+        const asset = (data.assets || []).find(a => a.name === filename || a.name === rawFilename);
+        if (asset && asset.url) {
+            return asset.url;
+        }
+    } catch (e) {
+        console.warn("[resolveGitHubReleaseAssetUrl] Chyba při zjišťování asset URL:", e);
+    }
+    return null;
+}
+
 function downloadFileWithProgress({
     url,
     destPath,
@@ -415,7 +442,7 @@ function downloadFileWithProgress({
     timeoutMs = 120000,
     headers = {}
 }) {
-    return new Promise((resolve, reject) => {
+    return new Promise(async (resolve, reject) => {
         let redirects = 0;
         const maxRedirects = 10;
         let activeReq = null;
@@ -448,7 +475,7 @@ function downloadFileWithProgress({
             }, timeoutMs);
         }
 
-        function attempt(currentUrl) {
+        function attempt(currentUrl, reqHeaders = headers) {
             resetTimeout();
             let parsedUrl;
             try {
@@ -459,16 +486,18 @@ function downloadFileWithProgress({
             }
 
             const client = parsedUrl.protocol === 'http:' ? http : https;
+            const customHeaders = {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 IDPK-Launcher/' + LAUNCHER_VERSION,
+                'Accept': (parsedUrl.hostname === 'api.github.com' && parsedUrl.pathname.includes('/releases/assets/')) ? 'application/octet-stream' : '*/*',
+                ...reqHeaders
+            };
+
             const reqOptions = {
                 protocol: parsedUrl.protocol,
                 hostname: parsedUrl.hostname,
                 port: parsedUrl.port || (parsedUrl.protocol === 'http:' ? 80 : 443),
                 path: parsedUrl.pathname + parsedUrl.search,
-                headers: {
-                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 IDPK-Launcher/' + LAUNCHER_VERSION,
-                    'Accept': '*/*',
-                    ...headers
-                }
+                headers: customHeaders
             };
 
             const req = client.get(reqOptions, (res) => {
@@ -487,7 +516,7 @@ function downloadFileWithProgress({
                         return reject(new Error(`Přesměrování bez cílové adresy (HTTP ${res.statusCode}).`));
                     }
                     const nextUrl = new URL(loc, currentUrl).toString();
-                    return attempt(nextUrl);
+                    return attempt(nextUrl, reqHeaders);
                 }
 
                 // Kontrola HTTP stavového kódu (povoleno pouze 200 OK)
@@ -548,7 +577,18 @@ function downloadFileWithProgress({
             });
         }
 
-        attempt(url);
+        let targetUrl = url;
+        let startHeaders = { ...headers };
+        if (targetUrl && targetUrl.includes('github.com') && targetUrl.includes('/releases/download/')) {
+            try {
+                const assetUrl = await resolveGitHubReleaseAssetUrl(targetUrl);
+                if (assetUrl) {
+                    targetUrl = assetUrl;
+                    startHeaders['Accept'] = 'application/octet-stream';
+                }
+            } catch (_) {}
+        }
+        attempt(targetUrl, startHeaders);
     });
 }
 
@@ -617,6 +657,15 @@ function downloadAndInstallLauncherUpdate(url, newVersion) {
             if (statusEl) statusEl.innerText = `Aktualizace stažena. Restartuji a instaluji Launcher...`;
             if (pBar) pBar.style.width = '100%';
             if (pPct) pPct.innerText = '100 %';
+
+            if (!fs.existsSync(tempExePath)) {
+                throw new Error("Stažený soubor instalátoru nebyl nalezen na disku.");
+            }
+            const st = fs.statSync(tempExePath);
+            if (st.size < 5000000) {
+                try { fs.unlinkSync(tempExePath); } catch (_) {}
+                throw new Error(`Stažený instalátor je neúplný nebo poškozený (velikost: ${st.size} B).`);
+            }
 
             const isPackaged = !process.defaultApp && !/[\\/]electron\.exe$/i.test(process.execPath);
             if (!isPackaged) {

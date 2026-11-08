@@ -2,7 +2,7 @@
   "appId": "com.marek.idpklauncher",
   "productName": "IDPK Launcher",
   "extraMetadata": {
-    "version": "1.0.4"
+    "version": "1.0.5"
   },
   "files": [
     "main.js",
