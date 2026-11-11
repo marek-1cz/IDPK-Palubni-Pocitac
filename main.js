@@ -998,7 +998,7 @@ async function getHeadsign(tripId) {
     }
     
     await ensureGtfsCache();
-    let query = "SELECT CASE WHEN trip_headsign = '' OR trip_headsign IS NULL THEN (SELECT s2.name FROM stop_times st2 JOIN stops s2 ON st2.stop_id = s2.stop_id WHERE st2.trip_id = trips.trip_id ORDER BY st2.stop_sequence DESC LIMIT 1) ELSE trip_headsign END as headsign FROM trips WHERE trip_id = $t";
+    let query = "SELECT CASE WHEN trip_headsign = '' OR trip_headsign IS NULL THEN (SELECT s2.name FROM stop_times st2 JOIN stops s2 ON st2.stop_id = s2.stop_id WHERE st2.trip_id = trips.trip_id AND NOT (st2.pickup_type = '1' AND (st2.arrival_time = '' OR st2.arrival_time IS NULL)) ORDER BY st2.stop_sequence DESC LIMIT 1) ELSE trip_headsign END as headsign FROM trips WHERE trip_id = $t";
     
     if (idpkDb) {
         try {
@@ -1099,8 +1099,8 @@ async function getGtfsStopsForTrip(tripId) {
     }
 
     await ensureGtfsCache();
-    let query = "SELECT st.arrival_time as time, st.pickup_type, s.name, st.stop_sequence as seq, s.zone_id, s.cisjr_id FROM stop_times st JOIN stops s ON st.stop_id = s.stop_id WHERE st.trip_id = $tripId ORDER BY st.stop_sequence";
-    let fallbackQuery = "SELECT st.arrival_time as time, st.pickup_type, s.name, st.stop_sequence as seq, '' as zone_id, '' as cisjr_id FROM stop_times st JOIN stops s ON st.stop_id = s.stop_id WHERE st.trip_id = $tripId ORDER BY st.stop_sequence";
+    let query = "SELECT st.arrival_time as time, st.pickup_type, s.name, st.stop_sequence as seq, s.zone_id, s.cisjr_id FROM stop_times st JOIN stops s ON st.stop_id = s.stop_id WHERE st.trip_id = $tripId AND NOT (st.pickup_type = '1' AND (st.arrival_time = '' OR st.arrival_time IS NULL)) ORDER BY st.stop_sequence";
+    let fallbackQuery = "SELECT st.arrival_time as time, st.pickup_type, s.name, st.stop_sequence as seq, '' as zone_id, '' as cisjr_id FROM stop_times st JOIN stops s ON st.stop_id = s.stop_id WHERE st.trip_id = $tripId AND NOT (st.pickup_type = '1' AND (st.arrival_time = '' OR st.arrival_time IS NULL)) ORDER BY st.stop_sequence";
     let results = [];
     
     let zonesOverride = {};
@@ -1112,6 +1112,7 @@ async function getGtfsStopsForTrip(tripId) {
     } catch (e) { log.error("Failed to load zones_override.json: " + e); }
     
     const processRow = (row) => {
+        if (row.pickup_type === '1' && (!row.time || row.time.trim() === '')) return;
         let type = (row.pickup_type === '2' || row.pickup_type === '3') ? 'z' : 'n';
         let timeStr = row.time ? row.time.substring(0, 5) : "";
         
@@ -1205,7 +1206,7 @@ ipcMain.handle('editor-export-gtfs', async (e, routeId) => {
     // Získat zastávky spojů
     let stops = [];
     try {
-        let stmt = idpkDb.prepare("SELECT st.arrival_time as time, st.pickup_type, s.name, s.zone_id FROM stop_times st JOIN stops s ON st.stop_id = s.stop_id WHERE st.trip_id = $tripId ORDER BY st.stop_sequence");
+        let stmt = idpkDb.prepare("SELECT st.arrival_time as time, st.pickup_type, s.name, s.zone_id FROM stop_times st JOIN stops s ON st.stop_id = s.stop_id WHERE st.trip_id = $tripId AND NOT (st.pickup_type = '1' AND (st.arrival_time = '' OR st.arrival_time IS NULL)) ORDER BY st.stop_sequence");
         stmt.bind({$tripId: trip});
         while(stmt.step()) {
             let row = stmt.getAsObject();
@@ -1312,8 +1313,9 @@ ipcMain.handle('gtfs-get-start-stops', async (event, routeId) => {
         JOIN stop_times st ON t.trip_id = st.trip_id
         JOIN stops s ON st.stop_id = s.stop_id
         WHERE t.route_id IN (${placeholders}) ${serviceFilter}
+        AND NOT (st.pickup_type = '1' AND (st.arrival_time = '' OR st.arrival_time IS NULL))
         AND st.stop_sequence = (
-            SELECT MIN(stop_sequence) FROM stop_times WHERE trip_id = t.trip_id
+            SELECT MIN(stop_sequence) FROM stop_times WHERE trip_id = t.trip_id AND NOT (pickup_type = '1' AND (arrival_time = '' OR arrival_time IS NULL))
         )
     `;
     let starts = new Set();
@@ -1358,14 +1360,15 @@ ipcMain.handle('gtfs-get-destinations-from-start', async (event, {routeId, start
     let query = `
         SELECT DISTINCT s.name as start_name,
         CASE WHEN t.trip_headsign = '' OR t.trip_headsign IS NULL THEN 
-            (SELECT s2.name FROM stop_times st2 JOIN stops s2 ON st2.stop_id = s2.stop_id WHERE st2.trip_id = t.trip_id ORDER BY st2.stop_sequence DESC LIMIT 1)
+            (SELECT s2.name FROM stop_times st2 JOIN stops s2 ON st2.stop_id = s2.stop_id WHERE st2.trip_id = t.trip_id AND NOT (st2.pickup_type = '1' AND (st2.arrival_time = '' OR st2.arrival_time IS NULL)) ORDER BY st2.stop_sequence DESC LIMIT 1)
         ELSE t.trip_headsign END as trip_headsign
         FROM trips t
         JOIN stop_times st ON t.trip_id = st.trip_id
         JOIN stops s ON st.stop_id = s.stop_id
         WHERE t.route_id IN (${placeholders}) ${serviceFilter}
+        AND NOT (st.pickup_type = '1' AND (st.arrival_time = '' OR st.arrival_time IS NULL))
         AND st.stop_sequence = (
-            SELECT MIN(stop_sequence) FROM stop_times WHERE trip_id = t.trip_id
+            SELECT MIN(stop_sequence) FROM stop_times WHERE trip_id = t.trip_id AND NOT (pickup_type = '1' AND (arrival_time = '' OR arrival_time IS NULL))
         )
     `;
     let dests = new Set();
@@ -1476,15 +1479,16 @@ ipcMain.handle('gtfs-get-final-trips', async (event, {routeId, startStopName, he
                     )
                 ) as is_running_today,
                 CASE WHEN t.trip_headsign = '' OR t.trip_headsign IS NULL THEN 
-                    (SELECT s2.name FROM stop_times st2 JOIN stops s2 ON st2.stop_id = s2.stop_id WHERE st2.trip_id = t.trip_id ORDER BY st2.stop_sequence DESC LIMIT 1)
+                    (SELECT s2.name FROM stop_times st2 JOIN stops s2 ON st2.stop_id = s2.stop_id WHERE st2.trip_id = t.trip_id AND NOT (st2.pickup_type = '1' AND (st2.arrival_time = '' OR st2.arrival_time IS NULL)) ORDER BY st2.stop_sequence DESC LIMIT 1)
                 ELSE t.trip_headsign END as headsign
                 FROM trips t
                 JOIN stop_times st ON t.trip_id = st.trip_id
                 JOIN stops s ON st.stop_id = s.stop_id
                 LEFT JOIN calendar cal ON t.service_id = cal.service_id
                 WHERE t.route_id IN (${placeholders}) ${serviceFilter}
+                AND NOT (st.pickup_type = '1' AND (st.arrival_time = '' OR st.arrival_time IS NULL))
                 AND st.stop_sequence = (
-                    SELECT MIN(stop_sequence) FROM stop_times WHERE trip_id = t.trip_id
+                    SELECT MIN(stop_sequence) FROM stop_times WHERE trip_id = t.trip_id AND NOT (pickup_type = '1' AND (arrival_time = '' OR arrival_time IS NULL))
                 )
             `;
             let fullBVals = [todayStr, todayStr, todayStr, todayStr, ...bVals];
