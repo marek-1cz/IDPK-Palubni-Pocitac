@@ -521,25 +521,189 @@ function parseCSV(str) {
     arr.push(col.replace(/[\r\n]+/g, '').trim()); return arr;
 }
 
-function normalizeName(str) { 
-    let s = str.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase(); 
-    s = s.replace(/\bhaj\./g, "hajenka").replace(/\bhajovna\b/g, "hajenka").replace(/\bhaj\b/g, "hajenka"); 
-    return s.replace(/[^a-z0-9]/g, ""); 
+// Universal Stop Canonicalizer & Audio Resolution System
+function canonicalizeStopName(str) {
+    if (!str) return "";
+    let s = str.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+    
+    // Normalize punctuation & decimal numbers (e.g. 2.0 / 2,0 -> 2)
+    s = s.replace(/\b(\d+)[\.,]0+\b/g, "$1");
+    s = s.replace(/[\/\\–—_\-.,;]/g, " ");
+    
+    // Normalize Roman numerals
+    s = s.replace(/\bviii\b/g, "8").replace(/\bvii\b/g, "7").replace(/\bvi\b/g, "6").replace(/\bv\b/g, "5").replace(/\biv\b/g, "4").replace(/\biii\b/g, "3").replace(/\bii\b/g, "2").replace(/\bi\b/g, "1");
+    
+    // Normalize common Czech transit abbreviations to canonical terms
+    s = s.replace(/\b(autobusove\s+nadrazi|aut\s*nadr|aut\s*nadrazi)\b/g, "aut nadr");
+    s = s.replace(/\b(autobusova\s+stanice|autobusove\s+stanoviste|aut\s*st|aut\s*stanice|aut\s*stanoviste)\b/g, "aut st");
+    s = s.replace(/\b(zeleznicni\s+stanice|zel\s*st|zel\s*stanice)\b/g, "zel st");
+    s = s.replace(/\b(nadrazi|nadr)\b/g, "nadr");
+    s = s.replace(/\b(rozcesti|rozc)\b/g, "rozc");
+    s = s.replace(/\b(namesti|nam)\b/g, "nam");
+    s = s.replace(/\b(nemocnice|nem)\b/g, "nem");
+    s = s.replace(/\b(skola|skolni|skol|sk)\b/g, "skola");
+    s = s.replace(/\b(hrbitov|hrb)\b/g, "hrbitov");
+    s = s.replace(/\b(restaurace|rest)\b/g, "rest");
+    s = s.replace(/\b(prumyslova\s+zona|prum\s*zona|pz)\b/g, "prumyslova zona");
+    s = s.replace(/\b(hajenka|hajovna|haj)\b/g, "hajenka");
+    s = s.replace(/\b(zdravotni\s+stredisko|zdrav\s*str|zdrav)\b/g, "zdrav str");
+    s = s.replace(/\b(predmesti|predm)\b/g, "predmesti");
+    s = s.replace(/\b(stredisko|str)\b/g, "stredisko");
+    s = s.replace(/\b(sidliste|sidl)\b/g, "sidliste");
+    s = s.replace(/\b(krizovatka|kriz)\b/g, "krizovatka");
+    s = s.replace(/\b(zavod|zav)\b/g, "zavod");
+    s = s.replace(/[^a-z0-9\s]/g, " ");
+    return s.replace(/\s+/g, " ").trim();
 }
-function parseTextFileStopsToMap(lines) { let map = {}; for(let line of lines) { if(line.includes('=')) { let parts = line.split('='); map[normalizeName(parts[0].trim())] = parts[1].trim(); } } return map; }
-function findBestMatch(normGtfs, stopMap) { 
-    if (stopMap[normGtfs]) return stopMap[normGtfs]; 
-    let best = null; 
-    let maxLen = 0; 
-    for (const txtKey in stopMap) { 
-        if (normGtfs.includes(txtKey) || txtKey.includes(normGtfs)) { 
-            if (txtKey.length > maxLen) { 
-                best = stopMap[txtKey]; 
-                maxLen = txtKey.length; 
-            } 
+
+function getStopTokens(str) {
+    return str.split(" ").filter(t => t.length > 0);
+}
+
+function matchCanonicalStops(gtfsCanon, candCanon) {
+    if (!gtfsCanon || !candCanon) return false;
+    if (gtfsCanon === candCanon) return true;
+    
+    const t1 = getStopTokens(gtfsCanon);
+    const t2 = getStopTokens(candCanon);
+    if (t1.length === t2.length) {
+        if ([...t1].sort().join(" ") === [...t2].sort().join(" ")) return true;
+    }
+    return false;
+}
+
+function normalizeName(str) { 
+    return canonicalizeStopName(str);
+}
+
+let _GLOBAL_STOP_CATALOG = null;
+let _AUDIO_FILES_INDEX = null;
+
+function getSearchDirectories(subFolder) {
+    const dirs = [];
+    if (typeof PATH_USERDATA !== 'undefined' && PATH_USERDATA) dirs.push(path.join(PATH_USERDATA, subFolder));
+    if (typeof PATH_EXE !== 'undefined' && PATH_EXE) dirs.push(path.join(PATH_EXE, subFolder));
+    if (typeof PATH_DEV !== 'undefined' && PATH_DEV) dirs.push(path.join(PATH_DEV, subFolder));
+    if (process.resourcesPath) dirs.push(path.join(process.resourcesPath, subFolder));
+    return dirs.filter((d, i, self) => fs.existsSync(d) && self.indexOf(d) === i);
+}
+
+function loadGlobalStopCatalog() {
+    if (_GLOBAL_STOP_CATALOG) return _GLOBAL_STOP_CATALOG;
+    _GLOBAL_STOP_CATALOG = new Map();
+    const dirs = getSearchDirectories('linky');
+    for (const dir of dirs) {
+        try {
+            const files = fs.readdirSync(dir).filter(f => f.endsWith('.txt'));
+            for (const file of files) {
+                try {
+                    const content = fs.readFileSync(path.join(dir, file), 'utf8');
+                    for (const line of content.split('\n')) {
+                        if (!line.includes('=')) continue;
+                        const parts = line.split('=');
+                        const stopName = parts[0].trim();
+                        const right = parts[1].trim();
+                        const rParts = right.split('|');
+                        let rawAudio = rParts[0].trim().replace(/"/g, '');
+                        if (!rawAudio) continue;
+                        if (!rawAudio.toLowerCase().endsWith('.wav')) rawAudio += '.wav';
+                        
+                        const canon = canonicalizeStopName(stopName);
+                        if (!_GLOBAL_STOP_CATALOG.has(canon)) {
+                            _GLOBAL_STOP_CATALOG.set(canon, { audio: rawAudio, rawName: stopName, lineData: right });
+                        }
+                    }
+                } catch(e) {}
+            }
+        } catch(e) {}
+    }
+    return _GLOBAL_STOP_CATALOG;
+}
+
+function loadAudioFilesIndex() {
+    if (_AUDIO_FILES_INDEX) return _AUDIO_FILES_INDEX;
+    _AUDIO_FILES_INDEX = new Map();
+    const dirs = [
+        ...getSearchDirectories(path.join('zvuky', 'zastavky')),
+        ...getSearchDirectories(path.join('zvuky', 'hlaseni')),
+        ...getSearchDirectories('zvuky')
+    ];
+    for (const dir of dirs) {
+        try {
+            const files = fs.readdirSync(dir).filter(f => f.toLowerCase().endsWith('.wav'));
+            for (const file of files) {
+                const base = file.replace(/\.wav$/i, '');
+                const canon = canonicalizeStopName(base.replace(/_/g, ' '));
+                if (!_AUDIO_FILES_INDEX.has(canon)) _AUDIO_FILES_INDEX.set(canon, file);
+                const noSpace = canon.replace(/\s+/g, '');
+                if (!_AUDIO_FILES_INDEX.has(noSpace)) _AUDIO_FILES_INDEX.set(noSpace, file);
+                const baseLower = base.toLowerCase();
+                if (!_AUDIO_FILES_INDEX.has(baseLower)) _AUDIO_FILES_INDEX.set(baseLower, file);
+            }
+        } catch(e) {}
+    }
+    return _AUDIO_FILES_INDEX;
+}
+
+function resolveStopAudio(stopName, localStopMap = null) {
+    if (!stopName) return null;
+    const canon = canonicalizeStopName(stopName);
+    if (!canon) return null;
+    
+    // 1. Zkontrolovat v lokální mapě načteného .txt souboru linky
+    if (localStopMap) {
+        if (localStopMap[canon]) {
+            const val = localStopMap[canon];
+            const audio = val.split('|')[0].trim().replace(/"/g, '');
+            return { source: 'local_exact', audio: audio.endsWith('.wav') ? audio : audio + '.wav', lineData: val };
+        }
+        for (const [k, v] of Object.entries(localStopMap)) {
+            if (matchCanonicalStops(canon, canonicalizeStopName(k))) {
+                const audio = v.split('|')[0].trim().replace(/"/g, '');
+                return { source: 'local_canon', audio: audio.endsWith('.wav') ? audio : audio + '.wav', lineData: v };
+            }
+        }
+    }
+    
+    // 2. Prohledat globální katalog zastávek ze všech .txt souborů
+    const catalog = loadGlobalStopCatalog();
+    if (catalog.has(canon)) {
+        const entry = catalog.get(canon);
+        return { source: 'global_txt_exact', audio: entry.audio, lineData: entry.lineData };
+    }
+    for (const [cKey, entry] of catalog.entries()) {
+        if (matchCanonicalStops(canon, cKey)) {
+            return { source: 'global_txt_token', audio: entry.audio, lineData: entry.lineData };
+        }
+    }
+    
+    // 3. Prohledat fyzické zvukové soubory ve složkách zvuky/zastavky a zvuky/hlaseni
+    const audioIdx = loadAudioFilesIndex();
+    if (audioIdx.has(canon)) {
+        return { source: 'direct_wav', audio: audioIdx.get(canon), lineData: "" };
+    }
+    const noSpace = canon.replace(/\s+/g, '');
+    if (audioIdx.has(noSpace)) {
+        return { source: 'direct_wav_nospace', audio: audioIdx.get(noSpace), lineData: "" };
+    }
+    
+    return null;
+}
+
+function parseTextFileStopsToMap(lines) { 
+    let map = {}; 
+    for(let line of lines) { 
+        if(line.includes('=')) { 
+            let parts = line.split('='); 
+            map[canonicalizeStopName(parts[0].trim())] = parts[1].trim(); 
         } 
     } 
-    return best; 
+    return map; 
+}
+
+function findBestMatch(normGtfs, stopMap) { 
+    let res = resolveStopAudio(normGtfs, stopMap);
+    return res && res.lineData ? res.lineData : (res && res.audio ? `${res.audio} | Display: ${normGtfs}` : null);
 }
 
 function loadJsonData(jsonId) { try { let p = getUniversalPath('data', `${jsonId}.json`); if (p) { const content = fs.readFileSync(p, 'utf-8'); return JSON.parse(content); } } catch(e) { console.error(e); } return []; }
@@ -730,20 +894,26 @@ ipcMain.handle('process-hybrid-file', async (event, fileContent) => {
 
 ipcMain.handle('hybrid-get-trip-data', async (event, { tripId, stopMapObj }) => {
     try {
-        let gtfsStops = await getGtfsStopsForTrip(tripId); let finalStops = []; const stopMap = stopMapObj;
+        let gtfsStops = await getGtfsStopsForTrip(tripId); 
+        let finalStops = []; 
+        const stopMap = stopMapObj;
         for (let gStop of gtfsStops) {
-            let normGtfsName = normalizeName(gStop.name); let txtLineData = findBestMatch(normGtfsName, stopMap); 
-            let finalName = gStop.name; let finalZone = gStop.zone; let finalTime = gStop.time; let finalType = gStop.type; let finalAudio = "";
-            if (txtLineData) {
-                let parts = txtLineData.split('|'); let rawAudio = parts[0].trim().replace(/"/g, ''); 
-                if (rawAudio) finalAudio = rawAudio.endsWith('.wav') ? rawAudio : rawAudio + ".wav";
+            let res = resolveStopAudio(gStop.name, stopMap);
+            let finalName = gStop.name; 
+            let finalZone = gStop.zone; 
+            let finalTime = gStop.time; 
+            let finalType = gStop.type; 
+            let finalAudio = res ? res.audio : (gStop.audio || "");
+            if (res && res.lineData) {
+                let parts = res.lineData.split('|');
                 const checkAndGet = (key) => { let part = parts.find(p => p.trim().startsWith(key)); if (!part) return null; let colonIdx = part.indexOf(':'); if (colonIdx === -1) return null; let val = part.substring(colonIdx + 1).trim(); if (val === "") return null; return val.replace(/"/g, ''); };
                 let tName = checkAndGet('Display'); if (tName) finalName = tName;
                 let tZone = checkAndGet('Tarifní zona'); if (tZone) finalZone = tZone;
                 let tTime = checkAndGet('Čas'); if (tTime) finalTime = tTime;
                 let tOthers = checkAndGet('Další znaky'); if (tOthers && (tOthers.includes('ZZ') || tOthers.includes('KZ'))) finalType = 'z';
             }
-            finalZone = cleanZones(finalZone); finalStops.push({ audio: finalAudio, name: finalName, zone: finalZone, time: finalTime, type: finalType });
+            finalZone = cleanZones(finalZone); 
+            finalStops.push({ audio: finalAudio, name: finalName, zone: finalZone, time: finalTime, type: finalType });
         }
         return { stops: finalStops, destination: await getHeadsign(tripId) };
     } catch(e) { return { error: e.message }; }
@@ -752,16 +922,31 @@ ipcMain.handle('hybrid-get-trip-data', async (event, { tripId, stopMapObj }) => 
 function mergeStops(gtfsStops, textFileLines) {
     let finalStops = [];
     for (let i = 0; i < gtfsStops.length; i++) {
-        let gStop = gtfsStops[i]; let txtLine = (i < textFileLines.length) ? textFileLines[i] : "";
-        let finalName = gStop.name; let finalZone = gStop.zone; let finalTime = gStop.time; let finalType = gStop.type; let finalAudio = "";
+        let gStop = gtfsStops[i]; 
+        let txtLine = (i < textFileLines.length) ? textFileLines[i] : "";
+        let finalName = gStop.name; 
+        let finalZone = gStop.zone; 
+        let finalTime = gStop.time; 
+        let finalType = gStop.type; 
+        let finalAudio = "";
         if (txtLine) {
-            let lineData = txtLine; if(txtLine.includes('=')) lineData = txtLine.split('=')[1].trim();
-            let parts = lineData.split('|'); let rawAudio = parts[0].trim().replace(/"/g, ''); 
+            let lineData = txtLine; 
+            if(txtLine.includes('=')) lineData = txtLine.split('=')[1].trim();
+            let parts = lineData.split('|'); 
+            let rawAudio = parts[0].trim().replace(/"/g, ''); 
             if (rawAudio) finalAudio = rawAudio.endsWith('.wav') ? rawAudio : rawAudio + ".wav";
             const checkAndGet = (key) => { let part = parts.find(p => p.trim().startsWith(key)); if (!part) return null; let colonIdx = part.indexOf(':'); if (colonIdx === -1) return null; let val = part.substring(colonIdx + 1).trim(); if (val === "") return null; return val.replace(/"/g, ''); };
-            let tName = checkAndGet('Display'); if (tName) finalName = tName; let tZone = checkAndGet('Tarifní zona'); if (tZone) finalZone = tZone; let tTime = checkAndGet('Čas'); if (tTime) finalTime = tTime; let tOthers = checkAndGet('Další znaky'); if (tOthers && (tOthers.includes('ZZ') || tOthers.includes('KZ'))) finalType = 'z';
+            let tName = checkAndGet('Display'); if (tName) finalName = tName; 
+            let tZone = checkAndGet('Tarifní zona'); if (tZone) finalZone = tZone; 
+            let tTime = checkAndGet('Čas'); if (tTime) finalTime = tTime; 
+            let tOthers = checkAndGet('Další znaky'); if (tOthers && (tOthers.includes('ZZ') || tOthers.includes('KZ'))) finalType = 'z';
         }
-        finalZone = cleanZones(finalZone); finalStops.push({ audio: finalAudio, name: finalName, zone: finalZone, time: finalTime, type: finalType });
+        if (!finalAudio) {
+            let res = resolveStopAudio(gStop.name);
+            if (res) finalAudio = res.audio;
+        }
+        finalZone = cleanZones(finalZone); 
+        finalStops.push({ audio: finalAudio, name: finalName, zone: finalZone, time: finalTime, type: finalType });
     }
     return finalStops;
 }
@@ -927,7 +1112,9 @@ async function getGtfsStopsForTrip(tripId) {
         let zonesList = rawZone.split(",").map(z => z.trim().replace(/^P/i, "")).filter(z => z !== "");
         let finalZone = zonesList.join("<br>");
         let isPhoneDemand = (row.pickup_type == 2 || row.pickup_type == 3);
-        results.push({ name: stopName, zone: finalZone, time: timeStr, type: type, seq: row.seq, isPhoneDemand: isPhoneDemand });
+        let resAudio = resolveStopAudio(stopName);
+        let finalAudio = resAudio ? resAudio.audio : "";
+        results.push({ name: stopName, zone: finalZone, time: timeStr, type: type, seq: row.seq, isPhoneDemand: isPhoneDemand, audio: finalAudio });
     };
 
     if (idpkDb) {
@@ -1138,7 +1325,7 @@ ipcMain.handle('gtfs-get-destinations-from-start', async (event, {routeId, start
     if (jsonId) {
         const data = loadJsonData(jsonId);
         const dests = new Set();
-        data.forEach(t => { if (t.zastavky.length > 0 && t.zastavky[0].name === startStopName) dests.add(t.smer); });
+        data.forEach(t => { if (t.zastavky.length > 0 && (t.zastavky[0].name === startStopName || shortenStopName(t.zastavky[0].name) === startStopName)) dests.add(t.smer); });
         return Array.from(dests).sort();
     }
 
@@ -1154,28 +1341,37 @@ ipcMain.handle('gtfs-get-destinations-from-start', async (event, {routeId, start
         serviceFilter = `AND t.service_id IN (${sPlaceholders})`;
         bindValues = bindValues.concat(activeServices);
     }
-    bindValues.push(startStopName);
 
     let query = `
-        SELECT DISTINCT CASE WHEN t.trip_headsign = '' OR t.trip_headsign IS NULL THEN 
+        SELECT DISTINCT s.name as start_name,
+        CASE WHEN t.trip_headsign = '' OR t.trip_headsign IS NULL THEN 
             (SELECT s2.name FROM stop_times st2 JOIN stops s2 ON st2.stop_id = s2.stop_id WHERE st2.trip_id = t.trip_id ORDER BY st2.stop_sequence DESC LIMIT 1)
         ELSE t.trip_headsign END as trip_headsign
         FROM trips t
         JOIN stop_times st ON t.trip_id = st.trip_id
         JOIN stops s ON st.stop_id = s.stop_id
         WHERE t.route_id IN (${placeholders}) ${serviceFilter}
-        AND s.name = ?
         AND st.stop_sequence = (
             SELECT MIN(stop_sequence) FROM stop_times WHERE trip_id = t.trip_id
         )
     `;
     let dests = new Set();
+    const canonStart = canonicalizeStopName(startStopName);
     
     const runQuery = (db) => {
         try {
             let stmt = db.prepare(query);
             stmt.bind(bindValues);
-            while(stmt.step()) dests.add(shortenStopName(stmt.getAsObject().trip_headsign));
+            while(stmt.step()) {
+                let row = stmt.getAsObject();
+                let dbStart = row.start_name || "";
+                let match = (dbStart === startStopName) || 
+                            (shortenStopName(dbStart) === startStopName) || 
+                            matchCanonicalStops(canonStart, canonicalizeStopName(dbStart));
+                if (match && row.trip_headsign) {
+                    dests.add(shortenStopName(row.trip_headsign));
+                }
+            }
             stmt.free();
         } catch(e) { console.error(e); }
     };
@@ -1192,7 +1388,7 @@ ipcMain.handle('gtfs-get-final-trips', async (event, {routeId, startStopName, he
         const data = loadJsonData(jsonId);
         const results = [];
         data.forEach(t => {
-            if (t.smer === headsign && t.zastavky.length > 0 && t.zastavky[0].name === startStopName) {
+            if (t.smer === headsign && t.zastavky.length > 0 && (t.zastavky[0].name === startStopName || shortenStopName(t.zastavky[0].name) === startStopName)) {
                 results.push({ tripId: `json_${jsonId}_${t.spoj}`, time: t.odjezd, formattedName: `${jsonId}/${t.spoj}`, spojNum: t.spoj, headsign: t.smer, tripNumber: `json_${jsonId}_${t.spoj}` });
             }
         });
@@ -1230,7 +1426,6 @@ ipcMain.handle('gtfs-get-final-trips', async (event, {routeId, startStopName, he
         serviceFilter = `AND t.service_id IN (${sPlaceholders})`;
         bindValues = bindValues.concat(activeServices);
     }
-    bindValues.push(startStopName);
 
     // Today's date in YYYYMMDD format for calendar filtering
     const todayDate = new Date();
@@ -1243,47 +1438,59 @@ ipcMain.handle('gtfs-get-final-trips', async (event, {routeId, startStopName, he
 
     const finalResults = [];
     const seenCombos = new Set();
+    const canonStart = canonicalizeStopName(startStopName);
+    const canonHead = canonicalizeStopName(headsign);
 
     function processTrips(dbObj, bVals) {
         if (!dbObj) return;
         try {
             let query = `
-                SELECT * FROM (
-                    SELECT t.trip_id, t.spoj_cislo, t.service_id, st.arrival_time as time,
-                    cal.start_date, cal.end_date,
-                    cal.monday, cal.tuesday, cal.wednesday, cal.thursday, cal.friday, cal.saturday, cal.sunday,
+                SELECT t.trip_id, t.spoj_cislo, t.service_id, st.arrival_time as time,
+                cal.start_date, cal.end_date,
+                cal.monday, cal.tuesday, cal.wednesday, cal.thursday, cal.friday, cal.saturday, cal.sunday,
+                s.name as start_stop,
+                (
                     (
-                        (
-                            cal.start_date <= ? AND cal.end_date >= ?
-                            AND cal.${todayDowCol} = 1
-                            AND t.service_id NOT IN (
-                                SELECT service_id FROM calendar_dates WHERE date = ? AND exception_type = 2
-                            )
+                        cal.start_date <= ? AND cal.end_date >= ?
+                        AND cal.${todayDowCol} = 1
+                        AND t.service_id NOT IN (
+                            SELECT service_id FROM calendar_dates WHERE date = ? AND exception_type = 2
                         )
-                        OR
-                        t.service_id IN (
-                            SELECT service_id FROM calendar_dates WHERE date = ? AND exception_type = 1
-                        )
-                    ) as is_running_today,
-                    CASE WHEN t.trip_headsign = '' OR t.trip_headsign IS NULL THEN 
-                        (SELECT s2.name FROM stop_times st2 JOIN stops s2 ON st2.stop_id = s2.stop_id WHERE st2.trip_id = t.trip_id ORDER BY st2.stop_sequence DESC LIMIT 1)
-                    ELSE t.trip_headsign END as headsign
-                    FROM trips t
-                    JOIN stop_times st ON t.trip_id = st.trip_id
-                    JOIN stops s ON st.stop_id = s.stop_id
-                    LEFT JOIN calendar cal ON t.service_id = cal.service_id
-                    WHERE t.route_id IN (${placeholders}) ${serviceFilter}
-                    AND s.name = ?
-                    AND st.stop_sequence = (
-                        SELECT MIN(stop_sequence) FROM stop_times WHERE trip_id = t.trip_id
                     )
-                ) WHERE headsign = ?
+                    OR
+                    t.service_id IN (
+                        SELECT service_id FROM calendar_dates WHERE date = ? AND exception_type = 1
+                    )
+                ) as is_running_today,
+                CASE WHEN t.trip_headsign = '' OR t.trip_headsign IS NULL THEN 
+                    (SELECT s2.name FROM stop_times st2 JOIN stops s2 ON st2.stop_id = s2.stop_id WHERE st2.trip_id = t.trip_id ORDER BY st2.stop_sequence DESC LIMIT 1)
+                ELSE t.trip_headsign END as headsign
+                FROM trips t
+                JOIN stop_times st ON t.trip_id = st.trip_id
+                JOIN stops s ON st.stop_id = s.stop_id
+                LEFT JOIN calendar cal ON t.service_id = cal.service_id
+                WHERE t.route_id IN (${placeholders}) ${serviceFilter}
+                AND st.stop_sequence = (
+                    SELECT MIN(stop_sequence) FROM stop_times WHERE trip_id = t.trip_id
+                )
             `;
-            let fullBVals = [todayStr, todayStr, todayStr, todayStr, ...bVals, headsign];
+            let fullBVals = [todayStr, todayStr, todayStr, todayStr, ...bVals];
             let stmt = dbObj.prepare(query);
             stmt.bind(fullBVals);
             while(stmt.step()) {
                 let obj = stmt.getAsObject();
+                let dbStart = obj.start_stop || "";
+                let matchStart = (dbStart === startStopName) || 
+                                 (shortenStopName(dbStart) === startStopName) || 
+                                 matchCanonicalStops(canonStart, canonicalizeStopName(dbStart));
+                if (!matchStart) continue;
+
+                let dbHead = obj.headsign || "";
+                let matchHead = (dbHead === headsign) || 
+                                (shortenStopName(dbHead) === headsign) || 
+                                matchCanonicalStops(canonHead, canonicalizeStopName(dbHead));
+                if (!matchHead) continue;
+
                 let tid = obj.trip_id;
                 let dbHeadsign = obj.headsign ? obj.headsign : headsign;
                 if (seenCombos.has(tid)) continue;
@@ -1295,7 +1502,6 @@ ipcMain.handle('gtfs-get-final-trips', async (event, {routeId, startStopName, he
                 const validFrom = obj.start_date ? `${obj.start_date.substring(6,8)}.${obj.start_date.substring(4,6)}.${obj.start_date.substring(0,4)}` : "?";
                 const validTo = obj.end_date ? `${obj.end_date.substring(6,8)}.${obj.end_date.substring(4,6)}.${obj.end_date.substring(0,4)}` : "?";
                 
-                // Determine if this trip is active in the current calendar period (season)
                 let isInSeason = false;
                 if (obj.start_date && obj.end_date && todayStr >= obj.start_date && todayStr <= obj.end_date) {
                     isInSeason = true;

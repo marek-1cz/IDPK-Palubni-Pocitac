@@ -2925,29 +2925,81 @@ window.showStartStopSelection = function(starts) {
     const backAction = (appState === 'IDPK_LINE') ? "window.backToIdpkMode()" : "window.backToManual()";
     window.updateSelectionHeader("OD — Výchozí zastávka", backAction); 
     
+    window.lastDirectionType = 'starts';
+    window.currentDirectionItems = [...starts];
+    const stopSearch = document.getElementById('search-stop-input');
+    if (stopSearch) stopSearch.value = "";
+    const stopBar = document.getElementById('search-stop-bar');
+    if (stopBar) stopBar.style.display = (starts.length > 5) ? 'flex' : 'none';
+
     const container = document.getElementById('direction-list'); 
     if(!container) return; 
     
-    container.innerHTML = '<div class="link-select-section-title" style="padding:4px 2px 8px;">Vyberte odkud jedete</div>';
     if (starts.length === 0) { 
+        container.innerHTML = '<div class="link-select-section-title" style="padding:4px 2px 8px;">Vyberte odkud jedete</div>';
         window.showErrorModal("CHYBA", "Žádná data zastávek"); 
         return;
     } 
     
-    starts.forEach(s => { 
-        const div = document.createElement('div'); 
-        div.className = 'link-suggestion-item';
-        div.style.cssText = 'margin-bottom: 4px;';
-        const firstWord = s.split(',')[0].trim();
-        div.innerHTML = `<span class="lsi-badge" style="font-size:14px; min-width:40px; background:rgba(4,142,86,0.25); border-color:rgba(4,142,86,0.6); color:#2ecc71;"><i class="fas fa-map-marker-alt"></i></span>
-                         <div style="display:flex; flex-direction:column; justify-content:center; align-items:flex-start;">
-                             <span class="lsi-name" style="font-size:14px; font-weight:bold; color:white;">${s}</span>
-                             <span style="font-size:10px; color:rgba(255,255,255,0.4); text-transform:uppercase; letter-spacing:1px; margin-top:2px;">Výchozí zastávka (OD)</span>
-                         </div>`;
-        div.setAttribute('onclick', `window.selectStartStop(${JSON.stringify(s)})`); 
-        container.appendChild(div); 
-    }); 
+    window.renderDirectionList(starts, 'starts');
+};
+
+window.renderDirectionList = function(items, type) {
+    const container = document.getElementById('direction-list');
+    if (!container) return;
+    
+    if (type === 'starts') {
+        container.innerHTML = '<div class="link-select-section-title" style="padding:4px 2px 8px;">Vyberte odkud jedete (' + items.length + ')</div>';
+        if (items.length === 0) {
+            container.innerHTML += '<div class="link-no-results" style="padding:15px; text-align:center; color:rgba(255,255,255,0.5);">Žádná odpovídající zastávka</div>';
+            return;
+        }
+        items.forEach(s => { 
+            const div = document.createElement('div'); 
+            div.className = 'link-suggestion-item';
+            div.style.cssText = 'margin-bottom: 4px;';
+            div.innerHTML = `<span class="lsi-badge" style="font-size:14px; min-width:40px; background:rgba(4,142,86,0.25); border-color:rgba(4,142,86,0.6); color:#2ecc71;"><i class="fas fa-map-marker-alt"></i></span>
+                             <div style="display:flex; flex-direction:column; justify-content:center; align-items:flex-start;">
+                                 <span class="lsi-name" style="font-size:14px; font-weight:bold; color:white;">${s}</span>
+                                 <span style="font-size:10px; color:rgba(255,255,255,0.4); text-transform:uppercase; letter-spacing:1px; margin-top:2px;">Výchozí zastávka (OD)</span>
+                             </div>`;
+            div.setAttribute('onclick', `window.selectStartStop(${JSON.stringify(s)})`); 
+            container.appendChild(div); 
+        }); 
+    } else if (type === 'dests') {
+        container.innerHTML = `<div class="link-select-section-title" style="padding:10px; background:rgba(0,0,0,0.2); border-radius:10px; margin-bottom:12px; color:#fff; font-size:12px; text-transform:uppercase; border:1px solid rgba(255,255,255,0.1);">Z: <b style="color:var(--idpk-yellow); font-size:15px; display:block; margin-top:4px;">${selectedStartStop}</b></div>`; 
+        if (items.length === 0) {
+            container.innerHTML += '<div class="link-no-results" style="padding:15px; text-align:center; color:rgba(255,255,255,0.5);">Žádná odpovídající zastávka</div>';
+            return;
+        }
+        items.forEach(d => { 
+            const div = document.createElement('div'); 
+            div.className = 'link-suggestion-item';
+            div.style.cssText = 'margin-bottom: 4px;';
+            div.innerHTML = `<span class="lsi-badge" style="font-size:14px; min-width:40px; background:rgba(231,76,60,0.2); border-color:rgba(231,76,60,0.6); color:#e74c3c;"><i class="fas fa-flag-checkered"></i></span>
+                             <div style="display:flex; flex-direction:column; justify-content:center; align-items:flex-start;">
+                                 <span class="lsi-name" style="font-size:14px; font-weight:bold; color:white;">${d}</span>
+                                 <span style="font-size:10px; color:rgba(255,255,255,0.4); text-transform:uppercase; letter-spacing:1px; margin-top:2px;">Cílová zastávka (DO)</span>
+                             </div>`;
+            div.setAttribute('onclick', `window.selectDestination('${d.replace(/'/g, "\\'")}')`); 
+            container.appendChild(div); 
+        }); 
+    }
     window.syncDom();
+};
+
+window.filterStopSelection = function(query) {
+    if (!window.currentDirectionItems) return;
+    const qClean = (query || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+    if (!qClean) {
+        window.renderDirectionList(window.currentDirectionItems, window.lastDirectionType);
+        return;
+    }
+    const filtered = window.currentDirectionItems.filter(item => {
+        const itemClean = (item || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+        return itemClean.includes(qClean);
+    });
+    window.renderDirectionList(filtered, window.lastDirectionType);
 };
 
 window.reloadStartStops = function() {
@@ -2982,24 +3034,15 @@ window.loadDestinationsForStart = function() {
         isSystemLoading = false; 
         if(l) l.style.display = 'none'; 
         
+        window.lastDirectionType = 'dests';
+        window.currentDirectionItems = [...dests];
+        const stopSearch = document.getElementById('search-stop-input');
+        if (stopSearch) stopSearch.value = "";
+        const stopBar = document.getElementById('search-stop-bar');
+        if (stopBar) stopBar.style.display = (dests.length > 5) ? 'flex' : 'none';
+
         window.updateSelectionHeader("DO — Cílová zastávka", "window.reloadStartStops()"); 
-        const container = document.getElementById('direction-list'); 
-        if(!container) return; 
-        container.innerHTML = `<div class="link-select-section-title" style="padding:10px; background:rgba(0,0,0,0.2); border-radius:10px; margin-bottom:12px; color:#fff; font-size:12px; text-transform:uppercase; border:1px solid rgba(255,255,255,0.1);">Z: <b style="color:var(--idpk-yellow); font-size:15px; display:block; margin-top:4px;">${selectedStartStop}</b></div>`; 
-        
-        dests.forEach(d => { 
-            const div = document.createElement('div'); 
-            div.className = 'link-suggestion-item';
-            div.style.cssText = 'margin-bottom: 4px;';
-            div.innerHTML = `<span class="lsi-badge" style="font-size:14px; min-width:40px; background:rgba(231,76,60,0.2); border-color:rgba(231,76,60,0.6); color:#e74c3c;"><i class="fas fa-flag-checkered"></i></span>
-                             <div style="display:flex; flex-direction:column; justify-content:center; align-items:flex-start;">
-                                 <span class="lsi-name" style="font-size:14px; font-weight:bold; color:white;">${d}</span>
-                                 <span style="font-size:10px; color:rgba(255,255,255,0.4); text-transform:uppercase; letter-spacing:1px; margin-top:2px;">Cílová zastávka (DO)</span>
-                             </div>`;
-            div.setAttribute('onclick', `window.selectDestination('${d.replace(/'/g, "\\'")}')`); 
-            container.appendChild(div); 
-        }); 
-        window.syncDom(); 
+        window.renderDirectionList(dests, 'dests');
     }).catch(e=>{ 
         isSystemLoading = false; 
         if(l) l.style.display = 'none'; 
@@ -3011,6 +3054,9 @@ window.loadTimesForTrip = function() {
     let l = document.getElementById('loadingScreen'); 
     if(l) l.style.display = 'flex'; 
     window.syncDom(); 
+    
+    const stopBar = document.getElementById('search-stop-bar');
+    if (stopBar) stopBar.style.display = 'none';
     
     ipcRenderer.invoke('gtfs-get-final-trips', { routeId: selectedIdpkRouteId, startStopName: selectedStartStop, headsign: selectedDestination }).then(trips => { 
         isSystemLoading = false; 
@@ -3190,7 +3236,8 @@ window.startIdpkRide = function(tripId, destination, tripNumber) {
             return; 
         } 
         
-        routeData.isMuted = true; 
+        const hasAudio = stops.some(s => s.audio && s.audio.length > 4);
+        routeData.isMuted = !hasAudio; 
         routeData.line = inputValues.idpk; 
         routeData.routeId = selectedIdpkRouteId; 
         routeData.linkospojCode = tripNumber || (inputValues.idpk + " (GTFS)"); 
@@ -3359,7 +3406,8 @@ window.announceStop = function(idx) {
 
     let sequence = ['zvuky/hlaseni/GONG.wav']; 
     if (stop.audio && stop.audio !== '.wav' && stop.audio.length > 4) { 
-        sequence.push(`zvuky/zastavky/${stop.audio}`); 
+        let audioPath = stop.audio.startsWith('zvuky/') ? stop.audio : `zvuky/zastavky/${stop.audio}`;
+        sequence.push(audioPath); 
     } else { 
         let dId = localStorage.getItem('discordId') || storedDiscordId || "Neznámý";
         let nick = localStorage.getItem('discordNick') || "Neznámý";
@@ -3390,7 +3438,8 @@ window.announceNextStop = function(idx) {
 
     let sequence = ['zvuky/hlaseni/GONG.wav', 'zvuky/hlaseni/PZ.wav']; 
     if (stop.audio && stop.audio !== '.wav' && stop.audio.length > 4) { 
-        sequence.push(`zvuky/zastavky/${stop.audio}`); 
+        let audioPath = stop.audio.startsWith('zvuky/') ? stop.audio : `zvuky/zastavky/${stop.audio}`;
+        sequence.push(audioPath); 
     } else {
         let dId = localStorage.getItem('discordId') || storedDiscordId || "Neznámý";
         let nick = localStorage.getItem('discordNick') || "Neznámý";

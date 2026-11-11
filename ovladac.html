@@ -647,6 +647,11 @@
             <div id="idpk-direction-wrapper" style="display:none; flex-direction:column; height:100%;">
                 <div class="system-header" id="selection-header" style="background: linear-gradient(135deg, rgba(255,255,255,0.1), rgba(255,255,255,0)); border: 1px solid rgba(255,255,255,0.15); border-radius: 12px; padding: 12px; margin-bottom: 8px; font-weight: bold; text-align: center; color: white; text-transform: uppercase; letter-spacing: 1px; box-shadow: 0 4px 12px rgba(0,0,0,0.1);">VÝBĚR</div>
                 <div id="idpk-selected-line" style="text-align:center; font-weight:900; margin-bottom:12px; color:var(--idpk-yellow); font-size:14px; text-transform:uppercase; letter-spacing:1px; background: rgba(0,0,0,0.2); padding: 8px; border-radius: 8px; border-bottom: 2px solid var(--idpk-yellow);"></div>
+                <div class="link-search-bar" id="search-stop-bar" style="display:none; align-items:center; background:rgba(0,0,0,0.3); border:1px solid rgba(255,255,255,0.15); border-radius:8px; padding:6px 10px; margin-bottom:8px;">
+                    <i class="fas fa-search" style="color:var(--idpk-yellow); margin-right:8px; font-size:14px;"></i>
+                    <input type="text" id="search-stop-input" placeholder="Hledat zastávku..." style="background:transparent; border:none; color:white; font-size:13px; width:100%; outline:none;" autocomplete="off" autocorrect="off" spellcheck="false" oninput="window.filterStopSelection(this.value)">
+                    <span class="link-search-clear" onclick="let inp=document.getElementById('search-stop-input'); if(inp){inp.value=''; window.filterStopSelection('');}" style="cursor:pointer; color:rgba(255,255,255,0.5); font-weight:bold; font-size:16px;">×</span>
+                </div>
                 <div id="direction-list" style="flex:1; overflow-y:auto; display:flex; flex-direction:column; gap:6px; padding: 4px;"></div>
                 <button type="button" class="db-switch-btn" onclick="window.backToIdpkList()" style="border-radius: 8px; margin-top: 15px; height: 45px; background: rgba(245, 158, 11, 0.15); border: 1px solid #f59e0b; color: #f59e0b; font-size: 13px; text-transform: uppercase; display: flex; align-items: center; justify-content: center; gap: 8px;">
                     <i class="fas fa-arrow-left" style="font-size: 16px;"></i>
