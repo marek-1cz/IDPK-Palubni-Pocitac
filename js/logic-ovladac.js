@@ -2995,9 +2995,17 @@ window.filterStopSelection = function(query) {
         window.renderDirectionList(window.currentDirectionItems, window.lastDirectionType);
         return;
     }
+    const qTokens = qClean.replace(/[^a-z0-9]/g, ' ').split(/\s+/).filter(Boolean);
     const filtered = window.currentDirectionItems.filter(item => {
         const itemClean = (item || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
-        return itemClean.includes(qClean);
+        if (itemClean.includes(qClean)) return true;
+        return qTokens.length > 0 && qTokens.every(t => {
+            if (t.startsWith('haj')) return itemClean.includes('haj');
+            if (t.startsWith('skol')) return itemClean.includes('skol') || itemClean.includes('zs');
+            if (t.startsWith('rozc')) return itemClean.includes('rozc');
+            if (t.startsWith('nadr')) return itemClean.includes('nadr');
+            return itemClean.includes(t);
+        });
     });
     window.renderDirectionList(filtered, window.lastDirectionType);
 };

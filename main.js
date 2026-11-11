@@ -70,17 +70,7 @@ try {
 const cleanStr = (s) => (s === null || s === undefined) ? "" : String(s).replace(/["'\r\n]+/g, '').trim();
 
 function shortenStopName(stopName) {
-    if (!stopName) return stopName;
-    stopName = stopName.replace(/autobusov[aá]\s+stanice/gi, "aut. st.");
-    stopName = stopName.replace(/autobusov[eé]\s+n[aá]dra[zž][ií]/gi, "aut. nádr.");
-    stopName = stopName.replace(/[zž]elezni[cč]n[ií]\s+stanice/gi, "žel. st.");
-    stopName = stopName.replace(/\brestaurace\b/gi, "rest.");
-    stopName = stopName.replace(/\brozcest[ií]\b/gi, "rozc.");
-    stopName = stopName.replace(/\bpr[uů]myslov[aá]\s+z[oó]na\b/gi, "prům. zóna");
-    stopName = stopName.replace(/\bn[aá]m[eě]st[ií]\b/gi, "nám.");
-    stopName = stopName.replace(/\bnemocnice\b/gi, "nem.");
-    stopName = stopName.replace(/\bz[aá]vod\b/gi, "záv.");
-    return stopName;
+    return formatStopForDisplay(stopName);
 }
 
 function getUniversalPath(folder, filename) {
@@ -521,6 +511,33 @@ function parseCSV(str) {
     arr.push(col.replace(/[\r\n]+/g, '').trim()); return arr;
 }
 
+// Universal Stop Display Formatter (standardized Czech transit abbreviations for panel & screen)
+function formatStopForDisplay(name) {
+    if (!name) return "";
+    let s = name.trim();
+    s = s.replace(/,+/g, ',');
+    s = s.replace(/,\s*/g, ', ');
+    
+    // Specific transit abbreviations for display
+    s = s.replace(/(?<!\p{L})(h[aá]jen[kc]\p{L}*|h[aá]jovn\p{L}*|h[aá]j)\.?(?!\p{L})/giu, 'háj.');
+    s = s.replace(/\bautobusov[aá]\s+stanice\b/gi, 'aut. st.');
+    s = s.replace(/\bautobusov[eé]\s+stanovi[sš]t[eě]\b/gi, 'aut. st.');
+    s = s.replace(/\bautobusov[eé]\s+n[aá]dra[zž][ií]\b/gi, 'aut. nádr.');
+    s = s.replace(/\b[zž]elezni[cč]n[ií]\s+stanice\b/gi, 'žel. st.');
+    s = s.replace(/\brozcest[ií]\b/gi, 'rozc.');
+    s = s.replace(/\brestaurace\b/gi, 'rest.');
+    s = s.replace(/\bpr[uů]myslov[aá]\s+z[oó]na\b/gi, 'prům. zóna');
+    s = s.replace(/\bn[aá]m[eě]st[ií]\b/gi, 'nám.');
+    s = s.replace(/\bnemocnice\b/gi, 'nem.');
+    s = s.replace(/\bz[aá]vod\b/gi, 'záv.');
+    s = s.replace(/\bzdravotn[ií]\s+st[rř]edisko\b/gi, 'zdrav. stř.');
+    s = s.replace(/\b(obecn[ií]\s+[uú][rř]ad|ob[uú])\b/gi, 'ObÚ');
+    
+    s = s.replace(/\.\.+/g, '.');
+    s = s.replace(/\s+/g, ' ');
+    return s.trim();
+}
+
 // Universal Stop Canonicalizer & Audio Resolution System
 function canonicalizeStopName(str) {
     if (!str) return "";
@@ -528,30 +545,37 @@ function canonicalizeStopName(str) {
     
     // Normalize punctuation & decimal numbers (e.g. 2.0 / 2,0 -> 2)
     s = s.replace(/\b(\d+)[\.,]0+\b/g, "$1");
-    s = s.replace(/[\/\\–—_\-.,;]/g, " ");
+    s = s.replace(/[\/\\–—_\-.,;()]/g, " ");
     
     // Normalize Roman numerals
     s = s.replace(/\bviii\b/g, "8").replace(/\bvii\b/g, "7").replace(/\bvi\b/g, "6").replace(/\bv\b/g, "5").replace(/\biv\b/g, "4").replace(/\biii\b/g, "3").replace(/\bii\b/g, "2").replace(/\bi\b/g, "1");
     
-    // Normalize common Czech transit abbreviations to canonical terms
+    // Czech transit abbreviations & inflections (lemmatization)
     s = s.replace(/\b(autobusove\s+nadrazi|aut\s*nadr|aut\s*nadrazi)\b/g, "aut nadr");
     s = s.replace(/\b(autobusova\s+stanice|autobusove\s+stanoviste|aut\s*st|aut\s*stanice|aut\s*stanoviste)\b/g, "aut st");
     s = s.replace(/\b(zeleznicni\s+stanice|zel\s*st|zel\s*stanice)\b/g, "zel st");
-    s = s.replace(/\b(nadrazi|nadr)\b/g, "nadr");
+    s = s.replace(/\b(nadrazi|nadr|nadraz)\b/g, "nadr");
     s = s.replace(/\b(rozcesti|rozc)\b/g, "rozc");
     s = s.replace(/\b(namesti|nam)\b/g, "nam");
-    s = s.replace(/\b(nemocnice|nem)\b/g, "nem");
-    s = s.replace(/\b(skola|skolni|skol|sk)\b/g, "skola");
-    s = s.replace(/\b(hrbitov|hrb)\b/g, "hrbitov");
-    s = s.replace(/\b(restaurace|rest)\b/g, "rest");
+    s = s.replace(/\b(nemocnice|nemocnici|nem)\b/g, "nem");
+    s = s.replace(/\b(skola|skoly|skole|skolou|skolni|skol|sk|zs|zakladni\s+skola)\b/g, "skola");
+    s = s.replace(/\b(hrbitov|hrbitove|hrb)\b/g, "hrbitov");
+    s = s.replace(/\b(restaurace|restauraci|rest)\b/g, "rest");
     s = s.replace(/\b(prumyslova\s+zona|prum\s*zona|pz)\b/g, "prumyslova zona");
-    s = s.replace(/\b(hajenka|hajovna|haj)\b/g, "hajenka");
+    s = s.replace(/\b(hajenk\w*|hajovn\w*|haj)\b/g, "haj");
+    s = s.replace(/\b(hradiste|hrad)\b/g, "hrad");
     s = s.replace(/\b(zdravotni\s+stredisko|zdrav\s*str|zdrav)\b/g, "zdrav str");
     s = s.replace(/\b(predmesti|predm)\b/g, "predmesti");
     s = s.replace(/\b(stredisko|str)\b/g, "stredisko");
     s = s.replace(/\b(sidliste|sidl)\b/g, "sidliste");
     s = s.replace(/\b(krizovatka|kriz)\b/g, "krizovatka");
     s = s.replace(/\b(zavod|zav)\b/g, "zavod");
+    s = s.replace(/\b(obecni\s+urad|ob\s*urad|obu)\b/g, "obu");
+    s = s.replace(/\b(ulice|ul)\b/g, " ");
+    s = s.replace(/\b(pod|p)\b/g, "pod");
+    s = s.replace(/\b(city\s*servis)\b/g, "cityservis");
+    // Strip Czech prepositions when canonicalizing stop identity
+    s = s.replace(/\b(u|v|ve|na|nad|k|ke|ku|od|do)\b/g, " ");
     s = s.replace(/[^a-z0-9\s]/g, " ");
     return s.replace(/\s+/g, " ").trim();
 }
@@ -899,7 +923,7 @@ ipcMain.handle('hybrid-get-trip-data', async (event, { tripId, stopMapObj }) => 
         const stopMap = stopMapObj;
         for (let gStop of gtfsStops) {
             let res = resolveStopAudio(gStop.name, stopMap);
-            let finalName = gStop.name; 
+            let finalName = formatStopForDisplay(gStop.name); 
             let finalZone = gStop.zone; 
             let finalTime = gStop.time; 
             let finalType = gStop.type; 
@@ -920,30 +944,23 @@ ipcMain.handle('hybrid-get-trip-data', async (event, { tripId, stopMapObj }) => 
 });
 
 function mergeStops(gtfsStops, textFileLines) {
+    const localStopMap = parseTextFileStopsToMap(textFileLines);
     let finalStops = [];
     for (let i = 0; i < gtfsStops.length; i++) {
         let gStop = gtfsStops[i]; 
-        let txtLine = (i < textFileLines.length) ? textFileLines[i] : "";
-        let finalName = gStop.name; 
+        let res = resolveStopAudio(gStop.name, localStopMap);
+        let finalName = formatStopForDisplay(gStop.name); 
         let finalZone = gStop.zone; 
         let finalTime = gStop.time; 
         let finalType = gStop.type; 
-        let finalAudio = "";
-        if (txtLine) {
-            let lineData = txtLine; 
-            if(txtLine.includes('=')) lineData = txtLine.split('=')[1].trim();
-            let parts = lineData.split('|'); 
-            let rawAudio = parts[0].trim().replace(/"/g, ''); 
-            if (rawAudio) finalAudio = rawAudio.endsWith('.wav') ? rawAudio : rawAudio + ".wav";
+        let finalAudio = res ? res.audio : (gStop.audio || "");
+        if (res && res.lineData) {
+            let parts = res.lineData.split('|'); 
             const checkAndGet = (key) => { let part = parts.find(p => p.trim().startsWith(key)); if (!part) return null; let colonIdx = part.indexOf(':'); if (colonIdx === -1) return null; let val = part.substring(colonIdx + 1).trim(); if (val === "") return null; return val.replace(/"/g, ''); };
             let tName = checkAndGet('Display'); if (tName) finalName = tName; 
             let tZone = checkAndGet('Tarifní zona'); if (tZone) finalZone = tZone; 
             let tTime = checkAndGet('Čas'); if (tTime) finalTime = tTime; 
             let tOthers = checkAndGet('Další znaky'); if (tOthers && (tOthers.includes('ZZ') || tOthers.includes('KZ'))) finalType = 'z';
-        }
-        if (!finalAudio) {
-            let res = resolveStopAudio(gStop.name);
-            if (res) finalAudio = res.audio;
         }
         finalZone = cleanZones(finalZone); 
         finalStops.push({ audio: finalAudio, name: finalName, zone: finalZone, time: finalTime, type: finalType });
@@ -977,7 +994,7 @@ async function findTripId(routeId, cleanSpojNum) {
 async function getHeadsign(tripId) {
     if (tripId.startsWith('json_')) {
         let lNum = tripId.split('_')[1]; const spojNum = parseInt(tripId.split('_')[2]);
-        const data = loadJsonData(lNum); const trip = data.find(t => t.spoj === spojNum); return trip ? trip.smer : "";
+        const data = loadJsonData(lNum); const trip = data.find(t => t.spoj === spojNum); return trip ? formatStopForDisplay(trip.smer) : "";
     }
     
     await ensureGtfsCache();
@@ -987,7 +1004,7 @@ async function getHeadsign(tripId) {
         try {
             let stmt = idpkDb.prepare(query);
             stmt.bind({$t: tripId.trim()});
-            if (stmt.step()) { let res = stmt.getAsObject().headsign; stmt.free(); return res; }
+            if (stmt.step()) { let res = stmt.getAsObject().headsign; stmt.free(); return formatStopForDisplay(res); }
             stmt.free();
         } catch(e) { console.error(e); }
     }
@@ -1098,11 +1115,7 @@ async function getGtfsStopsForTrip(tripId) {
         let type = (row.pickup_type === '2' || row.pickup_type === '3') ? 'z' : 'n';
         let timeStr = row.time ? row.time.substring(0, 5) : "";
         
-        let stopName = row.name;
-        stopName = stopName.replace(/autobusov[aá]\s+stanice/gi, "aut. st.");
-        stopName = stopName.replace(/autobusov[eé]\s+n[aá]dra[zž][ií]/gi, "aut. nádr.");
-        stopName = stopName.replace(/[zž]elezni[cč]n[ií]\s+stanice/gi, "žel. st.");
-        stopName = stopName.replace(/restaurace/gi, "rest.");
+        let stopName = formatStopForDisplay(row.name);
         
         let rawZone = row.zone_id || "";
         if (row.cisjr_id && zonesOverride[row.cisjr_id]) {
