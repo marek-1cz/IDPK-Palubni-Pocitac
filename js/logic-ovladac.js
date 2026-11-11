@@ -4318,33 +4318,18 @@ window.renderSmartLinkList = function(query, mode = 'LINKOSPOJ') {
         return;
     }
 
-window.openEditorWindow = function() {
-    try {
-        if (typeof require !== 'undefined') {
-            const { ipcRenderer } = require('electron');
-            ipcRenderer.send('open-editor');
-            return;
-        }
-    } catch(e) {
-        console.error("Chyba při volání open-editor:", e);
-    }
-    window.open('editor.html', 'Editor vlastních linek a hlášení', 'width=1100,height=750,nodeIntegration=yes');
-};
-
     if (!query) {
         let html = `<div class="link-select-section-title">Všechny dostupné linky (${matches.length})</div>`;
         matches.slice(0, 60).forEach((name, i) => {
             const orig = dataSrc.find(f => normalize(f.replace(/_auto-beta/i,'').replace(/_auto/i,'').replace(/-beta/i,'').trim()) === name) || dataSrc.find(f => f.toLowerCase().includes(name)) || name;
             const isBeta = orig.toUpperCase().includes('BETA');
-            const isCustom = orig.toUpperCase().includes('VLASTNÍ') || orig.toLowerCase().includes('custom');
             let routeName = orig.includes('|') ? orig.split('|')[1].trim() : '';
             routeName = routeName.replace(/(^|[\s-,\.]+)([a-zěščřžýáíéóúůďťňA-ZĚŠČŘŽÝÁÍÉÓÚŮĎŤŇ])/g, (match, sep, char) => sep + char.toUpperCase());
-            const cleanBadge = name.split('|')[0].replace(/\[VLASTNÍ\]/gi, '').replace(/\(VLASTNÍ\)/gi, '').trim().toUpperCase();
+            const cleanBadge = name.split('|')[0].trim().toUpperCase();
             html += `
-            <div class="link-suggestion-item${isCustom ? ' custom-route-item' : ''}" onclick='window.selectSmartLink(${JSON.stringify(orig).replace(/'/g, "&apos;")}, "${mode}")'>
-                <span class="lsi-badge${isCustom ? ' custom-badge' : (isBeta ? ' beta' : '')}">${cleanBadge}</span>
-                ${isCustom ? '<span class="lsi-tag-custom"><i class="fas fa-magic"></i> VLASTNÍ</span>' : ''}
-                <span class="lsi-name${isCustom ? ' custom-name' : ''}">${routeName}${isBeta ? ' BETA' : ''}</span>
+            <div class="link-suggestion-item" onclick='window.selectSmartLink(${JSON.stringify(orig).replace(/'/g, "&apos;")}, "${mode}")'>
+                <span class="lsi-badge${isBeta ? ' beta' : ''}">${cleanBadge}</span>
+                <span class="lsi-name">${routeName}${isBeta ? ' BETA' : ''}</span>
             </div>`;
         });
         if (matches.length > 60) html += `<div class="link-no-results">... a ${matches.length - 60} dalších. Upřesněte vyhledávání.</div>`;
@@ -4356,10 +4341,9 @@ window.openEditorWindow = function() {
     matches.slice(0, 40).forEach(name => {
         const orig = dataSrc.find(f => normalize(f.replace(/_auto-beta/i,'').replace(/_auto/i,'').replace(/-beta/i,'').trim()) === name) || dataSrc.find(f => f.toLowerCase().includes(name)) || name;
         const isBeta = orig.toUpperCase().includes('BETA');
-        const isCustom = orig.toUpperCase().includes('VLASTNÍ') || orig.toLowerCase().includes('custom');
         let routeName = orig.includes('|') ? orig.split('|')[1].trim() : '';
         routeName = routeName.replace(/(^|[\s-,\.]+)([a-zěščřžýáíéóúůďťňA-ZĚŠČŘŽÝÁÍÉÓÚŮĎŤŇ])/g, (match, sep, char) => sep + char.toUpperCase());
-        const cleanBadge = name.split('|')[0].replace(/\[VLASTNÍ\]/gi, '').replace(/\(VLASTNÍ\)/gi, '').trim().toUpperCase();
+        const cleanBadge = name.split('|')[0].trim().toUpperCase();
         
         let displayRouteName = routeName;
         let displayBadge = cleanBadge;
@@ -4371,10 +4355,9 @@ window.openEditorWindow = function() {
         }
         
         html += `
-        <div class="link-suggestion-item${isCustom ? ' custom-route-item' : ''}" onclick='window.selectSmartLink(${JSON.stringify(orig).replace(/'/g, "&apos;")}, "${mode}")'>
-            <span class="lsi-badge${isCustom ? ' custom-badge' : (isBeta ? ' beta' : '')}">${displayBadge}</span>
-            ${isCustom ? '<span class="lsi-tag-custom"><i class="fas fa-magic"></i> VLASTNÍ</span>' : ''}
-            <span class="lsi-name${isCustom ? ' custom-name' : ''}">${displayRouteName}${isBeta ? ' BETA' : ''}</span>
+        <div class="link-suggestion-item" onclick='window.selectSmartLink(${JSON.stringify(orig).replace(/'/g, "&apos;")}, "${mode}")'>
+            <span class="lsi-badge${isBeta ? ' beta' : ''}">${displayBadge}</span>
+            <span class="lsi-name">${displayRouteName}${isBeta ? ' BETA' : ''}</span>
         </div>`;
     });
     container.innerHTML = html;

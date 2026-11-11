@@ -857,28 +857,7 @@ btnStartEmailAuth.addEventListener('click', async () => {
                     retryBtns.style.display = 'flex';
                 }, 20000);
             }
-            if (statusEl) {
-                statusEl.style.display = 'block';
-                statusEl.innerHTML = '<i class="fas fa-hourglass-half" style="margin-right: 5px;"></i>Čekám na kliknutí v e-mailu...';
-            }
-
-            if (window.emailPollInterval) clearInterval(window.emailPollInterval);
-            window.emailPollInterval = setInterval(async () => {
-                const pollRes = await fetch(`${API_BASE}/api/launcher/email_poll`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email }) }); const pollData = await pollRes.json(); if (pollData.status === 'success' && pollData.web_session_token && pollData.web_session_token !== emailAuthOldToken) { pollData.id = pollData.discord_id;
-                    if (window.emailAuthTimeoutTimer) clearTimeout(window.emailAuthTimeoutTimer);
-                    clearInterval(window.emailPollInterval);
-                    if (statusEl) statusEl.innerHTML = '<i class="fas fa-check-circle" style="color: #22c55e; margin-right: 5px;"></i>Schváleno! Přihlašuji...';
-                    let config = loadConfig();
-                    config.discord_id = pollData.discord_id || "email-" + pollData.id;
-                    config.discord_nick = pollData.nick || pollData.email;
-                    config.email = pollData.email;
-                    saveConfig(config);
-                    setTimeout(() => {
-                        loginOverlay.style.display = 'none';
-                        initLauncher(config);
-                    }, 1500);
-                }
-            }, 8000);
+            pollAuthEmail(email);
         } else {
             showLoginError(data.message || "Nepodařilo se odeslat odkaz na e-mail.");
         }
@@ -889,6 +868,40 @@ btnStartEmailAuth.addEventListener('click', async () => {
     btnStartEmailAuth.disabled = false;
     btnStartEmailAuth.innerText = 'Odeslat přihlašovací odkaz';
 });
+
+function pollAuthEmail(email) {
+    if (window.emailPollInterval) clearInterval(window.emailPollInterval);
+    const statusEl = document.getElementById('email-waiting-status');
+    if (statusEl) {
+        statusEl.style.display = 'block';
+        statusEl.innerHTML = '<i class="fas fa-hourglass-half" style="margin-right: 5px;"></i>Čekám na kliknutí v e-mailu...';
+    }
+    window.emailPollInterval = setInterval(async () => {
+        try {
+            const pollRes = await fetch(`${API_BASE}/api/launcher/email_poll`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email })
+            });
+            const pollData = await pollRes.json();
+            if (pollData.status === 'success') {
+                pollData.id = pollData.discord_id;
+                if (window.emailAuthTimeoutTimer) clearTimeout(window.emailAuthTimeoutTimer);
+                clearInterval(window.emailPollInterval);
+                if (statusEl) statusEl.innerHTML = '<i class="fas fa-check-circle" style="color: #22c55e; margin-right: 5px;"></i>Schváleno! Přihlašuji...';
+                let config = loadConfig();
+                config.discord_id = pollData.discord_id || "email-" + (pollData.id || pollData.email);
+                config.discord_nick = pollData.nick || pollData.email;
+                config.email = pollData.email;
+                saveConfig(config);
+                setTimeout(() => {
+                    loginOverlay.style.display = 'none';
+                    initLauncher(config);
+                }, 1500);
+            }
+        } catch(_) {}
+    }, 4000);
+}
 
 if (btnResendEmailAuth) {
     btnResendEmailAuth.addEventListener('click', () => {
@@ -1004,7 +1017,7 @@ btnStartAuth.addEventListener('click', async () => {
         const res = await fetchTimeout(`${API_BASE}/api/app_login`, {
             method: 'POST', 
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ identifier: val, hwid: currentHWID, app_version: APP_VERSION })
+            body: JSON.stringify({ identifier: val, hwid: currentHWID, is_launcher: true, client_type: 'launcher', launcher_version: LAUNCHER_VERSION })
         });
         
         const textData = await res.text();
@@ -2082,72 +2095,6 @@ if (sidebarBtnGame && sidebarBtnSettings) {
         if (mainContentGame) mainContentGame.style.display = 'none';
         if (mainContentSettings) mainContentSettings.style.display = '';
         updateSettingsVersionList();
-        refreshLauncherCrStatus();
-    });
-}
-
-const sidebarBtnEditor = document.getElementById('sidebar-btn-editor');
-const btnOpenEditorMain = document.getElementById('btn-open-editor-main');
-const btnOpenEditorSettings = document.getElementById('btn-open-editor-settings');
-
-function openEditorWindow() {
-    const { ipcRenderer } = require('electron');
-    ipcRenderer.send('open-editor');
-}
-
-if (sidebarBtnEditor) sidebarBtnEditor.addEventListener('click', openEditorWindow);
-if (btnOpenEditorMain) btnOpenEditorMain.addEventListener('click', openEditorWindow);
-if (btnOpenEditorSettings) btnOpenEditorSettings.addEventListener('click', openEditorWindow);
-
-async function refreshLauncherCrStatus() {
-    try {
-        const { ipcRenderer } = require('electron');
-        const status = await ipcRenderer.invoke('cr-gtfs-get-status');
-        const textEl = document.getElementById('settings-cr-status-text');
-        const btnLabel = document.getElementById('settings-cr-btn-label');
-        if (textEl && status.installed) {
-            textEl.innerHTML = '<span style="color:#10b981;"><i class="fas fa-check-circle"></i> Celostátní data ČR jsou nainstalována (' + status.sizeFormatted + ')</span>';
-            if (btnLabel) btnLabel.innerText = 'Aktualizovat data ČR';
-        } else if (textEl) {
-            textEl.innerHTML = '<span style="color:#f59e0b;"><i class="fas fa-exclamation-triangle"></i> Celostátní data ČR nejsou stažena (volitelné)</span>';
-            if (btnLabel) btnLabel.innerText = 'Stáhnout data ČR (cca 650 MB)';
-        }
-    } catch (_) {}
-}
-
-const btnDownloadCr = document.getElementById('settings-btn-download-cr');
-if (btnDownloadCr) {
-    btnDownloadCr.addEventListener('click', async () => {
-        const { ipcRenderer } = require('electron');
-        const progressContainer = document.getElementById('settings-cr-progress-container');
-        const progressBar = document.getElementById('settings-cr-progress-bar');
-        const progressText = document.getElementById('settings-cr-progress-text');
-        
-        btnDownloadCr.disabled = true;
-        if (progressContainer) progressContainer.style.display = 'block';
-        if (progressBar) progressBar.style.width = '0%';
-        if (progressText) progressText.innerText = 'Zahajuji stahování z CDN...';
-
-        ipcRenderer.on('cr-gtfs-progress', (event, data) => {
-            if (progressBar) progressBar.style.width = data.percent + '%';
-            if (progressText) progressText.innerText = `${data.percent}% (${(data.downloadedBytes / (1024*1024)).toFixed(1)} MB z ${(data.totalBytes / (1024*1024)).toFixed(1)} MB)`;
-        });
-
-        try {
-            const res = await ipcRenderer.invoke('cr-gtfs-download');
-            if (res.success) {
-                alert('✅ Celostátní GTFS data České republiky byla úspěšně stažena!');
-                refreshLauncherCrStatus();
-            } else {
-                alert('Chyba při stahování: ' + res.error);
-            }
-        } catch (e) {
-            alert('Chyba: ' + e.message);
-        } finally {
-            btnDownloadCr.disabled = false;
-            if (progressContainer) progressContainer.style.display = 'none';
-            ipcRenderer.removeAllListeners('cr-gtfs-progress');
-        }
     });
 }
 
