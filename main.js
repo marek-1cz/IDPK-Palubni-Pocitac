@@ -1806,15 +1806,105 @@ app.on('ready', async () => {
 let launcherWindow;
 function createLauncher() {
     launcherWindow = new BrowserWindow({
-        width: 800, height: 600, resizable: false, frame: false, title: "Lancher OIS IDPK",
+        width: 1280,
+        height: 720,
+        useContentSize: true,
+        center: true,
+        resizable: false,
+        maximizable: false,
+        frame: false,
+        title: "Lancher OIS IDPK",
         webPreferences: { nodeIntegration: true, contextIsolation: false },
         icon: path.join(__dirname, 'icon.ico'),
-        backgroundColor: '#0f172a'
+        backgroundColor: '#080d1a'
     });
     loadWindowFile(launcherWindow, 'launcher.html');
 
     launcherWindow.on('closed', () => { app.quit(); });
 }
+
+ipcMain.on('window-minimize', () => {
+    if (launcherWindow && !launcherWindow.isDestroyed()) {
+        launcherWindow.minimize();
+    }
+});
+ipcMain.on('window-close', () => {
+    app.quit();
+});
+ipcMain.on('open-custom-routes-folder', () => {
+    const crPath = path.join(process.env.APPDATA || os.homedir(), 'idpk-palubni-pocitac', 'userdata', 'data');
+    if (!fs.existsSync(crPath)) fs.mkdirSync(crPath, { recursive: true });
+    require('electron').shell.openPath(crPath);
+});
+ipcMain.handle('gtfs-editor-get-all-stops', async () => {
+    try {
+        await ensureGtfsCache();
+        if (idpkDb) {
+            const res = idpkDb.exec("SELECT DISTINCT name, zone_id FROM stops WHERE name IS NOT NULL AND name != ''");
+            if (res.length > 0 && res[0].values) {
+                return res[0].values.map(v => ({ n: v[0], z: v[1] || '' }));
+            }
+        }
+    } catch(e) { console.error('[gtfs-editor-get-all-stops]', e); }
+    return [];
+});
+ipcMain.handle('gtfs-editor-search', async (event, query) => {
+    try {
+        await ensureGtfsCache();
+        if (!idpkDb || !query) return [];
+        const qClean = cleanStr(String(query).trim());
+        
+        let stmt = idpkDb.prepare("SELECT route_id, route_short_name, route_long_name FROM routes WHERE route_short_name LIKE $q OR route_long_name LIKE $q LIMIT 25");
+        stmt.bind({ $q: `%${qClean}%` });
+        let routes = [];
+        while (stmt.step()) {
+            routes.push(stmt.getAsObject());
+        }
+        stmt.free();
+
+        let results = [];
+        for (let r of routes) {
+            let tStmt = idpkDb.prepare("SELECT t.trip_id, t.trip_headsign, COUNT(st.stop_sequence) as cnt FROM trips t JOIN stop_times st ON t.trip_id = st.trip_id WHERE t.route_id = $r GROUP BY t.trip_id ORDER BY cnt DESC LIMIT 2");
+            tStmt.bind({ $r: r.route_id });
+            let trips = [];
+            while (tStmt.step()) {
+                trips.push(tStmt.getAsObject());
+            }
+            tStmt.free();
+
+            for (let t of trips) {
+                let sStmt = idpkDb.prepare("SELECT s.name, COALESCE(s.zone_id, '') as zone_id, CASE WHEN st.pickup_type = '3' THEN 1 ELSE 0 END as req FROM stop_times st JOIN stops s ON st.stop_id = s.stop_id WHERE st.trip_id = $t ORDER BY st.stop_sequence");
+                sStmt.bind({ $t: t.trip_id });
+                let stops = [];
+                while (sStmt.step()) {
+                    let row = sStmt.getAsObject();
+                    stops.push([row.name, row.zone_id, row.req]);
+                }
+                sStmt.free();
+
+                if (stops.length > 0) {
+                    let num = cleanStr(r.route_short_name);
+                    if (num.length >= 5) {
+                        num = num.slice(-3).replace(/^0+/, '') || num;
+                    }
+                    results.push({
+                        num: num,
+                        name: cleanStr(r.route_long_name) || `Linka ${num}`,
+                        from: stops[0][0],
+                        to: stops[stops.length - 1][0],
+                        stops: stops,
+                        scope: 'idpk',
+                        dir: 0
+                    });
+                }
+            }
+        }
+        return results;
+    } catch(e) {
+        console.error('[gtfs-editor-search]', e);
+        return [];
+    }
+});
 
 ipcMain.on('launch-dev-build', async () => {
     if (launcherWindow && !launcherWindow.isDestroyed()) {
