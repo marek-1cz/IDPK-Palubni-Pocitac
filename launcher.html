@@ -233,7 +233,7 @@ button.chip{cursor:pointer;transition:.2s}button.chip:hover{color:#fff;border-co
 .ed-head{display:grid;grid-template-columns:110px 1fr 1fr;gap:12px}
 .fld{display:flex;flex-direction:column;gap:6px}
 .fld>span{font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;font-weight:800;color:var(--dim)}
-.inp{padding:11px 13px;border-radius:11px;background:rgba(0,0,0,.28);border:1px solid var(--line2);outline:0;font-size:14px;transition:.2s;width:100%}
+.inp{padding:11px 13px;border-radius:11px;background:rgba(0,0,0,.28);color:#f1f5f9;border:1px solid var(--line2);outline:0;font-size:14px;transition:.2s;width:100%}
 .inp:focus{border-color:var(--blue);}
 .inp::placeholder{color:#55647f}
 .inp.mono{font-family:"Courier New",monospace;font-weight:800;letter-spacing:.06em}
@@ -811,7 +811,7 @@ button.chip.dl:hover{border-color:var(--blue);color:#fff}
         <div class="ed-pane" id="pane-mine">
           <div class="toolbar">
             <div class="search"><svg class="ic"><use href="#i-search"/></svg><input id="ed-search" placeholder="Hledat podle čísla nebo názvu…" autocomplete="off"></div>
-            <div class="chips" id="mine-chips"><button class="chip on" data-f="all">Vše</button><button class="chip" data-f="local">Lokální</button><button class="chip" data-f="pending">Čeká na schválení</button><button class="chip" data-f="published">Zveřejněné</button></div>
+            <div class="chips" id="mine-chips"><button class="chip on" data-f="all">Vše</button><button class="chip" data-f="local">Lokální</button><button class="chip" data-f="comm">Komunitní</button><button class="chip" data-f="pending">Čeká na schválení</button><button class="chip" data-f="published">Zveřejněné</button></div>
           </div>
           <div class="mine-grid" id="mine-grid"></div>
         </div>
@@ -860,7 +860,7 @@ button.chip.dl:hover{border-color:var(--blue);color:#fff}
             <div class="nf" id="g-nf" hidden>
               <div class="nfi"><svg class="ic"><use href="#i-alert"/></svg></div>
               <div class="nft"><b>Pro „<span id="g-nf-q"></span>“ jsem nic nenašel</b>
-                <p>V datech IDPK (Plzeňský kraj) tato linka není. <b>Chcete-li linku mimo IDPK, stáhněte si GTFS data celé České republiky</b> a hledejte znovu.</p>
+                <p id="g-nf-msg">V datech IDPK (Plzeňský kraj) tato linka není. <b>Chcete-li linku mimo IDPK, stáhněte si GTFS data celé České republiky</b> a hledejte znovu.</p>
                 <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn primary sm" id="g-dl"><svg class="ic"><use href="#i-download"/></svg>Stáhnout GTFS data ČR</button><button class="btn sm ghost" id="g-doc"><svg class="ic"><use href="#i-box"/></svg>Vytvořit z dokumentu (AI)</button></div>
                 <div class="gload" id="g-dl-box" hidden style="margin-top:12px"><div class="pt"><span>Stahování GTFS ČR…</span><b id="g-dl-pct">0 %</b></div><div class="progress-bar"><div class="progress-fill" id="g-dl-bar" style="background:linear-gradient(90deg,#38bdf8,#60a5fa)"></div></div></div>
               </div>
@@ -1807,19 +1807,28 @@ const CONFIG = { DEMO: false, REDUCED_FX: false };
   function renderMine(flashId) {
     const q = $('ed-search').value.trim().toLowerCase(), f = S.mineFilter;
     $('cnt-mine').textContent = S.lines.length;
-    const arr = S.lines.filter((l) => (!q || (l.num + ' ' + l.name + ' ' + l.dest).toLowerCase().includes(q)) && (f === 'all' || l.status === f || (f === 'local' && l.status === 'rejected')));
+    const arr = S.lines.filter((l) => (!q || (l.num + ' ' + l.name + ' ' + l.dest).toLowerCase().includes(q)) && (
+      f === 'all' ||
+      (f === 'comm' && (l.source === 'comm' || (l.tags || []).includes('Komunita') || String(l.id).startsWith('comm_'))) ||
+      l.status === f ||
+      (f === 'local' && (l.status === 'rejected' || l.status === 'local'))
+    ));
     $('mine-grid').innerHTML = arr.map((l, i) => {
-      const st = STAT[l.status], a = annOf(l), full = a === l.stops.length;
-      let main = '<button class="btn" data-a="edit" data-id="' + l.id + '">' + ic('edit') + 'Upravit</button>';
-      if (l.status === 'local' || l.status === 'rejected') main += '<button class="btn primary" data-a="pub" data-id="' + l.id + '">' + ic('users') + 'Zveřejnit</button>';
-      else if (l.status === 'pending') main += '<button class="btn" disabled>' + ic('clock') + 'Čeká na kontrolu</button>';
-      else main += '<button class="btn" disabled style="color:#93c5fd">' + ic('check') + 'Zveřejněno</button>';
+      const st = STAT[l.status] || ['Neznámý', ''], a = annOf(l), full = a === l.stops.length;
+      let main = '<button class="btn" data-a="edit" data-id="' + l.id + '">' + ic('edit') + (l.source === 'comm' ? 'Zobrazit' : 'Upravit') + '</button>';
+      if (l.source !== 'comm') {
+        if (l.status === 'local' || l.status === 'rejected') main += '<button class="btn primary" data-a="pub" data-id="' + l.id + '">' + ic('users') + 'Zveřejnit</button>';
+        else if (l.status === 'pending') main += '<button class="btn" disabled>' + ic('clock') + 'Čeká na kontrolu</button>';
+        else main += '<button class="btn" disabled style="color:#93c5fd">' + ic('check') + 'Zveřejněno</button>';
+      } else {
+        main += '<button class="btn" disabled style="color:#38bdf8">' + ic('check') + 'Nainstalováno</button>';
+      }
       return '<div class="lcard' + (l.id === flashId ? ' flash' : '') + '" style="animation-delay:' + Math.min(i * 40, 300) + 'ms"><div class="top"><span class="numchip">' + esc(l.num) + '</span><div class="tx"><b>' + esc(l.name) + '</b><small>→ ' + esc(l.dest) + '</small></div></div>' +
-        '<div class="meta"><span class="badge b">' + SRC[l.source] + '</span><span class="badge ' + st[1] + '">' + st[0] + '</span>' + (l.scope === 'cr' ? '<span class="badge c">Data ČR</span>' : '') + '</div>' +
+        '<div class="meta"><span class="badge ' + (l.source === 'comm' ? 'c' : 'b') + '">' + (SRC[l.source] || 'Komunita') + '</span><span class="badge ' + st[1] + '">' + st[0] + '</span>' + (l.scope === 'cr' ? '<span class="badge c">Data ČR</span>' : '') + '</div>' +
         '<div class="meta"><span>' + ic('map') + ' ' + l.stops.length + ' zastávek</span><span class="' + (full ? 'okt2' : 'warnt2') + '">' + ic('sound') + ' hlášení ' + a + '/' + l.stops.length + '</span>' + (l.trips && l.trips.length ? '<span>' + ic('clock') + ' ' + l.trips.length + ' spojů</span>' : '') + '</div>' +
         (l.status === 'rejected' ? '<div class="rej"><b>Zpráva od správce:</b> ' + esc(l.reject || '—') + '</div>' : '') +
         '<div class="acts2">' + main + '<button class="btn danger ibx" data-a="del" data-id="' + l.id + '" title="Smazat">' + ic('trash') + '</button></div></div>';
-    }).join('') || '<div class="empty"><b>Zatím tu nic není</b>Vytvořte si první linku tlačítkem „Vytvořit vlastní linku“.</div>';
+    }).join('') || '<div class="empty"><b>Zatím tu nic není</b>Vytvořte si první linku tlačítkem „Vytvořit vlastní linku“ nebo si stáhněte komunitní linku.</div>';
     $$('#mine-grid [data-a]').forEach((b) => (b.onclick = () => {
       const l = S.lines.find((x) => x.id === b.dataset.id), a = b.dataset.a;
       if (a === 'edit') openEdit(l); else if (a === 'pub') openPublish(l);
@@ -1938,7 +1947,21 @@ const CONFIG = { DEMO: false, REDUCED_FX: false };
     }
 
     gRes = (Array.isArray(raw) ? raw : []).slice(0, 30);
-    if (!gRes.length) { $('g-nf-q').textContent = q; $('g-nf').hidden = false; $('g-dl-box').hidden = true; $('g-dl').disabled = false; return; }
+    if (!gRes.length) {
+      $('g-nf-q').textContent = q;
+      $('g-nf').hidden = false;
+      $('g-dl-box').hidden = true;
+      $('g-dl').disabled = false;
+      const crInstalled = Boolean(S.gtfsCR);
+      $('g-dl').hidden = crInstalled;
+      const msgEl = $('g-nf-msg');
+      if (msgEl) {
+        msgEl.innerHTML = crInstalled
+          ? 'Prohledali jsme data IDPK (Plzeňský kraj) i celostátní data ČR, ale linku „<b>' + esc(q) + '</b>“ se nepodařilo najít. Zkontrolujte číslo linky nebo ji vytvořte ručně / pomocí AI.'
+          : 'V datech IDPK (Plzeňský kraj) tato linka není. <b>Chcete-li linku mimo IDPK, stáhněte si GTFS data celé České republiky</b> a hledejte znovu.';
+      }
+      return;
+    }
     $('g-results').hidden = false;
     $('g-results').innerHTML = '<div class="rh">Nalezeno ' + gRes.length + ' linek</div>' + gRes.map((r, i) => {
       const licHtml = r.license && r.license !== r.num ? '<small style="display:inline-block;margin-left:4px;font-size:11px;opacity:0.75;font-weight:normal">(' + esc(r.license) + ')</small>' : '';
@@ -2042,19 +2065,29 @@ const CONFIG = { DEMO: false, REDUCED_FX: false };
   $('snd-multi').onclick = () => mfi.click();
 
   function openEdit(l, isNew) {
-    E = JSON.parse(JSON.stringify(l));
+    E = JSON.parse(JSON.stringify(l || {}));
     if (!Array.isArray(E.stops)) E.stops = [];
-    E.stops.forEach((s) => { if (s.snd && l.stops) { const o = l.stops.find((x) => x.id === s.id); if (o && o.snd && o.snd.url) s.snd.url = o.snd.url; } });
-    E.mode = l.source === 'gtfs' || l.source === 'comm' ? 'gtfs' : 'manual'; E.id = isNew ? null : l.id; E.existing = !isNew; E.dirty = false;
+    E.stops = E.stops.filter(Boolean);
+    E.stops.forEach((s) => { if (s && s.snd && l && l.stops) { const o = l.stops.find((x) => x && x.id === s.id); if (o && o.snd && o.snd.url) s.snd.url = o.snd.url; } });
+    E.mode = (l && (l.source === 'gtfs' || l.source === 'comm')) ? 'gtfs' : 'manual'; E.id = isNew ? null : (l ? l.id : null); E.existing = !isNew; E.dirty = false;
     flowShow('edit'); renderEdit(); setStatus(false);
   }
   function setStatus(d) { E.dirty = d; const st = $('ed-status'); st.classList.toggle('saved', !d); st.querySelector('span').textContent = d ? 'Neuložené změny' : 'Beze změn'; }
   function dirty() { setStatus(true); }
-  function updateProg() { const t = (E.stops || []).length, a = (E.stops || []).filter((s) => s.snd).length; $('ap-text').textContent = 'Hlášení ' + a + ' / ' + t; $('ap-bar').style.width = (t ? (a / t) * 100 : 0) + '%'; $('aprog').classList.toggle('done', t > 0 && a === t); }
-  const audHtml = (s) => s.snd ? '<span class="aud' + (s.snd._p ? ' play' : '') + '"><button data-a="play" title="' + (s.snd._p ? 'Zastavit' : 'Přehrát') + '">' + ic(s.snd._p ? 'min' : 'play') + '</button><em title="' + esc(s.snd.name) + '">' + esc(s.snd.name) + '</em><small>' + fmtDur(s.snd.dur) + '</small><button data-a="rmsnd" title="Odebrat hlášení">' + ic('x') + '</button></span>'
+  function updateProg() { const t = (E.stops || []).length, a = (E.stops || []).filter((s) => s && s.snd).length; $('ap-text').textContent = 'Hlášení ' + a + ' / ' + t; $('ap-bar').style.width = (t ? (a / t) * 100 : 0) + '%'; $('aprog').classList.toggle('done', t > 0 && a === t); }
+  const audHtml = (s) => (s && s.snd) ? '<span class="aud' + (s.snd._p ? ' play' : '') + '"><button data-a="play" title="' + (s.snd._p ? 'Zastavit' : 'Přehrát') + '">' + ic(s.snd._p ? 'min' : 'play') + '</button><em title="' + esc(s.snd.name || '') + '">' + esc(s.snd.name || '') + '</em><small>' + fmtDur(s.snd.dur) + '</small><button data-a="rmsnd" title="Odebrat hlášení">' + ic('x') + '</button></span>'
     : '<button class="aup" data-a="up">' + ic('upload') + 'Nahrát hlášení</button>';
-  const metaOf = (s) => 'pásmo ' + esc(s.z || '–') + (s.req ? ' · na znamení' : '') + (s.n !== s.orig && s.orig ? ' · GTFS: ' + esc(s.orig) : '');
+  const metaOf = (s) => {
+    if (!s) return '';
+    const z = s.z || '–';
+    const reqStr = s.req ? ' · na znamení' : '';
+    const origStr = (s.n && s.orig && s.n !== s.orig) ? ' · GTFS: ' + esc(s.orig) : '';
+    return 'pásmo ' + esc(z) + reqStr + origStr;
+  };
   function renderEdit() {
+    if (!E) E = {};
+    if (!Array.isArray(E.stops)) E.stops = [];
+    E.stops = E.stops.filter(Boolean);
     const g = E.mode === 'gtfs';
     $('e-gtfs-head').hidden = !g; $('e-man-head').hidden = g; $('trips-card').hidden = g; $('stop-tools').hidden = g;
     if (g) {
@@ -2073,7 +2106,7 @@ const CONFIG = { DEMO: false, REDUCED_FX: false };
     const box = $('stops'); box.innerHTML = '';
     E.stops.forEach((s, i) => {
       const r = document.createElement('div'); r.dataset.i = i;
-      const chg = s.n !== s.orig || s.z !== s.zOrig || s.req !== s.reqOrig;
+      const chg = s && (s.n !== s.orig || s.z !== s.zOrig || s.req !== s.reqOrig);
       const tog = '<button class="tog ' + (s.req ? 'on' : '') + '" data-a="req" title="Zastávka na znamení">' + (s.req ? ic('check') : '') + 'Znamení</button>';
       if (g) {
         r.className = 'stp g' + (chg ? ' chg' : '') + (s._open ? ' open' : '');
@@ -2228,16 +2261,27 @@ const CONFIG = { DEMO: false, REDUCED_FX: false };
   }
   let DC = null;
   function openDecide(id, ok) {
-    const q = S.queue.find((x) => x.id === id); DC = { id, ok };
+    const q = S.queue.find((x) => String(x.id) === String(id));
+    if (!q) {
+      console.warn('Queue item not found for id:', id);
+      return;
+    }
+    DC = { id, ok };
     $('dc-ico').className = 'mico ' + (ok ? 'g' : 'r'); $('dc-ico').innerHTML = ic(ok ? 'check' : 'x'); $('dc-title').textContent = (ok ? 'Schválit linku ' : 'Zamítnout linku ') + q.num; $('dc-sub').textContent = q.name + ' · od ' + q.author;
     $('dc-disc-row').hidden = !ok; $('dc-disc').checked = true; $('dc-msg').value = ''; $('dc-ok').className = 'btn ' + (ok ? 'green' : 'solid-danger'); $('dc-ok').textContent = ok ? 'Schválit a zveřejnit' : 'Zamítnout';
     openModal('decide-modal');
   }
   $('dc-cancel').onclick = () => closeModal('decide-modal');
-  $('dc-ok').onclick = () => { closeModal('decide-modal'); applyDecision(DC.id, DC.ok, { disc: $('dc-disc').checked, msg: $('dc-msg').value.trim() }, false); };
+  $('dc-ok').onclick = () => {
+    if (!DC) return;
+    closeModal('decide-modal');
+    applyDecision(DC.id, DC.ok, { disc: $('dc-disc').checked, msg: $('dc-msg').value.trim() }, false);
+  };
   function applyDecision(id, ok, o, asUser) {
-    const q = S.queue.find((x) => x.id === id); if (!q) return; S.queue = S.queue.filter((x) => x.id !== id);
-    const l = S.lines.find((x) => x.id === id);
+    const q = S.queue.find((x) => String(x.id) === String(id));
+    if (!q) return;
+    S.queue = S.queue.filter((x) => String(x.id) !== String(id));
+    const l = S.lines.find((x) => String(x.id) === String(id));
     if (l) { l.status = ok ? 'published' : 'rejected'; if (!ok) l.reject = o.msg || 'Linka byla zamítnuta bez dalšího vysvětlení.'; }
     const qLastStop = (q.stops && q.stops.length) ? (q.stops[q.stops.length - 1].n || '') : '';
     if (ok) S.comm.unshift({ id: 'c' + Date.now(), num: q.num, dest: qLastStop, author: q.author, dl: 0, size: Math.max(8, (q.stops ? q.stops.length : 1) * 5) + ' kB', type: q.type, voice: q.voice, scope: q.scope, tags: q.tags.slice(), isNew: true, state: l ? 'installed' : 'idle' });

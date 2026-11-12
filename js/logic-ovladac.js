@@ -955,6 +955,15 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     ipcRenderer.invoke('get-link-files').then(files => { 
+        if (Array.isArray(files)) {
+            files.sort((a, b) => {
+                const aComm = a.toLowerCase().includes('_custom') || a.toLowerCase().includes('comm_');
+                const bComm = b.toLowerCase().includes('_custom') || b.toLowerCase().includes('comm_');
+                if (aComm && !bComm) return -1;
+                if (!aComm && bComm) return 1;
+                return a.localeCompare(b, undefined, { numeric: true });
+            });
+        }
         availableFiles = files; 
         if (typeof listMode !== 'undefined' && listMode === 'JSON') { filteredFiles = files; renderLinesList(); } 
     }).catch(()=>{});
@@ -2661,13 +2670,15 @@ window.renderLinkList = function() {
     filteredFiles.forEach((file, index) => { 
         let isSelected = (index === selectedListIndex) ? "selected" : "";
         let parts = file.split('|');
-        let cleanName = parts[0].trim().replace(/_auto-BETA/i, '').replace(/_auto/i, '').replace(/-BETA/i, '');
+        let cleanName = parts[0].trim().replace(/_auto-BETA/i, '').replace(/_auto/i, '').replace(/-BETA/i, '').replace(/_custom/i, '');
         let isBeta = file.toUpperCase().includes('BETA');
+        let isComm = file.toLowerCase().includes('_custom') || file.toLowerCase().includes('comm_') || parts[0].toLowerCase().includes('komunit');
         let routeName = parts[1] ? parts[1].trim() : "";
         
         html += `<div class="link-suggestion-item ${isSelected}" onclick="window.selectListItem(${index})">`;
-        html += `<span class="lsi-badge${isBeta ? ' beta' : ''}">${cleanName.toUpperCase()}</span>`;
-        if(routeName) html += `<span class="lsi-name">${routeName}${isBeta ? ' BETA' : ''}</span>`;
+        html += `<span class="lsi-badge${isComm ? ' comm' : (isBeta ? ' beta' : '')}">${cleanName.toUpperCase()}</span>`;
+        if(routeName) html += `<span class="lsi-name">${routeName}${isComm ? ' [KOMUNITA]' : (isBeta ? ' BETA' : '')}</span>`;
+        else if (isComm) html += `<span class="lsi-name">[VLASTNÍ / KOMUNITA]</span>`;
         html += `</div>`;
     }); 
     listEl.innerHTML = html;
@@ -2684,6 +2695,12 @@ window.getResolvedFile = function(inputStr) {
     let searchNum = str.replace(/\D/g, ''); 
     if (!searchNum) return null; 
     
+    let commMatch = availableFiles.find(f => {
+        let fNums = f.split('|')[0].replace(/\D/g, '');
+        return fNums === searchNum && (f.toLowerCase().includes('_custom') || f.toLowerCase().includes('comm_'));
+    });
+    if (commMatch) return commMatch;
+
     let betaMatch = availableFiles.find(f => { 
         let fNums = f.split('|')[0].replace(/\D/g, ''); 
         return fNums.startsWith(searchNum) && f.toUpperCase().includes('BETA'); 
@@ -2834,6 +2851,15 @@ window.backToManual = function() {
     isListOpen = false; 
 
     ipcRenderer.invoke('get-link-files').then(files => { 
+        if (Array.isArray(files)) {
+            files.sort((a, b) => {
+                const aComm = a.toLowerCase().includes('_custom') || a.toLowerCase().includes('comm_');
+                const bComm = b.toLowerCase().includes('_custom') || b.toLowerCase().includes('comm_');
+                if (aComm && !bComm) return -1;
+                if (!aComm && bComm) return 1;
+                return a.localeCompare(b, undefined, { numeric: true });
+            });
+        }
         availableFiles = files; 
         if (typeof listMode !== 'undefined' && listMode === 'JSON') { filteredFiles = files; renderLinesList(); } 
         if (appState === 'LINKOSPOJ') {

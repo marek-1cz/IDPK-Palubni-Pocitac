@@ -2671,6 +2671,44 @@ function updateLCLaunchState(versionName) {
     }
 }
 
+function syncRouteFileToLinky(line) {
+    if (!line || !line.num) return;
+    try {
+        const linkyDir = path.join(centralUserDataPath, 'linky');
+        if (!fs.existsSync(linkyDir)) fs.mkdirSync(linkyDir, { recursive: true });
+        
+        const safeNum = String(line.num).trim().replace(/[^a-zA-Z0-9_-]/g, '_');
+        const filename = `${safeNum}_custom.txt`;
+        const filePath = path.join(linkyDir, filename);
+        
+        let txt = `Linka: ${line.num}\n`;
+        const lastStop = line.dest || (line.stops && line.stops.length ? (line.stops[line.stops.length - 1].n || line.stops[line.stops.length - 1].name) : '');
+        txt += `Směr: ${lastStop}\n`;
+        txt += `Zastávky:\n`;
+        
+        const stops = Array.isArray(line.stops) ? line.stops : [];
+        for (const s of stops) {
+            const stopName = (s.n || s.name || '').trim();
+            if (!stopName) continue;
+            let audioFile = '';
+            if (s.snd && s.snd.name) {
+                audioFile = s.snd.name;
+            } else if (s.audio_file) {
+                audioFile = s.audio_file;
+            } else if (s.audio) {
+                audioFile = s.audio;
+            }
+            const zone = s.z || s.zone || '1';
+            const reqFlag = s.req ? ' | Další znaky: ZZ' : '';
+            txt += `${audioFile || stopName} = ${stopName} | Display: ${stopName} | Tarifní zona: ${zone} | Čas:${reqFlag}\n`;
+        }
+        
+        fs.writeFileSync(filePath, txt, 'utf-8');
+    } catch (e) {
+        console.error('[syncRouteFileToLinky] Chyba:', e);
+    }
+}
+
 async function loadLocalEditorLines() {
     try {
         const customDataPath = path.join(centralUserDataPath, 'data');
@@ -2687,7 +2725,7 @@ async function loadLocalEditorLines() {
         const files = fs.readdirSync(customDataPath).filter(f => f.endsWith('.json'));
         const lines = [];
         for (const f of files) {
-            if (IGNORED_CONFIG_FILES.has(f) || f.startsWith('comm_') || f.startsWith('_')) {
+            if (IGNORED_CONFIG_FILES.has(f) || f.startsWith('_')) {
                 continue;
             }
             try {
@@ -2699,8 +2737,13 @@ async function loadLocalEditorLines() {
                     if (!parsed.name) parsed.name = parsed.nazev || parsed.smer || `Linka ${parsed.num}`;
                     if (!parsed.dest) parsed.dest = parsed.cil || (parsed.stops && parsed.stops.length ? (parsed.stops[parsed.stops.length - 1].n || parsed.stops[parsed.stops.length - 1].name) : '');
                     if (!parsed.stops || !Array.isArray(parsed.stops)) parsed.stops = [];
-                    if (!parsed.status) parsed.status = 'local';
-                    if (!parsed.source) parsed.source = parsed.is_custom ? 'manual' : 'gtfs';
+                    if (!parsed.status) parsed.status = f.startsWith('comm_') ? 'published' : 'local';
+                    if (!parsed.source) parsed.source = f.startsWith('comm_') ? 'comm' : (parsed.is_custom ? 'manual' : 'gtfs');
+                    if (f.startsWith('comm_')) {
+                        parsed.source = 'comm';
+                        if (!parsed.tags) parsed.tags = [];
+                        if (!parsed.tags.includes('Komunita')) parsed.tags.unshift('Komunita');
+                    }
 
                     // Doplnění platných lokálních URL pro přehrávání zvuku v launcheru
                     for (const s of parsed.stops) {
@@ -2712,6 +2755,7 @@ async function loadLocalEditorLines() {
                         }
                     }
 
+                    syncRouteFileToLinky(parsed);
                     lines.push(parsed);
                 }
             } catch (err) {}
@@ -3092,6 +3136,7 @@ document.addEventListener('lc:line-save', (e) => {
         line.is_custom = true;
         const filePath = path.join(customDataPath, `${line.id}.json`);
         fs.writeFileSync(filePath, JSON.stringify(line, null, 2), 'utf8');
+        syncRouteFileToLinky(line);
         if (window.LC) {
             window.LC.toast('ok', `Linka ${line.num} uložena`, 'Linka byla uložena do vašich linek.');
         }
@@ -3208,7 +3253,7 @@ document.addEventListener('lc:line-decision', async (e) => {
         const res = await fetch(`${API_BASE}/api/community-routes/decision`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ route_id: id, ok: ok, discord: discord, message: message })
+            body: JSON.stringify({ route_id: id, id: id, ok: ok, discord: discord, message: message })
         });
         const data = await res.json();
         if (data.success) {
@@ -3216,6 +3261,8 @@ document.addEventListener('lc:line-decision', async (e) => {
                 window.LC.toast('ok', ok ? 'Linka schválena' : 'Linka zamítnuta', 'Rozhodnutí bylo uloženo a uživatel byl informován.');
                 const newQ = await loadPendingAdminQueue();
                 window.LC.setQueue(newQ);
+                const commLines = await loadCommunityEditorLines();
+                window.LC.setComm(commLines);
             }
         } else {
             if (window.LC) window.LC.toast('err', 'Chyba', data.error || 'Operace selhala.');
@@ -3264,14 +3311,17 @@ document.addEventListener('lc:community-download', async (e) => {
         scope: commItem.scope || 'idpk',
         type: commItem.type || 'realna',
         voice: commItem.voice || 'synt',
-        tags: commItem.tags || [],
+        tags: Array.isArray(commItem.tags) ? [...commItem.tags] : [],
         status: 'published',
         stops: commItem.stops || []
     };
+    if (!lineData.tags.includes('Komunita')) lineData.tags.unshift('Komunita');
     fs.writeFileSync(path.join(customDataPath, `comm_${id}.json`), JSON.stringify(lineData, null, 2), 'utf8');
+    syncRouteFileToLinky(lineData);
     commItem.state = 'installed';
     if (window.LC) {
         if (window.LC.S && window.LC.S.lines) {
+            window.LC.S.lines = window.LC.S.lines.filter(x => x.id !== lineData.id);
             window.LC.S.lines.unshift(lineData);
         }
         if (window.LC.renderComm) window.LC.renderComm();

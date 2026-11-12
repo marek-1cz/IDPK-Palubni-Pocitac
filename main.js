@@ -482,6 +482,7 @@ ipcMain.handle('get-link-files', async () => {
                 }
             });
         }
+        processDir(path.join(PATH_USERDATA, 'linky'));
         processDir(path.join(PATH_EXE, 'linky'));
         processDir(path.join(PATH_DEV, 'linky'));
         processDir(path.join(process.resourcesPath, 'linky'));
@@ -1058,14 +1059,21 @@ function invalidateGtfsCache() {
 
 let crDb = null;
 let crCachePromise = null;
+function getCrDbPath() {
+    let p1 = getDataFilePath('gtfs_stops_cr.db');
+    if (fs.existsSync(p1)) return p1;
+    let p2 = getDataFilePath('gtfs_stops_fallback.db');
+    if (fs.existsSync(p2)) return p2;
+    return p1;
+}
 async function ensureCrCache() {
     if (crDb) return crDb;
     if (crCachePromise) return crCachePromise;
     crCachePromise = (async () => {
         try {
-            const dbPath = getDataFilePath('gtfs_stops_fallback.db');
+            const dbPath = getCrDbPath();
             if (fs.existsSync(dbPath)) {
-                log.info('[GTFS DB] Načítám ČR fallback DB do paměti...');
+                log.info('[GTFS DB] Načítám ČR DB do paměti (' + path.basename(dbPath) + ')...');
                 const SQL = await getSqlJs();
                 const fileBuffer = fs.readFileSync(dbPath);
                 crDb = new SQL.Database(fileBuffer);
@@ -1876,7 +1884,7 @@ ipcMain.handle('gtfs-editor-get-all-stops', async () => {
 });
 ipcMain.handle('gtfs-check-cr', async () => {
     try {
-        const dbPath = getDataFilePath('gtfs_stops_fallback.db');
+        const dbPath = getCrDbPath();
         return fs.existsSync(dbPath);
     } catch(e) {
         return false;
