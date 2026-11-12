@@ -2792,12 +2792,40 @@ async function initLCBridgeData() {
         // GTFS vyhledávání
         window.LC.setGtfsSearch(async (q) => {
             try {
-                return await ipcRenderer.invoke('gtfs-editor-search', q);
+                const res = await ipcRenderer.invoke('gtfs-editor-search', q);
+                return Array.isArray(res) ? res : [];
             } catch(e) {
                 console.error('Chyba při vyhledávání v GTFS:', e);
                 return [];
             }
         });
+
+        // Kontrola a stahování dat celé ČR
+        try {
+            const hasCr = await ipcRenderer.invoke('gtfs-check-cr');
+            if (hasCr && window.LC && window.LC.setCrDownloaded) {
+                window.LC.setCrDownloaded(true);
+            }
+        } catch(e) {}
+
+        if (window.LC.setGtfsDownload) {
+            window.LC.setGtfsDownload(async (cb) => {
+                const onProgress = (evt, data) => {
+                    if (cb && data) cb(data.percent, data.text);
+                };
+                ipcRenderer.on('gtfs-cr-progress', onProgress);
+                try {
+                    const res = await ipcRenderer.invoke('gtfs-download-cr');
+                    ipcRenderer.removeListener('gtfs-cr-progress', onProgress);
+                    if (!res || !res.success) throw new Error(res ? res.error : 'Chyba stahování');
+                    if (window.LC.setCrDownloaded) window.LC.setCrDownloaded(true);
+                    return true;
+                } catch(err) {
+                    ipcRenderer.removeListener('gtfs-cr-progress', onProgress);
+                    throw err;
+                }
+            });
+        }
 
         // Databáze zastávek STOPDB pro nápovědu
         try {

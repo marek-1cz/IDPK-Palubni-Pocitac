@@ -676,7 +676,7 @@ button.chip.dl:hover{border-color:var(--blue);color:#fff}
 
 <!-- ===== Titulní lišta ===== -->
 <div class="titlebar">
-  <div class="drag-region"><span class="tdot"></span>LANCHER OIS IDPK <span id="launcher-title-version" class="tver">v1.0.5</span></div>
+  <div class="drag-region"><span class="tdot"></span>LANCHER OIS IDPK <span id="launcher-title-version" class="tver">v1.0.6</span></div>
   <div class="window-controls">
     <button id="btn-minimize" title="Minimalizovat"><svg class="ic"><use href="#i-min"/></svg></button>
     <button id="btn-close" title="Zavřít"><svg class="ic"><use href="#i-x"/></svg></button>
@@ -985,7 +985,7 @@ button.chip.dl:hover{border-color:var(--blue);color:#fff}
 
         <div class="card">
           <div class="card-h"><svg class="ic"><use href="#i-info"/></svg>O aplikaci</div>
-          <div class="row"><div class="ri"><svg class="ic"><use href="#i-rocket"/></svg></div><div class="rt"><b>Launcher <span id="settings-launcher-version">v1.0.5</span></b><small>Hra <span id="settings-app-version">V1.6.3</span> · OIS IDPK © 2026 · CC BY 4.0</small></div>
+          <div class="row"><div class="ri"><svg class="ic"><use href="#i-rocket"/></svg></div><div class="rt"><b>Launcher <span id="settings-launcher-version">Verze Launcheru: v1.0.6</span></b><small>Hra <span id="settings-app-version">V1.6.3</span> · OIS IDPK © 2026 · CC BY 4.0</small></div>
             <button class="btn sm" id="btn-check-launcher-update"><svg class="ic" id="btn-check-launcher-icon"><use href="#i-refresh"/></svg><span id="btn-check-launcher-text">Zkontrolovat launcher</span></button></div>
           <div class="row"><div class="ri"><svg class="ic"><use href="#i-users"/></svg></div><div class="rt"><b>Komunita na Discordu</b><small>Novinky, podpora a sdílení linek</small></div><a class="btn sm" id="settings-discord-link" href="https://discord.com/invite/vmTagbC9mF" target="_blank" rel="noopener">Připojit se</a></div>
         </div>
@@ -1657,12 +1657,24 @@ const CONFIG = { DEMO: false, REDUCED_FX: false };
     '170': { name: 'Praha – Kladno', vars: [[['Praha, Dejvická', '1', 0], ['Praha, Zličín', '2', 0], ['Kladno, nádraží', '3', 0]]] },
   };
   const CRPOOL = ['Brno, hlavní nádraží', 'Brno, Zvonařka', 'Praha, Florenc', 'Praha, Anděl', 'Kladno, nádraží', 'Ostrava, Svinov', 'Olomouc, hl. n.', 'Jihlava, aut. nádr.', 'Pardubice, Tesla', 'Zlín, náměstí Práce', 'Liberec, Fügnerova', 'České Budějovice, Mercury'];
-  const mkStop = (n, z, req, snd) => ({ id: uid(), n, orig: n, z: z || '1', zOrig: z || '1', req: !!req, reqOrig: !!req, snd: snd || null, hint: null });
-  const mkStops = (arr) => arr.map((a) => mkStop(a[0], a[1], a[2]));
+  const mkStop = (n, z, req, snd) => ({ id: uid(), n: n || '', orig: n || '', z: z || '1', zOrig: z || '1', req: !!req, reqOrig: !!req, snd: snd || null, hint: null });
+  const mkStops = (arr) => (Array.isArray(arr) ? arr : []).map((a) => {
+    if (Array.isArray(a)) return mkStop(a[0], a[1], a[2]);
+    if (typeof a === 'object' && a !== null) return mkStop(a.name || a.n, a.zone || a.z, a.req, a.snd);
+    return mkStop(String(a), '1', false);
+  });
   const STOPDB = Object.values(IDPK).flatMap((v) => v.vars.flat().map((s) => ({ n: s[0], z: s[1] })));
   const norm = (s) => String(s).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
-  function gtfsSearch(q) {
-    if (window.__customGtfsSearch) return window.__customGtfsSearch(q);
+  async function gtfsSearch(q) {
+    if (window.__customGtfsSearch) {
+      try {
+        const res = await window.__customGtfsSearch(q);
+        return Array.isArray(res) ? res : [];
+      } catch (e) {
+        console.error('[customGtfsSearch]', e);
+        return [];
+      }
+    }
     const nq = norm(q), numeric = /^\d+$/.test(q.trim()), out = [];
     const scan = (src, scope) => Object.keys(src).sort((a, b) => a - b).forEach((num) => {
       const L = src[num];
@@ -1671,47 +1683,35 @@ const CONFIG = { DEMO: false, REDUCED_FX: false };
       L.vars.forEach((v) => [v, v.slice().reverse()].forEach((st, d) => out.push({ num, name: L.name, from: st[0][0], to: st[st.length - 1][0], stops: st, scope, dir: d })));
     });
     scan(IDPK, 'idpk'); if (S.gtfsCR) scan(CRLINES, 'cr');
-    if (!out.length && numeric && S.gtfsCR) {
-      const k = parseInt(q, 10) || 7, st = []; for (let i = 0; i < 6; i++) st.push([CRPOOL[(k + i * 3) % CRPOOL.length], String(Math.min(i + 1, 5)), i === 2 || i === 4 ? 1 : 0]);
-      [st, st.slice().reverse()].forEach((x, d) => out.push({ num: q.trim(), name: 'Linka ' + q.trim() + ' (GTFS ČR)', from: x[0][0], to: x[x.length - 1][0], stops: x, scope: 'cr', dir: d }));
-    }
     return out;
   }
   async function gtfsDownload(cb) {
+    if (window.__customGtfsDownload) {
+      try {
+        return await window.__customGtfsDownload(cb);
+      } catch(e) {
+        console.error('[gtfsDownload]', e);
+        toast('err', 'Chyba stahování GTFS ČR', e.message || String(e));
+        return false;
+      }
+    }
     for (let p = 0; p <= 100; p += 2) { cb(p, p < 70 ? 'Stahování dat z NAP…' : p < 95 ? 'Zpracování zastávek a spojů…' : 'Ukládání do databáze…'); await wait(55); }
     S.gtfsCR = true; updateGtfsText();
   }
   function updateGtfsText() {
-    $('settings-cr-status-text').textContent = S.gtfsCR ? 'IDPK: aktuální · celá ČR: staženo dnes (VZOR)' : 'IDPK: aktuální · celá ČR: nejsou stažena';
+    $('settings-cr-status-text').textContent = S.gtfsCR ? 'IDPK: aktuální · celá ČR: staženo a aktivní' : 'IDPK: aktuální · celá ČR: nejsou stažena';
     $('settings-cr-btn-label').textContent = S.gtfsCR ? 'Aktualizovat data ČR' : 'Stáhnout data ČR';
   }
 
-  /* ---------- Demo data uživatele ---------- */
+  /* ---------- Skutečná data linek (žádné vzory) ---------- */
   S.gtfsCR = false; S.notifyVia = 'Discord DM'; S.cmFilter = 'all'; S.cmVoice = 'all'; S.mineFilter = 'all';
   const snd = (name, dur) => ({ name, dur });
   const withSnd = (arr, all) => { const st = mkStops(arr); st.forEach((s, i) => { if (all || i % 2 === 0) s.snd = snd(norm(s.n).replace(/ /g, '-') + '.mp3', 1.6 + (i % 3) * 0.7); }); return st; };
-  const fs = [mkStop('Plzeň, CAN', '1', 0, snd('plzen-can.mp3', 2.4)), mkStop('Plzeň, Bolevec', '1', 0, snd('bolevec.mp3', 1.8)), mkStop('Ejpovice, rozcestí', '3', 1, snd('ejpovice.wav', 2.1)), mkStop('Rokycany, náměstí', '4', 0, snd('rokycany.wav', 2.6))];
-  S.lines = [
-    { id: 'l1', num: '401', name: 'Plzeň – Nýřany', dest: 'Nýřany, náměstí', source: 'gtfs', scope: 'idpk', type: 'realna', voice: 'synt', tags: ['Škoda 7,5'], status: 'published', stops: withSnd(IDPK['401'].vars[0], true), trips: [] },
-    { id: 'l2', num: '999', name: 'Fiktivní expres Plzeň – Rokycany', dest: 'Rokycany, náměstí', source: 'manual', scope: null, type: 'fiktivni', voice: 'own', tags: [], status: 'local', stops: fs,
-      trips: [{ id: 't1', no: 1, items: [{ s: fs[0].id, time: '06:15' }, { s: fs[1].id, time: '06:23' }, { s: fs[2].id, time: '06:35' }, { s: fs[3].id, time: '06:46' }] }, { id: 't2', no: 101, items: [{ s: fs[0].id, time: '08:00' }, { s: fs[3].id, time: '08:31' }] }] },
-    { id: 'l3', num: '540', name: 'Plzeň – Domažlice', dest: 'Domažlice, aut. nádr.', source: 'gtfs', scope: 'idpk', type: 'realna', voice: 'real', tags: ['Iveco Crossway'], status: 'pending', stops: withSnd(IDPK['540'].vars[0], true), trips: [] },
-    { id: 'l4', num: '200', name: 'Plzeň, Lochotín – centrum', dest: 'Plzeň, náměstí Republiky', source: 'gtfs', scope: 'idpk', type: 'realna', voice: 'synt', tags: [], status: 'rejected', reject: 'Chybí hlášení u dvou zastávek a u jedné je příliš tichá nahrávka. Doplňte prosím a odešlete znovu.', stops: withSnd(IDPK['200'].vars[0], false), trips: [] },
-  ];
-  S.comm = [
-    { id: 'c1', num: '320', dest: 'Tachov, nádraží', author: 'Honza_Bus', dl: 428, size: '38 kB', type: 'realna', voice: 'real', scope: 'idpk', tags: ['Iveco Crossway', 'Karosa Recreo'], isNew: true, state: 'idle' },
-    { id: 'c2', num: '435', dest: 'Rokycany, Střed', author: 'PlzenskyRidic', dl: 1210, size: '52 kB', type: 'polofiktivni', voice: 'own', scope: 'idpk', tags: ['Solaris Urbino 12'], state: 'installed' },
-    { id: 'c3', num: '601', dest: 'Stříbro, náměstí', author: 'Lenka_K', dl: 87, size: '29 kB', type: 'fiktivni', voice: 'synt', scope: null, tags: ['Škoda 7,5'], isNew: true, state: 'idle' },
-    { id: 'c4', num: '25', dest: 'Olomouc, hl. n.', author: 'BrnoBus', dl: 312, size: '47 kB', type: 'realna', voice: 'real', scope: 'cr', tags: ['SOR NB 12'], state: 'idle' },
-    { id: 'c5', num: '900', dest: 'Plzeň, Lochotín', author: 'Marek', dl: 2310, size: '21 kB', type: 'fiktivni', voice: 'own', scope: null, tags: ['Citelis 12M', 'Setra S 415 LE'], state: 'installed' },
-    { id: 'c6', num: '445', dest: 'Sušice, náměstí', author: 'Pepa_Sofer', dl: 173, size: '61 kB', type: 'polofiktivni', voice: 'synt', scope: 'idpk', tags: ['Iveco Urbanway'], state: 'idle' },
-  ];
-  S.queue = [
-    { id: 'q1', num: '610', name: 'Plzeň – Sušice', author: 'Pepa_Sofer', type: 'realna', voice: 'real', tags: ['Iveco Urbanway'], desc: 'Hlášení nahraná přímo v autobuse.', scope: 'idpk', stops: ['Plzeň, CAN', 'Klatovy, žel. st.', 'Sušice, náměstí'].map((n, i) => ({ n, snd: snd('hlaseni-' + (i + 1) + '.wav', 2 + i * 0.6) })) },
-    { id: 'q2', num: '25', name: 'Brno – Olomouc', author: 'BrnoBus', type: 'polofiktivni', voice: 'synt', tags: [], desc: '', scope: 'cr', stops: ['Brno, hlavní nádraží', 'Vyškov, aut. nádr.', 'Olomouc, hl. n.'].map((n, i) => ({ n, snd: snd('brno-' + (i + 1) + '.mp3', 1.7 + i * 0.5) })) },
-  ];
+  S.lines = [];
+  S.comm = [];
+  S.queue = [];
   S.cur = null; S.flow = null; S.guideNext = null;
-  const annOf = (l) => l.stops.filter((s) => s.snd).length;
+  const annOf = (l) => (l && Array.isArray(l.stops) ? l.stops.filter((s) => s && s.snd).length : 0);
 
   /* ---------- zvuk: kontrola délky, přehrání ---------- */
   const isAudio = (f) => /\.(mp3|wav|ogg|oga|m4a|aac|flac|opus|wma)$/i.test(f.name) || (f.type || '').startsWith('audio/');
@@ -1859,13 +1859,15 @@ const CONFIG = { DEMO: false, REDUCED_FX: false };
     gBusy = true; $('g-nf').hidden = true; $('g-results').hidden = true; $('g-loading').hidden = false;
     for (let p = 0; p <= 100; p += 5) { $('g-load-bar').style.width = p + '%'; $('g-load-pct').textContent = p + ' %'; $('g-load-text').textContent = 'Prohledávám GTFS pro „' + q + '“…'; await wait(35); }
     gBusy = false; $('g-loading').hidden = true; scopeChips();
-    gRes = gtfsSearch(q).slice(0, 14);
+    const raw = await gtfsSearch(q);
+    gRes = (Array.isArray(raw) ? raw : []).slice(0, 14);
     if (!gRes.length) { $('g-nf-q').textContent = q; $('g-nf').hidden = false; $('g-dl-box').hidden = true; $('g-dl').disabled = false; return; }
     $('g-results').hidden = false;
-    $('g-results').innerHTML = '<div class="rh">Nalezeno ' + gRes.length + ' linek a směrů</div>' + gRes.map((r, i) => '<div class="rcard"><span class="numchip">' + esc(r.num) + '</span><div class="tx"><b>' + esc(r.from) + ' → ' + esc(r.to) + '</b><small>' + r.stops.length + ' zastávek · ' + esc(r.name) + '</small></div><span class="badge ' + (r.scope === 'cr' ? 'c' : 'g') + '">' + (r.scope === 'cr' ? 'Data ČR' : 'IDPK') + '</span><button class="btn primary sm" data-i="' + i + '">Vybrat</button></div>').join('');
+    $('g-results').innerHTML = '<div class="rh">Nalezeno ' + gRes.length + ' linek a směrů</div>' + gRes.map((r, i) => '<div class="rcard"><span class="numchip">' + esc(r.num) + '</span><div class="tx"><b>' + esc(r.from || '') + ' → ' + esc(r.to || '') + '</b><small>' + (r.stops ? r.stops.length : 0) + ' zastávek · ' + esc(r.name) + '</small></div><span class="badge ' + (r.scope === 'cr' ? 'c' : 'g') + '">' + (r.scope === 'cr' ? 'Data ČR' : 'IDPK') + '</span><button class="btn primary sm" data-i="' + i + '">Vybrat</button></div>').join('');
     $$('#g-results [data-i]').forEach((b) => (b.onclick = () => {
       const r = gRes[+b.dataset.i];
-      openEdit({ id: null, num: r.num, name: r.name, from: r.from, to: r.to, dest: r.to, source: 'gtfs', scope: r.scope, stops: mkStops(r.stops), trips: [], type: 'realna', voice: 'synt', tags: [], status: 'local' }, true);
+      if (!r) return;
+      openEdit({ id: null, num: r.num, name: r.name, from: r.from, to: r.to, dest: r.to, source: 'gtfs', scope: r.scope, stops: mkStops(r.stops || []), trips: [], type: 'realna', voice: 'synt', tags: [], status: 'local' }, true);
     }));
   }
   $('g-find').onclick = gFind; $('g-q').onkeydown = (e) => { if (e.key === 'Enter') gFind(); };
@@ -1958,20 +1960,30 @@ const CONFIG = { DEMO: false, REDUCED_FX: false };
   $('snd-multi').onclick = () => mfi.click();
 
   function openEdit(l, isNew) {
-    E = JSON.parse(JSON.stringify(l)); E.stops.forEach((s) => { if (s.snd && l.stops) { const o = l.stops.find((x) => x.id === s.id); if (o && o.snd && o.snd.url) s.snd.url = o.snd.url; } });
+    E = JSON.parse(JSON.stringify(l));
+    if (!Array.isArray(E.stops)) E.stops = [];
+    E.stops.forEach((s) => { if (s.snd && l.stops) { const o = l.stops.find((x) => x.id === s.id); if (o && o.snd && o.snd.url) s.snd.url = o.snd.url; } });
     E.mode = l.source === 'gtfs' || l.source === 'comm' ? 'gtfs' : 'manual'; E.id = isNew ? null : l.id; E.existing = !isNew; E.dirty = false;
     flowShow('edit'); renderEdit(); setStatus(false);
   }
   function setStatus(d) { E.dirty = d; const st = $('ed-status'); st.classList.toggle('saved', !d); st.querySelector('span').textContent = d ? 'Neuložené změny' : 'Beze změn'; }
   function dirty() { setStatus(true); }
-  function updateProg() { const t = E.stops.length, a = E.stops.filter((s) => s.snd).length; $('ap-text').textContent = 'Hlášení ' + a + ' / ' + t; $('ap-bar').style.width = (t ? (a / t) * 100 : 0) + '%'; $('aprog').classList.toggle('done', t > 0 && a === t); }
+  function updateProg() { const t = (E.stops || []).length, a = (E.stops || []).filter((s) => s.snd).length; $('ap-text').textContent = 'Hlášení ' + a + ' / ' + t; $('ap-bar').style.width = (t ? (a / t) * 100 : 0) + '%'; $('aprog').classList.toggle('done', t > 0 && a === t); }
   const audHtml = (s) => s.snd ? '<span class="aud' + (s.snd._p ? ' play' : '') + '"><button data-a="play" title="' + (s.snd._p ? 'Zastavit' : 'Přehrát') + '">' + ic(s.snd._p ? 'min' : 'play') + '</button><em title="' + esc(s.snd.name) + '">' + esc(s.snd.name) + '</em><small>' + fmtDur(s.snd.dur) + '</small><button data-a="rmsnd" title="Odebrat hlášení">' + ic('x') + '</button></span>'
     : '<button class="aup" data-a="up">' + ic('upload') + 'Nahrát hlášení</button>';
   const metaOf = (s) => 'pásmo ' + esc(s.z || '–') + (s.req ? ' · na znamení' : '') + (s.n !== s.orig && s.orig ? ' · GTFS: ' + esc(s.orig) : '');
   function renderEdit() {
     const g = E.mode === 'gtfs';
     $('e-gtfs-head').hidden = !g; $('e-man-head').hidden = g; $('trips-card').hidden = g; $('stop-tools').hidden = g;
-    if (g) { $('eg-num').textContent = E.num; $('eg-route').textContent = (E.from || E.stops[0].n) + ' → ' + (E.to || E.dest); $('eg-scope').textContent = E.scope === 'cr' ? 'Data ČR' : 'IDPK'; $('eg-scope').className = 'badge ' + (E.scope === 'cr' ? 'c' : 'g'); $('eg-count').textContent = E.stops.length; }
+    if (g) {
+      $('eg-num').textContent = E.num || '';
+      const firstStop = (E.stops && E.stops[0]) ? (E.stops[0].n || '') : '';
+      const lastStop = (E.stops && E.stops.length) ? (E.stops[E.stops.length - 1].n || '') : '';
+      $('eg-route').textContent = (E.from || firstStop || '–') + ' → ' + (E.to || E.dest || lastStop || '–');
+      $('eg-scope').textContent = E.scope === 'cr' ? 'Data ČR' : 'IDPK';
+      $('eg-scope').className = 'badge ' + (E.scope === 'cr' ? 'c' : 'g');
+      $('eg-count').textContent = (E.stops ? E.stops.length : 0);
+    }
     else { $('e-title').textContent = E.existing ? 'Úprava linky ' + (E.num || '') : (E.source === 'doc' ? 'Linka z dokumentu' : 'Fiktivní linka'); $('e-src').textContent = SRC[E.source] || 'Ruční'; $('e-num').value = E.num; $('e-name').value = E.name; $('e-dest').value = E.dest; }
     $('stop-count').textContent = E.stops.length + ' zastávek'; $('trip-count').textContent = (E.trips || []).length + ' spojů';
     $('stop-head').className = 'stop-head ' + (g ? 'g' : 'm');
@@ -2202,12 +2214,14 @@ const CONFIG = { DEMO: false, REDUCED_FX: false };
     setLauncherUpdate,
     CONFIG,
     S,
-    setLines: (lines) => { S.lines = lines; renderMine(); },
-    setComm: (comm) => { S.comm = comm; renderComm(); },
-    setQueue: (queue) => { S.queue = queue; if (typeof syncAdminTab === 'function') syncAdminTab(S.role); renderAdmin(); },
-    setGtfsCR: (on) => { S.gtfsCR = !!on; updateGtfsText(); },
+    setLines: (lines) => { S.lines = Array.isArray(lines) ? lines : []; renderMine(); },
+    setComm: (comm) => { S.comm = Array.isArray(comm) ? comm : []; renderComm(); },
+    setQueue: (queue) => { S.queue = Array.isArray(queue) ? queue : []; if (typeof syncAdminTab === 'function') syncAdminTab(S.role); renderAdmin(); },
+    setGtfsCR: (on) => { S.gtfsCR = !!on; updateGtfsText(); if (typeof scopeChips === 'function') scopeChips(); },
+    setCrDownloaded: (on) => { S.gtfsCR = !!on; updateGtfsText(); if (typeof scopeChips === 'function') scopeChips(); },
     setGtfsSearch: (fn) => { window.__customGtfsSearch = fn; },
-    setStopDb: (list) => { STOPDB.length = 0; STOPDB.push(...list); },
+    setGtfsDownload: (fn) => { window.__customGtfsDownload = fn; },
+    setStopDb: (list) => { STOPDB.length = 0; if (Array.isArray(list)) STOPDB.push(...list); },
     renderMine,
     renderComm,
     renderAdmin,

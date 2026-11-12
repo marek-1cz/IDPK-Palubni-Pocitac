@@ -1052,7 +1052,33 @@ async function ensureGtfsCache() {
 
 function invalidateGtfsCache() {
     if (idpkDb) { idpkDb.close(); idpkDb = null; }
+    if (crDb) { crDb.close(); crDb = null; }
     log.info('[GTFS Cache] DB invalidována.');
+}
+
+let crDb = null;
+let crCachePromise = null;
+async function ensureCrCache() {
+    if (crDb) return crDb;
+    if (crCachePromise) return crCachePromise;
+    crCachePromise = (async () => {
+        try {
+            const dbPath = getDataFilePath('gtfs_stops_fallback.db');
+            if (fs.existsSync(dbPath)) {
+                log.info('[GTFS DB] Načítám ČR fallback DB do paměti...');
+                const SQL = await getSqlJs();
+                const fileBuffer = fs.readFileSync(dbPath);
+                crDb = new SQL.Database(fileBuffer);
+            }
+            return crDb;
+        } catch(e) {
+            log.error('[ensureCrCache]', e);
+            return null;
+        } finally {
+            crCachePromise = null;
+        }
+    })();
+    return crCachePromise;
 }
 
 async function interpolateMissingTimes(stops) {
@@ -1848,58 +1874,166 @@ ipcMain.handle('gtfs-editor-get-all-stops', async () => {
     } catch(e) { console.error('[gtfs-editor-get-all-stops]', e); }
     return [];
 });
+ipcMain.handle('gtfs-check-cr', async () => {
+    try {
+        const dbPath = getDataFilePath('gtfs_stops_fallback.db');
+        return fs.existsSync(dbPath);
+    } catch(e) {
+        return false;
+    }
+});
+
+ipcMain.handle('gtfs-download-cr', async () => {
+    try {
+        log.info('[GTFS ČR] Stahování databáze celé ČR (fallback DB z ověřeného zdroje CIS JŘ)...');
+        const options = {
+            hostname: 'api.github.com',
+            path: '/repos/marek-1cz/DataCoreBot/releases/latest',
+            method: 'GET',
+            headers: { 'User-Agent': 'IDPK-Palubni-Pocitac' }
+        };
+
+        const release = await new Promise((res, rej) => {
+            https.get(options, (resp) => {
+                let d = '';
+                resp.on('data', chunk => d += chunk);
+                resp.on('end', () => {
+                    if (resp.statusCode === 200) {
+                        try { res(JSON.parse(d)); } catch(e) { rej(e); }
+                    } else {
+                        rej(new Error('GitHub HTTP ' + resp.statusCode));
+                    }
+                });
+            }).on('error', rej);
+        });
+
+        const asset = (release.assets || []).find(a => a.name === 'gtfs_stops_fallback.db');
+        if (!asset) {
+            throw new Error('V releasu nebyl nalezen asset gtfs_stops_fallback.db');
+        }
+
+        const dataDir = path.join(PATH_USERDATA, 'data');
+        if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true });
+        const destFile = getDataFilePath('gtfs_stops_fallback.db');
+        const totalSize = asset.size || 0;
+        let downloaded = 0;
+
+        await new Promise((dlResolve, dlReject) => {
+            const dlOptions = {
+                hostname: 'api.github.com',
+                path: '/repos/marek-1cz/DataCoreBot/releases/assets/' + asset.id,
+                method: 'GET',
+                headers: {
+                    'User-Agent': 'IDPK-Palubni-Pocitac',
+                    'Accept': 'application/octet-stream'
+                }
+            };
+
+            const handleDl = (resDl) => {
+                if (resDl.statusCode === 301 || resDl.statusCode === 302) {
+                    https.get(resDl.headers.location, handleDl).on('error', dlReject);
+                    return;
+                }
+                if (resDl.statusCode !== 200) {
+                    return dlReject(new Error('HTTP ' + resDl.statusCode));
+                }
+                const file = fs.createWriteStream(destFile);
+                resDl.on('data', (chunk) => {
+                    downloaded += chunk.length;
+                    if (totalSize > 0 && launcherWindow && !launcherWindow.isDestroyed()) {
+                        const pct = Math.min(99, Math.round((downloaded / totalSize) * 100));
+                        launcherWindow.webContents.send('gtfs-cr-progress', {
+                            percent: pct,
+                            text: `Stahování GTFS ČR (${(downloaded / (1024*1024)).toFixed(1)} MB / ${(totalSize / (1024*1024)).toFixed(1)} MB)…`
+                        });
+                    }
+                });
+                resDl.pipe(file);
+                file.on('finish', () => {
+                    file.close();
+                    dlResolve();
+                });
+            };
+            https.get(dlOptions, handleDl).on('error', dlReject);
+        });
+
+        await ensureCrCache();
+        log.info('[GTFS ČR] Stahování a inicializace databáze ČR dokončena.');
+        if (launcherWindow && !launcherWindow.isDestroyed()) {
+            launcherWindow.webContents.send('gtfs-cr-progress', { percent: 100, text: 'Hotovo! GTFS ČR načteno.' });
+        }
+        return { success: true };
+    } catch(err) {
+        log.error('[GTFS ČR] Selhání stahování:', err);
+        return { success: false, error: err.message };
+    }
+});
+
 ipcMain.handle('gtfs-editor-search', async (event, query) => {
     try {
         await ensureGtfsCache();
-        if (!idpkDb || !query) return [];
+        await ensureCrCache();
+        if (!query) return [];
         const qClean = cleanStr(String(query).trim());
-        
-        let stmt = idpkDb.prepare("SELECT route_id, route_short_name, route_long_name FROM routes WHERE route_short_name LIKE $q OR route_long_name LIKE $q LIMIT 25");
-        stmt.bind({ $q: `%${qClean}%` });
-        let routes = [];
-        while (stmt.step()) {
-            routes.push(stmt.getAsObject());
-        }
-        stmt.free();
 
-        let results = [];
-        for (let r of routes) {
-            let tStmt = idpkDb.prepare("SELECT t.trip_id, t.trip_headsign, COUNT(st.stop_sequence) as cnt FROM trips t JOIN stop_times st ON t.trip_id = st.trip_id WHERE t.route_id = $r GROUP BY t.trip_id ORDER BY cnt DESC LIMIT 2");
-            tStmt.bind({ $r: r.route_id });
-            let trips = [];
-            while (tStmt.step()) {
-                trips.push(tStmt.getAsObject());
-            }
-            tStmt.free();
-
-            for (let t of trips) {
-                let sStmt = idpkDb.prepare("SELECT s.name, COALESCE(s.zone_id, '') as zone_id, CASE WHEN st.pickup_type = '3' THEN 1 ELSE 0 END as req FROM stop_times st JOIN stops s ON st.stop_id = s.stop_id WHERE st.trip_id = $t ORDER BY st.stop_sequence");
-                sStmt.bind({ $t: t.trip_id });
-                let stops = [];
-                while (sStmt.step()) {
-                    let row = sStmt.getAsObject();
-                    stops.push([row.name, row.zone_id, row.req]);
+        const searchInDb = (dbInstance, scopeName) => {
+            if (!dbInstance) return [];
+            try {
+                let stmt = dbInstance.prepare("SELECT route_id, route_short_name, route_long_name FROM routes WHERE route_short_name LIKE $q OR route_long_name LIKE $q LIMIT 25");
+                stmt.bind({ $q: `%${qClean}%` });
+                let routes = [];
+                while (stmt.step()) {
+                    routes.push(stmt.getAsObject());
                 }
-                sStmt.free();
+                stmt.free();
 
-                if (stops.length > 0) {
-                    let num = cleanStr(r.route_short_name);
-                    if (num.length >= 5) {
-                        num = num.slice(-3).replace(/^0+/, '') || num;
+                let results = [];
+                for (let r of routes) {
+                    let tStmt = dbInstance.prepare("SELECT t.trip_id, t.trip_headsign, COUNT(st.stop_sequence) as cnt FROM trips t JOIN stop_times st ON t.trip_id = st.trip_id WHERE t.route_id = $r GROUP BY t.trip_id ORDER BY cnt DESC LIMIT 2");
+                    tStmt.bind({ $r: r.route_id });
+                    let trips = [];
+                    while (tStmt.step()) {
+                        trips.push(tStmt.getAsObject());
                     }
-                    results.push({
-                        num: num,
-                        name: cleanStr(r.route_long_name) || `Linka ${num}`,
-                        from: stops[0][0],
-                        to: stops[stops.length - 1][0],
-                        stops: stops,
-                        scope: 'idpk',
-                        dir: 0
-                    });
+                    tStmt.free();
+
+                    for (let t of trips) {
+                        let sStmt = dbInstance.prepare("SELECT s.name, COALESCE(s.zone_id, '') as zone_id, CASE WHEN st.pickup_type = '3' THEN 1 ELSE 0 END as req FROM stop_times st JOIN stops s ON st.stop_id = s.stop_id WHERE st.trip_id = $t ORDER BY st.stop_sequence");
+                        sStmt.bind({ $t: t.trip_id });
+                        let stops = [];
+                        while (sStmt.step()) {
+                            let row = sStmt.getAsObject();
+                            stops.push([row.name, row.zone_id, row.req]);
+                        }
+                        sStmt.free();
+
+                        if (stops.length > 0) {
+                            let num = cleanStr(r.route_short_name);
+                            if (num.length >= 5) {
+                                num = num.slice(-3).replace(/^0+/, '') || num;
+                            }
+                            results.push({
+                                num: num,
+                                name: cleanStr(r.route_long_name) || `Linka ${num}`,
+                                from: stops[0][0],
+                                to: stops[stops.length - 1][0],
+                                stops: stops,
+                                scope: scopeName,
+                                dir: 0
+                            });
+                        }
+                    }
                 }
+                return results;
+            } catch(e) {
+                console.error(`[gtfs-editor-search][${scopeName}]`, e);
+                return [];
             }
-        }
-        return results;
+        };
+
+        const idpkResults = searchInDb(idpkDb, 'idpk');
+        const crResults = searchInDb(crDb, 'cr');
+        return [...idpkResults, ...crResults];
     } catch(e) {
         console.error('[gtfs-editor-search]', e);
         return [];
