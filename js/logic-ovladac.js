@@ -44,7 +44,12 @@ console.log("== PALUBNÍ SYSTÉM V1.6.2 - INICIALIZACE ==");
 
 const { ipcRenderer } = require('electron');
 const path = require('path');
+const fs = require('fs');
+const os = require('os');
 const processCore = require('process');
+
+const userDataPath = process.env.APPDATA ? path.join(process.env.APPDATA, 'idpk-palubni-pocitac') : os.homedir();
+const PATH_USERDATA = path.join(userDataPath, 'userdata');
 
 const API_BASE = 'https://datacorebot.koyeb.app';
 
@@ -3547,14 +3552,37 @@ window.parseRouteData = function(text) {
             routeData.nextTurnus = l.replace('Následující linkospoj', '').trim().replace(/"/g, ''); 
             continue; 
         } 
-        else if(l.startsWith('Zastávky:')) {
+        else if(l.startsWith('Zastávky:') || l.startsWith('Zastávky')) {
             reading = true; 
         }
         else if(reading) { 
-            if(l.includes('|')) { 
+            let name = "", audio = "", zone = "1", type = "n", time = "";
+            if (l.includes('=')) {
+                const eqParts = l.split('=');
+                const left = eqParts[0].trim();
+                const right = eqParts.slice(1).join('=').trim();
+                const rParts = right.split('|');
+                audio = rParts[0].trim().replace(/"/g, '');
+                name = left;
+                rParts.forEach(p => {
+                    const pt = p.trim();
+                    if(pt.startsWith('Display:')) {
+                        const d = pt.replace('Display:', '').trim();
+                        if (d) name = d;
+                    }
+                    if(pt.startsWith('Tarifní zona:')) zone = pt.replace('Tarifní zona:', '').trim();
+                    if(pt.startsWith('Čas:')) time = pt.replace('Čas:', '').trim();
+                    if(p.includes('ZZ') || p.includes('Další znaky: ZZ') || p.includes('KZ') || p.includes('Další znaky: KZ')) type = 'z';
+                });
+                if (!audio && name) audio = name;
+                if (!name && audio) name = audio;
+                if (name) {
+                    routeData.stops.push({ audio, name, zone, type, time });
+                }
+            } else if(l.includes('|')) { 
                 const parts = l.split('|'); 
                 if(parts.length>0) { 
-                    let name = "", zone = "", type = "n", time = ""; 
+                    audio = parts[0].trim().replace(/"/g, '');
                     parts.forEach(p => { 
                         if(p.trim().startsWith('Display:')) name = p.replace('Display:', '').trim(); 
                         if(p.trim().startsWith('Tarifní zona:')) zone = p.replace('Tarifní zona:', '').trim(); 
@@ -3562,17 +3590,21 @@ window.parseRouteData = function(text) {
                         if(p.includes('ZZ') || p.includes('Další znaky: ZZ')) type = 'z'; 
                         if(p.includes('KZ') || p.includes('Další znaky: KZ')) type = 'z'; 
                     }); 
+                    if (!name) name = audio;
                     if(name) {
-                        routeData.stops.push({audio: parts[0].trim(), name, zone, type, time}); 
+                        routeData.stops.push({ audio, name, zone, type, time }); 
                     }
                 } 
             } else { 
                 let raw = l.trim(); 
                 let prettyName = raw.replace(/_/g, ' '); 
-                routeData.stops.push({audio: raw, name: prettyName, zone: "", type: "n", time: ""}); 
+                routeData.stops.push({ audio: raw, name: prettyName, zone: "1", type: "n", time: "" }); 
             } 
         } 
     } 
+    if (!routeData.destination && routeData.stops.length > 0) {
+        routeData.destination = routeData.stops[routeData.stops.length - 1].name;
+    }
     routeData.realStopIndex = 0; 
     routeData.previewStopIndex = 0; 
     routeData.linkospojCode = inputValues.linkospoj; 
@@ -3630,11 +3662,15 @@ window.updateDriveUI = function() {
         if(nextLabel) nextLabel.style.display = 'none';
         let realLabel = window.getEl('drive-real-stop-label');
         if(realLabel) realLabel.style.display = 'none';
+        let stopInd = window.getEl('drive-stop-indicator');
+        if(stopInd) stopInd.style.display = 'none';
         let hdr = document.querySelector('.drive-header-box');
         if(hdr) hdr.style.marginBottom = '6px';
         
         let pvBox = window.getEl('drive-preview-box'); 
         if(pvBox) pvBox.style.display = 'none'; 
+        let rBox = window.getEl('drive-real-stop-container');
+        if(rBox) { rBox.style.marginTop = '18px'; rBox.style.marginBottom = '18px'; }
         
         if (isRandomContinue && (isClassicAuto || isTimeBasedAuto || isDelayAuto) && !window.autoContinueTimeout) {
             if(btnRandomContinue) btnRandomContinue.innerHTML = "NÁHODNÁ LINKA (Za 5s...)";
@@ -4081,32 +4117,52 @@ window.processAudioQueue = function() {
 function isOfficialBuiltinRoute(lineName) {
     if (!lineName) return false;
     const l = String(lineName).trim().toLowerCase();
-    if (l.includes('_custom') || l.includes('comm_') || l.includes('fiktiv') || l.includes('ai_') || l.includes('komunit')) {
+    if (l.includes('_custom') || l.includes('comm_') || l.includes('fiktiv') || l.includes('ai_') || l.includes('komunit') || l.includes('user_') || l.startsWith('c') || l.startsWith('f')) {
         return false;
     }
     if (typeof routeData !== 'undefined' && routeData) {
-        if (routeData.isCustom || routeData.isComm || routeData.isFictional) return false;
+        if (routeData.isCustom || routeData.isComm || routeData.isFictional || routeData.source === 'gtfs' || routeData.source === 'ai' || routeData.source === 'manual') return false;
+        const rdLine = String(routeData.line || '').toLowerCase();
+        if (rdLine.includes('_custom') || rdLine.includes('comm_') || rdLine.includes('user_') || rdLine.includes('fiktiv')) return false;
     }
     return true;
 }
 
 function resolveAudioFilePath(relPath) {
     if (!relPath) return '';
-    const cleanRel = String(relPath).replace(/\\/g, '/');
+    let cleanRel = String(relPath).replace(/\\/g, '/').trim();
+    if (cleanRel.includes('=')) {
+        cleanRel = cleanRel.split('=')[0].trim();
+    }
     const baseName = path.basename(cleanRel);
-    const candidatePaths = [
-        path.join(PATH_USERDATA, 'zvuky', 'zastavky', baseName),
-        path.join(PATH_USERDATA, 'zvuky', baseName),
-        path.join(PATH_USERDATA, 'sounds', baseName),
-        path.join(PATH_USERDATA, cleanRel),
-        path.join(getBasePath(), cleanRel),
-        path.join(getBasePath(), 'zvuky', 'zastavky', baseName),
-        path.join(getBasePath(), 'zvuky', baseName)
+    const baseWithoutExt = baseName.replace(/\.[^.]+$/, '');
+    const candidateNames = [baseName];
+    if (!/\.(wav|mp3|ogg|m4a|flac)$/i.test(baseName)) {
+        candidateNames.push(baseName + '.wav', baseName + '.mp3');
+    }
+    candidateNames.push(baseWithoutExt + '.wav', baseWithoutExt + '.mp3');
+
+    const candidateFolders = [
+        path.join(PATH_USERDATA, 'zvuky', 'zastavky'),
+        path.join(PATH_USERDATA, 'zvuky'),
+        path.join(PATH_USERDATA, 'sounds'),
+        PATH_USERDATA,
+        path.join(userDataPath, 'zvuky', 'zastavky'),
+        path.join(userDataPath, 'zvuky'),
+        path.join(userDataPath, 'sounds'),
+        userDataPath,
+        path.join(getBasePath(), 'zvuky', 'zastavky'),
+        path.join(getBasePath(), 'zvuky'),
+        getBasePath()
     ];
-    for (const c of candidatePaths) {
-        try {
-            if (fs.existsSync(c)) return c;
-        } catch(_) {}
+
+    for (const folder of candidateFolders) {
+        for (const name of candidateNames) {
+            const p = path.join(folder, name);
+            try {
+                if (fs.existsSync(p)) return p;
+            } catch (_) {}
+        }
     }
     return path.join(getBasePath(), cleanRel);
 }

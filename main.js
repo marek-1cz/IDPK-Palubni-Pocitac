@@ -124,13 +124,42 @@ function getUnlockedCustomRoutes() {
 
 function getJsonRouteId(shortName) {
     if (!shortName) return null;
-    let numStr = cleanStr(shortName).replace(/\D/g, '').replace(/^0+/, '');
+    const clean = String(shortName).trim();
+    // 1. Zkontrolujeme přímou shodu názvu souboru
+    let p = getUniversalPath('data', `${clean}.json`);
+    if (p && fs.existsSync(p)) return clean;
+
+    let numStr = clean.replace(/\D/g, '').replace(/^0+/, '');
     if (numStr) {
-        let p1 = getUniversalPath('data', `${numStr}.json`);
-        if (p1 && fs.existsSync(p1)) return numStr;
+        let pNum = getUniversalPath('data', `${numStr}.json`);
+        if (pNum && fs.existsSync(pNum)) return numStr;
     }
-    let p2 = getUniversalPath('data', `${shortName}.json`);
-    if (p2 && fs.existsSync(p2)) return shortName;
+
+    // 2. Prohledat složky dat pro nalezení podle parsed.id nebo parsed.num
+    const scanDirs = [
+        path.join(PATH_USERDATA, 'data'),
+        path.join(PATH_EXE, 'data'),
+        path.join(PATH_DEV, 'data'),
+        path.join(app.getPath('userData'), 'data')
+    ];
+    for (const dir of scanDirs) {
+        if (!fs.existsSync(dir)) continue;
+        try {
+            const files = fs.readdirSync(dir).filter(f => f.endsWith('.json'));
+            for (const f of files) {
+                const base = f.replace('.json', '');
+                if (base === clean) return base;
+                try {
+                    const parsed = JSON.parse(fs.readFileSync(path.join(dir, f), 'utf8'));
+                    if (parsed && typeof parsed === 'object') {
+                        if (String(parsed.id) === clean || String(parsed.num) === clean || (numStr && String(parsed.num) === numStr)) {
+                            return base;
+                        }
+                    }
+                } catch(_) {}
+            }
+        } catch(_) {}
+    }
     return null;
 }
 
@@ -731,7 +760,176 @@ function findBestMatch(normGtfs, stopMap) {
     return res && res.lineData ? res.lineData : (res && res.audio ? `${res.audio} | Display: ${normGtfs}` : null);
 }
 
-function loadJsonData(jsonId) { try { let p = getUniversalPath('data', `${jsonId}.json`); if (p) { const content = fs.readFileSync(p, 'utf-8'); return JSON.parse(content); } } catch(e) { console.error(e); } return []; }
+function normalizeJsonRouteTrips(rawJson, defaultRouteNum = '') {
+    if (Array.isArray(rawJson)) {
+        if (rawJson.length > 0 && rawJson[0] && Array.isArray(rawJson[0].zastavky)) {
+            return rawJson;
+        }
+        if (rawJson.length > 0 && typeof rawJson[0] === 'object') {
+            return [{
+                spoj: 1,
+                smer: rawJson[rawJson.length - 1].name || rawJson[rawJson.length - 1].n || 'Konečná',
+                odjezd: rawJson[0].time || '08:00',
+                zastavky: rawJson.map(s => ({
+                    name: s.name || s.n || '',
+                    zone: s.zone || s.z || '1',
+                    time: s.time || '',
+                    type: s.req ? 'z' : 'n',
+                    audio: (s.snd && s.snd.name) ? s.snd.name : (s.audio || '')
+                }))
+            }];
+        }
+        return [];
+    }
+    if (!rawJson || typeof rawJson !== 'object') return [];
+
+    const stops = (Array.isArray(rawJson.stops) ? rawJson.stops : []).filter(Boolean);
+    const stopMap = new Map();
+    stops.forEach((s, idx) => {
+        const sId = s.id != null ? String(s.id) : String(idx);
+        const name = (s.n || s.name || s.orig || '').trim();
+        const zone = (s.z || s.zone || '1').toString().trim();
+        const req = !!s.req;
+        const audio = (s.snd && s.snd.name) ? s.snd.name : (s.audio_file || s.audio || '');
+        stopMap.set(sId, { name, zone, req, audio });
+    });
+
+    const routeNum = rawJson.num || defaultRouteNum || '';
+    const trips = Array.isArray(rawJson.trips) ? rawJson.trips : [];
+    const resultTrips = [];
+
+    if (trips.length > 0) {
+        trips.forEach((t, tIdx) => {
+            const spojNum = parseInt(t.no) || (tIdx + 1);
+            const items = Array.isArray(t.items) ? t.items : [];
+            const tripStops = [];
+            for (const item of items) {
+                const sObj = stopMap.get(String(item.s)) || { name: String(item.s || ''), zone: '1', req: false, audio: '' };
+                tripStops.push({
+                    name: sObj.name,
+                    zone: sObj.zone,
+                    time: item.time || '',
+                    type: sObj.req ? 'z' : 'n',
+                    audio: sObj.audio
+                });
+            }
+            if (tripStops.length > 0) {
+                const firstStop = tripStops[0].name;
+                const lastStop = tripStops[tripStops.length - 1].name;
+                const smer = lastStop;
+                const odjezd = tripStops[0].time || '08:00';
+                resultTrips.push({
+                    spoj: spojNum,
+                    smer: smer,
+                    odjezd: odjezd,
+                    zastavky: tripStops
+                });
+            }
+        });
+    }
+
+    // Pokud nejsou žádné explicitní spoje (nebo bylo vytvořeno z GTFS / AI bez spojů),
+    // automaticky vygenerujeme základní spoje tam a zpět (pravidlo uživatele #2)!
+    if (resultTrips.length === 0 && stops.length >= 2) {
+        const forwardStops = stops.map((s, idx) => {
+            const sName = (s.n || s.name || s.orig || '').trim();
+            const sZone = (s.z || s.zone || '1').toString().trim();
+            const sReq = !!s.req;
+            const sAudio = (s.snd && s.snd.name) ? s.snd.name : (s.audio_file || s.audio || '');
+            const m = idx * 3;
+            const hh = String(6 + Math.floor(m / 60)).padStart(2, '0');
+            const mm = String(m % 60).padStart(2, '0');
+            return {
+                name: sName,
+                zone: sZone,
+                time: `${hh}:${mm}`,
+                type: sReq ? 'z' : 'n',
+                audio: sAudio
+            };
+        });
+        resultTrips.push({
+            spoj: 1,
+            smer: forwardStops[forwardStops.length - 1].name,
+            odjezd: forwardStops[0].time,
+            zastavky: forwardStops
+        });
+
+        [3, 5, 7].forEach((spojNum, sIdx) => {
+            const startHour = 8 + sIdx * 3;
+            const tStops = forwardStops.map((st, idx) => {
+                const m = idx * 3;
+                const hh = String(startHour + Math.floor(m / 60)).padStart(2, '0');
+                const mm = String(m % 60).padStart(2, '0');
+                return { ...st, time: `${hh}:${mm}` };
+            });
+            resultTrips.push({
+                spoj: spojNum,
+                smer: tStops[tStops.length - 1].name,
+                odjezd: tStops[0].time,
+                zastavky: tStops
+            });
+        });
+
+        const backwardStops = stops.slice().reverse().map((s, idx) => {
+            const sName = (s.n || s.name || s.orig || '').trim();
+            const sZone = (s.z || s.zone || '1').toString().trim();
+            const sReq = !!s.req;
+            const sAudio = (s.snd && s.snd.name) ? s.snd.name : (s.audio_file || s.audio || '');
+            const m = idx * 3;
+            const hh = String(7 + Math.floor(m / 60)).padStart(2, '0');
+            const mm = String(m % 60).padStart(2, '0');
+            return {
+                name: sName,
+                zone: sZone,
+                time: `${hh}:${mm}`,
+                type: sReq ? 'z' : 'n',
+                audio: sAudio
+            };
+        });
+        resultTrips.push({
+            spoj: 2,
+            smer: backwardStops[backwardStops.length - 1].name,
+            odjezd: backwardStops[0].time,
+            zastavky: backwardStops
+        });
+
+        [4, 6, 8].forEach((spojNum, sIdx) => {
+            const startHour = 9 + sIdx * 3;
+            const tStops = backwardStops.map((st, idx) => {
+                const m = idx * 3;
+                const hh = String(startHour + Math.floor(m / 60)).padStart(2, '0');
+                const mm = String(m % 60).padStart(2, '0');
+                return { ...st, time: `${hh}:${mm}` };
+            });
+            resultTrips.push({
+                spoj: spojNum,
+                smer: tStops[tStops.length - 1].name,
+                odjezd: tStops[0].time,
+                zastavky: tStops
+            });
+        });
+    }
+
+    return resultTrips;
+}
+
+function loadJsonData(jsonId) {
+    try {
+        let p = getUniversalPath('data', `${jsonId}.json`);
+        if (!p) {
+            const resolvedId = getJsonRouteId(jsonId);
+            if (resolvedId) p = getUniversalPath('data', `${resolvedId}.json`);
+        }
+        if (p && fs.existsSync(p)) {
+            const content = fs.readFileSync(p, 'utf-8');
+            const parsed = JSON.parse(content);
+            return normalizeJsonRouteTrips(parsed, jsonId);
+        }
+    } catch(e) {
+        console.error('[loadJsonData] Chyba:', e);
+    }
+    return [];
+}
 
 function extractSpojNumber(tripId, routeId) {
     let cleanTrip = cleanStr(tripId);
@@ -1270,18 +1468,35 @@ ipcMain.handle('gtfs-load-routes', async () => {
     const results = [];
     let customRoutes = getUnlockedCustomRoutes();
 
-    // JSON linky ze složky data
+    // JSON linky ze složky data (komunitní, vytvořené přes GTFS, ručně nebo AI)
     try {
         let dirsToScan = [path.join(PATH_USERDATA, 'data'), path.join(PATH_EXE, 'data'), path.join(PATH_DEV, 'data')];
+        const seenJsonRoutes = new Set();
+        const IGNORED = new Set([
+            'stop_importance', 'via_priority', 'zones_override',
+            'gtfs_version', 'build_info', 'cached_launcher_state', 'config',
+            '_sablona_vlastni_linky'
+        ]);
         dirsToScan.forEach(dir => {
             if (fs.existsSync(dir)) {
                 fs.readdirSync(dir).filter(f => f.endsWith('.json')).forEach(f => {
-                    let num = f.replace('.json', '');
-                    results.push(`${num} | Lokální JSON Linka ${num} | ${num}`);
+                    const base = f.replace('.json', '');
+                    if (seenJsonRoutes.has(base) || IGNORED.has(base) || base.startsWith('_')) return;
+                    seenJsonRoutes.add(base);
+                    try {
+                        const parsed = JSON.parse(fs.readFileSync(path.join(dir, f), 'utf8'));
+                        const lineNum = parsed.num || parsed.line || base;
+                        const lineName = parsed.name || (`Linka ${lineNum}`);
+                        const author = parsed.author ? parsed.author : 'Uživatel';
+                        // Zvýraznění autora a čisté číslo linky (pravidlo #11)
+                        results.unshift(`${lineNum} | ${lineName} · LINKA VYTVOŘENA: ${author} | ${base}`);
+                    } catch (_) {
+                        results.unshift(`${base} | Lokální JSON Linka ${base} | ${base}`);
+                    }
                 });
             }
         });
-    } catch(e) { console.error(e); }
+    } catch(e) { console.error('[gtfs-load-routes] scan error:', e); }
 
     await ensureGtfsCache();
     if (idpkDb) {

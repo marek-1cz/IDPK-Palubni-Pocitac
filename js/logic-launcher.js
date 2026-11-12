@@ -2705,8 +2705,8 @@ function syncRouteFileToLinky(line) {
                 audioFile = s.audio;
             }
             const zone = s.z || s.zone || '1';
-            const reqFlag = s.req ? ' | Další znaky: ZZ' : '';
-            txt += `${audioFile || stopName} = ${stopName} | Display: ${stopName} | Tarifní zona: ${zone} | Čas:${reqFlag}\n`;
+            const reqFlag = s.req ? ' Další znaky: ZZ' : '';
+            txt += `${stopName} = ${audioFile || stopName} | Display: ${stopName} | Tarifní zona: ${zone} | Čas: |${reqFlag}\n`;
         }
         
         fs.writeFileSync(filePath, txt, 'utf-8');

@@ -2239,9 +2239,46 @@ const CONFIG = { DEMO: false, REDUCED_FX: false };
     $$('#tm-lib .tm-s').forEach((b) => (b.onclick = () => { const last = T.items[T.items.length - 1]; T.items.push({ s: b.dataset.id, time: last && last.time ? addMin(last.time, 5) : '06:00' }); renderTrip(); const q = $('tm-seq'); q.scrollTop = q.scrollHeight; }));
     $('tm-count').textContent = T.items.length + ' zastávek';
     $('tm-seq').innerHTML = T.items.map((x, i) => '<div class="tm-r"><span class="no">' + (i + 1) + '</span><span class="tn">' + esc(nameOf(x.s)) + '</span><input class="inp mono" type="text" inputmode="numeric" maxlength="5" placeholder="HH:MM" autocomplete="off" value="' + esc(x.time) + '" data-i="' + i + '"><button class="ib" data-m="up" data-i="' + i + '" title="Výš">' + ic('chev', 'rot180') + '</button><button class="ib" data-m="dn" data-i="' + i + '" title="Níž">' + ic('chev') + '</button><button class="ib" data-m="rm" data-i="' + i + '" title="Odebrat">' + ic('x') + '</button></div>').join('') || '<div class="tnone">Klikejte na zastávky vlevo.</div>';
+    function cleanValidTime(str) {
+      if (!str) return null;
+      const m = /^(\d{1,2}):?(\d{2})$/.exec(String(str).trim());
+      if (!m) return null;
+      const hh = parseInt(m[1], 10);
+      const mm = parseInt(m[2], 10);
+      if (hh >= 0 && hh <= 23 && mm >= 0 && mm <= 59) {
+        return ('0' + hh).slice(-2) + ':' + ('0' + mm).slice(-2);
+      }
+      return null;
+    }
+
     $$('#tm-seq input').forEach((inp) => {
-      inp.oninput = () => { let d = inp.value.replace(/\D/g, '').slice(0, 4); if (d.length > 2) d = d.slice(0, 2) + ':' + d.slice(2); inp.value = d; T.items[+inp.dataset.i].time = d; };
-      inp.onblur = () => { const m = /^(\d{1,2}):?(\d{2})$/.exec(inp.value); if (m && +m[1] < 24 && +m[2] < 60) { inp.value = ('0' + m[1]).slice(-2) + ':' + m[2]; T.items[+inp.dataset.i].time = inp.value; } };
+      inp.oninput = () => {
+        let d = inp.value.replace(/\D/g, '').slice(0, 4);
+        if (d.length > 2) {
+          let h = parseInt(d.slice(0, 2), 10);
+          if (h > 23) h = 23;
+          let mStr = d.slice(2);
+          if (mStr.length === 2) {
+            let m = parseInt(mStr, 10);
+            if (m > 59) m = 59;
+            mStr = ('0' + m).slice(-2);
+          }
+          d = ('0' + h).slice(-2) + ':' + mStr;
+        }
+        inp.value = d;
+        T.items[+inp.dataset.i].time = d;
+      };
+      inp.onblur = () => {
+        const fmt = cleanValidTime(inp.value);
+        if (fmt) {
+          inp.value = fmt;
+          inp.style.borderColor = '';
+          T.items[+inp.dataset.i].time = fmt;
+        } else {
+          inp.style.borderColor = '#ef4444';
+          toast('warn', 'Neplatný čas', 'Čas musí mít hodiny 00–23 a minuty 00–59 (např. 08:35).');
+        }
+      };
     });
     $$('#tm-seq [data-m]').forEach((b) => (b.onclick = () => { const i = +b.dataset.i, m = b.dataset.m; if (m === 'rm') T.items.splice(i, 1); else { const j = m === 'up' ? i - 1 : i + 1; if (j < 0 || j >= T.items.length) return; [T.items[i], T.items[j]] = [T.items[j], T.items[i]]; } renderTrip(); }));
   }
@@ -2253,7 +2290,13 @@ const CONFIG = { DEMO: false, REDUCED_FX: false };
     if (!no || no < 1 || no > 999) return toast('warn', 'Číslo spoje', 'Zadejte číslo 1–999.');
     if ((E.trips || []).some((x) => x.no === no && x.id !== T.id)) return toast('warn', 'Číslo spoje už existuje', 'Zvolte jiné číslo.');
     if (T.items.length < 2) return toast('warn', 'Málo zastávek', 'Spoj potřebuje alespoň dvě zastávky.');
-    if (T.items.some((x) => !/^\d\d:\d\d$/.test(x.time))) return toast('warn', 'Chybí čas', 'Vyplňte čas odjezdu u každé zastávky.');
+    for (let i = 0; i < T.items.length; i++) {
+      const v = cleanValidTime(T.items[i].time);
+      if (!v) {
+        return toast('warn', 'Neplatný čas zastávky', `Zastávka č. ${i + 1} má neplatný čas „${T.items[i].time || ''}“. Minuty musí být 00–59 a hodiny 00–23.`);
+      }
+      T.items[i].time = v;
+    }
     const mins = T.items.map((x) => +x.time.slice(0, 2) * 60 + +x.time.slice(3)); if (mins.some((m, i) => i && m < mins[i - 1])) return toast('warn', 'Časy nejdou po sobě', 'Každá další zastávka musí být ve stejný nebo pozdější čas.');
     if (!T.id) { T.id = uid(); E.trips = (E.trips || []).concat(T); } else E.trips = E.trips.map((x) => (x.id === T.id ? T : x));
     closeModal('trip-modal'); dirty(); renderTrips(); toast('ok', 'Spoj ' + no + ' uložen', tripKind(no)[0]);
