@@ -2674,24 +2674,44 @@ function updateLCLaunchState(versionName) {
 async function loadLocalEditorLines() {
     try {
         const customDataPath = path.join(centralUserDataPath, 'data');
+        const soundsDir = path.join(centralUserDataPath, 'sounds');
         if (!fs.existsSync(customDataPath)) {
             fs.mkdirSync(customDataPath, { recursive: true });
             return [];
         }
+        const IGNORED_CONFIG_FILES = new Set([
+            'stop_importance.json', 'via_priority.json', 'zones_override.json',
+            'gtfs_version.json', 'build_info.json', '_sablona_vlastni_linky.json',
+            'cached_launcher_state.json', 'config.json'
+        ]);
         const files = fs.readdirSync(customDataPath).filter(f => f.endsWith('.json'));
         const lines = [];
         for (const f of files) {
+            if (IGNORED_CONFIG_FILES.has(f) || f.startsWith('comm_') || f.startsWith('_')) {
+                continue;
+            }
             try {
                 const raw = fs.readFileSync(path.join(customDataPath, f), 'utf8');
                 const parsed = JSON.parse(raw);
-                if (parsed) {
+                if (parsed && typeof parsed === 'object') {
                     if (!parsed.id) parsed.id = f.replace('.json', '');
                     if (!parsed.num) parsed.num = parsed.cislo || parsed.line || f.replace('.json', '');
                     if (!parsed.name) parsed.name = parsed.nazev || parsed.smer || `Linka ${parsed.num}`;
-                    if (!parsed.dest) parsed.dest = parsed.cil || (parsed.stops && parsed.stops.length ? parsed.stops[parsed.stops.length - 1].n : '');
-                    if (!parsed.stops) parsed.stops = [];
+                    if (!parsed.dest) parsed.dest = parsed.cil || (parsed.stops && parsed.stops.length ? (parsed.stops[parsed.stops.length - 1].n || parsed.stops[parsed.stops.length - 1].name) : '');
+                    if (!parsed.stops || !Array.isArray(parsed.stops)) parsed.stops = [];
                     if (!parsed.status) parsed.status = 'local';
                     if (!parsed.source) parsed.source = parsed.is_custom ? 'manual' : 'gtfs';
+
+                    // Doplnění platných lokálních URL pro přehrávání zvuku v launcheru
+                    for (const s of parsed.stops) {
+                        if (s.snd && s.snd.name) {
+                            const sndPath = path.join(soundsDir, s.snd.name);
+                            if (fs.existsSync(sndPath)) {
+                                s.snd.url = 'file:///' + sndPath.replace(/\\/g, '/');
+                            }
+                        }
+                    }
+
                     lines.push(parsed);
                 }
             } catch (err) {}
@@ -2759,10 +2779,20 @@ async function loadPendingAdminQueue() {
                     tags: q.system_tag ? [q.system_tag] : ['IDPK'],
                     desc: q.description || '',
                     scope: q.system_tag && q.system_tag.toUpperCase() !== 'IDPK' ? 'cr' : 'idpk',
-                    stops: stops.map(s => ({
-                        n: s.name || s.n || s,
-                        snd: s.audio_url || s.snd ? { name: s.audio_file || 'hlaseni.wav', dur: s.dur || 2.5, url: s.audio_url || s.url } : null
-                    }))
+                    stops: stops.map(s => {
+                        let audUrl = s.audio_url || (s.snd && s.snd.url) || '';
+                        if (audUrl && audUrl.startsWith('/')) {
+                            audUrl = `${API_BASE}${audUrl}`;
+                        }
+                        return {
+                            n: s.name || s.n || s,
+                            snd: (audUrl || s.snd) ? {
+                                name: s.audio_file || (s.snd && s.snd.name) || 'hlaseni.wav',
+                                dur: s.dur || 2.5,
+                                url: audUrl
+                            } : null
+                        };
+                    })
                 };
             });
             return queue;
@@ -2778,6 +2808,16 @@ async function initLCBridgeData() {
     try {
         ensureCentralUserDataFolders();
         syncWithLCVersions();
+        
+        // Synchronizace přihlášeného uživatele a role do rozhraní
+        const cfg = loadConfig();
+        if (window.LC.setUser) {
+            window.LC.setUser({
+                name: cfg.discord_nick || cfg.email || 'Uživatel',
+                hwid: currentHWID,
+                role: mapRoleToLC(currentUserRole)
+            });
+        }
         
         // Editor linky
         const [myLines, commLines, pendingQueue] = await Promise.all([
@@ -3064,9 +3104,25 @@ document.addEventListener('lc:line-delete', (e) => {
     const id = e.detail && e.detail.id;
     if (!id) return;
     try {
-        const filePath = path.join(centralUserDataPath, 'data', `${id}.json`);
-        if (fs.existsSync(filePath)) {
-            fs.unlinkSync(filePath);
+        const customDataPath = path.join(centralUserDataPath, 'data');
+        const candidates = [
+            path.join(customDataPath, `${id}.json`),
+            path.join(customDataPath, `user_${id}.json`),
+            path.join(customDataPath, `comm_${id}.json`)
+        ];
+        candidates.forEach(fp => {
+            if (fs.existsSync(fp)) {
+                try { fs.unlinkSync(fp); } catch(_) {}
+            }
+        });
+        const linkyDir = path.join(centralUserDataPath, 'linky');
+        if (fs.existsSync(linkyDir)) {
+            const txtFiles = fs.readdirSync(linkyDir);
+            txtFiles.forEach(tf => {
+                if (tf.includes(id)) {
+                    try { fs.unlinkSync(path.join(linkyDir, tf)); } catch(_) {}
+                }
+            });
         }
     } catch(err) {
         console.warn('Chyba při mazání souboru linky:', err);
@@ -3074,20 +3130,26 @@ document.addEventListener('lc:line-delete', (e) => {
 });
 
 document.addEventListener('lc:sound-add', (e) => {
-    const { file, stop } = e.detail || {};
+    const { file, stop, stopRef } = e.detail || {};
     if (file && file.path) {
         try {
             const soundsDir = path.join(centralUserDataPath, 'sounds');
             if (!fs.existsSync(soundsDir)) fs.mkdirSync(soundsDir, { recursive: true });
             const dest = path.join(soundsDir, path.basename(file.path));
             fs.copyFileSync(file.path, dest);
-            if (window.LC) {
-                window.LC.toast('ok', 'Hlášení uloženo', `Zvuk ${path.basename(file.path)} byl přiřazen k zastávce ${stop}.`);
+            // Nastavit funkční lokální URL pro okamžité přehrání v editoru
+            const localFileUrl = 'file:///' + dest.replace(/\\/g, '/');
+            if (stopRef && stopRef.snd) {
+                stopRef.snd.url = localFileUrl;
             }
         } catch(err) {
             console.error('Chyba při kopírování zvuku:', err);
         }
     }
+});
+
+document.addEventListener('lc:launch-dev-build', () => {
+    ipcRenderer.send('launch-dev-build');
 });
 
 document.addEventListener('lc:line-publish', async (e) => {

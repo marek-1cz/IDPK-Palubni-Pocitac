@@ -465,7 +465,7 @@ html.lite *,html.lite *::before,html.lite *::after{animation-duration:.001s!impo
 .chk{display:flex;gap:10px;align-items:flex-start;font-size:13px;color:#cbd5e1;line-height:1.5;cursor:pointer}.chk input{margin-top:3px;width:16px;height:16px;accent-color:var(--blue)}
 .tagbox{display:flex;flex-wrap:wrap;gap:6px;padding:8px;border-radius:11px;background:rgba(0,0,0,.28);border:1px solid var(--line2)}
 .tagbox:focus-within{border-color:var(--blue);}
-.tagbox input{flex:1;min-width:160px;border:0;background:transparent;outline:0;padding:4px 6px;font-size:13px}
+.tagbox input{flex:1;min-width:160px;border:0;background:transparent;color:#f1f5f9;outline:0;padding:4px 6px;font-size:13px}
 .tagbox .t{display:inline-flex;align-items:center;gap:4px;padding:3px 4px 3px 10px;border-radius:999px;background:rgba(59,130,246,.18);border:1px solid rgba(59,130,246,.4);font-size:12px;font-weight:700}
 .tagbox .t button{border:0;background:transparent;color:var(--muted);width:18px;height:18px;border-radius:50%;line-height:1}.tagbox .t button:hover{color:#fff}
 .mbox .fld,.mbox .note{text-align:left}
@@ -983,6 +983,15 @@ button.chip.dl:hover{border-color:var(--blue);color:#fff}
           <div class="row danger"><div class="ri"><svg class="ic"><use href="#i-trash"/></svg></div><div class="rt"><b>Smazat všechna data</b><small>Nevratně odstraní hru, nastavení i vlastní linky</small></div><button class="btn danger sm" id="btn-delete-all-data">Smazat vše</button></div>
         </div>
 
+        <div class="card" id="settings-dev-card" hidden>
+          <div class="card-h"><svg class="ic"><use href="#i-refresh"/></svg>Vývojářské nástroje (SA / DEV)</div>
+          <div class="row">
+            <div class="ri"><svg class="ic"><use href="#i-rocket"/></svg></div>
+            <div class="rt"><b>Spustit DEV Build</b><small>Spustí rozpracovanou verzi ze zdrojových kódů s aktualizovanými GTFS daty</small></div>
+            <button class="btn primary sm" id="btn-launch-dev-build-settings"><svg class="ic"><use href="#i-play"/></svg>Spustit build</button>
+          </div>
+        </div>
+
         <div class="card">
           <div class="card-h"><svg class="ic"><use href="#i-info"/></svg>O aplikaci</div>
           <div class="row"><div class="ri"><svg class="ic"><use href="#i-rocket"/></svg></div><div class="rt"><b>Launcher <span id="settings-launcher-version">Verze Launcheru: v1.0.6</span></b><small>Hra <span id="settings-app-version">V1.6.3</span> · OIS IDPK © 2026 · CC BY 4.0</small></div>
@@ -1117,7 +1126,7 @@ button.chip.dl:hover{border-color:var(--blue);color:#fff}
       </div>
       <div class="fld"><span>Typ linky</span><div class="seg" id="pb-type"><button data-t="fiktivni">Fiktivní</button><button data-t="polofiktivni">Polofiktivní</button><button data-t="realna">Reálná</button></div></div>
       <div class="fld"><span>Jak jsou hlášení vytvořena</span><div class="seg" id="pb-voice"><button data-v="synt">Syntéza (AI hlas)</button><button data-v="own">Můj vlastní hlas</button><button data-v="real">Nahrávka z reality</button></div></div>
-      <div class="fld"><span>Vozidla (štítky, volitelné)</span><div class="tagbox" id="pb-tagbox"><input id="pb-tag-in" placeholder="Napište vozidlo a stiskněte Enter…" autocomplete="off"></div></div>
+      <div class="fld"><span>Štítek (systém / region / země)</span><div class="tagbox" id="pb-tagbox"><input id="pb-tag-in" placeholder="Štítek (vyhledávání např. IDPK, PID, IDSKA, atd. podle toho jaký systém, lze napsat i zkratku země CZ, DE, PL, ATD…)" autocomplete="off"></div></div>
       <label class="fld"><span>Popis (volitelné)</span><textarea class="inp" id="pb-desc" rows="2" placeholder="Pár vět o lince…"></textarea></label>
       <div class="note w" id="pb-warn" hidden><svg class="ic" style="margin-top:2px"><use href="#i-alert"/></svg><span id="pb-warn-t"></span></div>
       <label class="chk"><input type="checkbox" id="pb-ok"><span>Souhlasím se sdílením linky s ostatními hráči (licence CC BY 4.0).</span></label>
@@ -1323,7 +1332,9 @@ const CONFIG = { DEMO: false, REDUCED_FX: false };
   function setRole(r) {
     S.role = r; const el = $('role-display');
     el.className = 'role-badge ' + r; el.textContent = ROLES[r] || r;
-    $('btn-dev-build').hidden = !(r === 'admin' || r === 'tester');
+    const isDev = ['admin', 'sa', 'dev', 'developer', 'tester'].includes(String(r).toLowerCase());
+    $('btn-dev-build').hidden = !isDev;
+    const sDev = $('settings-dev-card'); if (sDev) sDev.hidden = !isDev;
     if (window.__syncAdmin) window.__syncAdmin(r);
   }
   function setOffline(b) {
@@ -1406,7 +1417,10 @@ const CONFIG = { DEMO: false, REDUCED_FX: false };
     else if (st === 'install' || st === 'update') startDownload();
     else if (st === 'error') { hideError(); selectVersion(S.sel); }
   };
-  $('btn-dev-build').onclick = () => toast('warn', 'Dev build', 'Vývojářský build není stabilní (VZOR).');
+  const triggerDevBuild = () => { toast('info', 'Spouštím vývojářský build…', 'Příprava GTFS dat a spuštění.'); emit('launch-dev-build'); };
+  $('btn-dev-build').onclick = triggerDevBuild;
+  const bDevSettings = $('btn-launch-dev-build-settings');
+  if (bDevSettings) bDevSettings.onclick = triggerDevBuild;
 
   /* ---------------- přechod po spuštění: text + kolečko, pak okno zmizí a launcher se zavře ---------------- */
   /* AGENT: po události lc:launched {version} zavřete okno launcheru (app.quit / win.close). Zpět se nevrací. */
@@ -1725,15 +1739,56 @@ const CONFIG = { DEMO: false, REDUCED_FX: false };
     if (!isAudio(f)) { toast('warn', 'Nepodporovaný formát', 'Použijte MP3, WAV, OGG, M4A nebo FLAC.'); return false; }
     const i = await audioInfo(f);
     if (i.dur != null && i.dur > MAXS + 0.05) { toast('err', 'Hlášení je příliš dlouhé', f.name + ' má ' + fmtDur(i.dur) + '. Maximum je ' + MAXS + ' s.', 6000); return false; }
-    stop.snd = { name: f.name, dur: i.dur, url: i.url }; emit('sound-add', { file: f, stop: stop.n }); return true;
+    stop.snd = { name: f.name, dur: i.dur, url: i.url }; emit('sound-add', { file: f, stop: stop.n, stopRef: stop }); return true;
   }
   let curAudio = null, curSnd = null;
   function playSnd(sn, cb) {
-    if (curSnd) { curSnd._p = false; if (curAudio) curAudio.pause(); const old = curSnd; curSnd = null; if (old === sn) { cb(); return; } }
+    if (!sn) return;
+    if (curSnd) {
+      curSnd._p = false;
+      if (curAudio) {
+        try { curAudio.pause(); curAudio.src = ''; } catch(e) {}
+        curAudio = null;
+      }
+      const old = curSnd; curSnd = null;
+      if (old === sn) { cb(); return; }
+    }
     sn._p = true; curSnd = sn; cb();
-    const end = () => { sn._p = false; if (curSnd === sn) curSnd = null; cb(); };
-    if (sn.url) { curAudio = new Audio(sn.url); curAudio.onended = end; curAudio.onerror = () => setTimeout(end, 1200); curAudio.play().catch(() => setTimeout(end, 1200)); }
-    else setTimeout(end, Math.max(900, (sn.dur || 1.8) * 1000));
+    const end = () => {
+      sn._p = false;
+      if (curSnd === sn) curSnd = null;
+      if (curAudio) {
+        try { curAudio.pause(); curAudio.src = ''; } catch(e) {}
+        curAudio = null;
+      }
+      cb();
+    };
+    let audioUrl = sn.url;
+    if (audioUrl && audioUrl.startsWith('/')) {
+      audioUrl = 'https://datacorebot.koyeb.app' + audioUrl;
+    }
+    if (audioUrl) {
+      try {
+        curAudio = new Audio(audioUrl);
+        curAudio.onended = end;
+        curAudio.onerror = (err) => {
+          console.warn('[playSnd] Chyba zvuku:', audioUrl, err);
+          setTimeout(end, 1000);
+        };
+        const p = curAudio.play();
+        if (p && p.catch) {
+          p.catch((err) => {
+            console.warn('[playSnd] Catch play:', err);
+            setTimeout(end, 1000);
+          });
+        }
+      } catch (e) {
+        console.warn('[playSnd] Výjimka:', e);
+        setTimeout(end, 1000);
+      }
+    } else {
+      setTimeout(end, Math.max(900, (sn.dur || 1.8) * 1000));
+    }
   }
 
   /* ---------- přehled ---------- */
@@ -1779,6 +1834,12 @@ const CONFIG = { DEMO: false, REDUCED_FX: false };
     const q = $('cm-search').value.trim().toLowerCase(), f = S.cmFilter, v = S.cmVoice;
     $('cnt-comm').textContent = S.comm.length;
     const arr = S.comm.filter((c) => (!q || (c.num + ' ' + c.dest + ' ' + c.author + ' ' + c.tags.join(' ')).toLowerCase().includes(q)) && (f === 'all' || (f === 'inst' ? c.state === 'installed' : c.type === f)) && (v === 'all' || c.voice === v));
+    arr.sort((a, b) => {
+      const aNo = (a.tags || []).includes('bez zvuku') || a.voice === 'none' || (a.stops && a.stops.length && a.stops.every(s => !s.snd && !s.audio_url));
+      const bNo = (b.tags || []).includes('bez zvuku') || b.voice === 'none' || (b.stops && b.stops.length && b.stops.every(s => !s.snd && !s.audio_url));
+      if (aNo !== bNo) return aNo ? 1 : -1;
+      return 0;
+    });
     $('cm-grid').innerHTML = arr.map((c, i) => {
       const btn = { idle: '<button class="btn primary" data-id="' + c.id + '">' + ic('download') + 'Stáhnout</button>', installed: '<button class="btn" disabled>' + ic('check') + 'Staženo</button>', update: '<button class="btn" style="border-color:rgba(96,165,250,.5);color:#7dd3fc" data-id="' + c.id + '">' + ic('refresh') + 'Aktualizovat</button>', busy: '<div class="mini"><i style="width:' + (c.p || 0) + '%"></i></div>' }[c.state];
       const t = TYPES[c.type], vo = VOICES[c.voice];
@@ -1857,17 +1918,37 @@ const CONFIG = { DEMO: false, REDUCED_FX: false };
   async function gFind() {
     const q = $('g-q').value.trim(); if (!q || gBusy) return toast('warn', 'Napište číslo linky nebo název');
     gBusy = true; $('g-nf').hidden = true; $('g-results').hidden = true; $('g-loading').hidden = false;
-    for (let p = 0; p <= 100; p += 5) { $('g-load-bar').style.width = p + '%'; $('g-load-pct').textContent = p + ' %'; $('g-load-text').textContent = 'Prohledávám GTFS pro „' + q + '“…'; await wait(35); }
-    gBusy = false; $('g-loading').hidden = true; scopeChips();
-    const raw = await gtfsSearch(q);
-    gRes = (Array.isArray(raw) ? raw : []).slice(0, 14);
+    $('g-load-bar').style.width = '25%'; $('g-load-pct').textContent = 'Hledám…'; $('g-load-text').textContent = 'Prohledávám jízdní řády GTFS pro „' + q + '“…';
+    
+    let raw = [];
+    let loadTimer = null;
+    try {
+      let p = 25;
+      loadTimer = setInterval(() => {
+        if (p < 90) { p += 10; $('g-load-bar').style.width = p + '%'; $('g-load-pct').textContent = p + ' %'; }
+      }, 300);
+      raw = await gtfsSearch(q);
+      clearInterval(loadTimer);
+      $('g-load-bar').style.width = '100%'; $('g-load-pct').textContent = '100 %';
+    } catch(err) {
+      if (loadTimer) clearInterval(loadTimer);
+      console.error('[gFind] search error:', err);
+    } finally {
+      gBusy = false; $('g-loading').hidden = true; scopeChips();
+    }
+
+    gRes = (Array.isArray(raw) ? raw : []).slice(0, 30);
     if (!gRes.length) { $('g-nf-q').textContent = q; $('g-nf').hidden = false; $('g-dl-box').hidden = true; $('g-dl').disabled = false; return; }
     $('g-results').hidden = false;
-    $('g-results').innerHTML = '<div class="rh">Nalezeno ' + gRes.length + ' linek a směrů</div>' + gRes.map((r, i) => '<div class="rcard"><span class="numchip">' + esc(r.num) + '</span><div class="tx"><b>' + esc(r.from || '') + ' → ' + esc(r.to || '') + '</b><small>' + (r.stops ? r.stops.length : 0) + ' zastávek · ' + esc(r.name) + '</small></div><span class="badge ' + (r.scope === 'cr' ? 'c' : 'g') + '">' + (r.scope === 'cr' ? 'Data ČR' : 'IDPK') + '</span><button class="btn primary sm" data-i="' + i + '">Vybrat</button></div>').join('');
+    $('g-results').innerHTML = '<div class="rh">Nalezeno ' + gRes.length + ' linek</div>' + gRes.map((r, i) => {
+      const licHtml = r.license && r.license !== r.num ? '<small style="display:inline-block;margin-left:4px;font-size:11px;opacity:0.75;font-weight:normal">(' + esc(r.license) + ')</small>' : '';
+      return '<div class="rcard"><span class="numchip">' + esc(r.num) + licHtml + '</span><div class="tx"><b>' + esc(r.from || '') + ' → ' + esc(r.to || '') + '</b><small>' + (r.stops ? r.stops.length : 0) + ' zastávek · ' + esc(r.name) + '</small></div><span class="badge ' + (r.scope === 'cr' ? 'c' : 'g') + '">' + (r.scope === 'cr' ? 'Data ČR' : 'IDPK') + '</span><button class="btn primary sm" data-i="' + i + '">Vybrat</button></div>';
+    }).join('');
+    try { $('g-results').scrollIntoView({ behavior: 'smooth', block: 'nearest' }); } catch(_) {}
     $$('#g-results [data-i]').forEach((b) => (b.onclick = () => {
       const r = gRes[+b.dataset.i];
       if (!r) return;
-      openEdit({ id: null, num: r.num, name: r.name, from: r.from, to: r.to, dest: r.to, source: 'gtfs', scope: r.scope, stops: mkStops(r.stops || []), trips: [], type: 'realna', voice: 'synt', tags: [], status: 'local' }, true);
+      openEdit({ id: null, num: r.num, license: r.license || '', name: r.name, from: r.from, to: r.to, dest: r.to, source: 'gtfs', scope: r.scope, stops: mkStops(r.stops || []), trips: [], type: 'realna', voice: 'synt', tags: r.scope === 'cr' ? ['Data ČR'] : ['IDPK'], status: 'local' }, true);
     }));
   }
   $('g-find').onclick = gFind; $('g-q').onkeydown = (e) => { if (e.key === 'Enter') gFind(); };
@@ -1938,7 +2019,8 @@ const CONFIG = { DEMO: false, REDUCED_FX: false };
   $('doc-parse').onclick = () => {
     const r = parseDoc($('doc-text').value); if (r.stops.length < 2) return toast('warn', 'V dokumentu jsem našel málo zastávek', 'Potřebuji alespoň dvě. Zkontrolujte formát podle vzoru.');
     const ok = r.stops.filter((s) => s.hint === 'ok').length, mb = r.stops.filter((s) => s.hint === 'maybe').length;
-    openEdit({ id: null, num: r.num, name: r.name, dest: r.dest || r.stops[r.stops.length - 1].n, source: 'doc', scope: null, stops: r.stops, trips: r.trips, type: r.type, voice: 'synt', tags: r.tags, status: 'local' }, true);
+    const lastStopName = (r.stops && r.stops.length) ? (r.stops[r.stops.length - 1].n || '') : '';
+    openEdit({ id: null, num: r.num, name: r.name, dest: r.dest || lastStopName, source: 'doc', scope: null, stops: r.stops, trips: r.trips, type: r.type, voice: 'synt', tags: r.tags, status: 'local' }, true);
     toast(ok === r.stops.length ? 'ok' : 'info', 'Rozpoznáno ' + ok + ' z ' + r.stops.length + ' zastávek', (mb ? mb + ' je nejistých (modře, kliknutím přijmete návrh). ' : '') + 'Nezapomeňte nahrát hlášení.', 6500);
   };
 
@@ -2079,7 +2161,8 @@ const CONFIG = { DEMO: false, REDUCED_FX: false };
   function buildLine() {
     const stops = E.stops.filter((s) => s.n.trim()); const prev = E.id && S.lines.find((x) => x.id === E.id);
     const fic = S.lines.filter((x) => x.source === 'manual').length + 1;
-    return { id: E.id || 'n' + Date.now(), num: String(E.num || '').trim() || (E.mode === 'gtfs' ? '?' : 'F' + fic), name: (E.name || '').trim() || 'Linka ' + (E.num || 'F' + fic), dest: (E.dest || '').trim() || stops[stops.length - 1].n, source: E.source, scope: E.scope || null, type: E.type || 'fiktivni', voice: E.voice || 'synt', tags: E.tags || [], status: prev ? (prev.status === 'published' || prev.status === 'pending' ? 'local' : prev.status) : 'local', reject: prev && prev.reject, stops: stops.map((s) => ({ ...s, _open: undefined })), trips: E.trips || [] };
+    const lastStopN = stops.length ? (stops[stops.length - 1].n || '') : '';
+    return { id: E.id || 'n' + Date.now(), num: String(E.num || '').trim() || (E.mode === 'gtfs' ? '?' : 'F' + fic), name: (E.name || '').trim() || 'Linka ' + (E.num || 'F' + fic), dest: (E.dest || '').trim() || lastStopN, source: E.source, scope: E.scope || null, type: E.type || 'fiktivni', voice: E.voice || 'synt', tags: E.tags || [], status: prev ? (prev.status === 'published' || prev.status === 'pending' ? 'local' : prev.status) : 'local', reject: prev && prev.reject, stops: stops.map((s) => ({ ...s, _open: undefined })), trips: E.trips || [] };
   }
   function commit(o, prev) { if (prev) S.lines[S.lines.indexOf(prev)] = o; else S.lines.unshift(o); setStatus(false); emit('line-save', { line: o }); home(); selTab('mine'); renderMine(o.id); renderComm(); }
   $('ed-save').onclick = () => {
@@ -2100,7 +2183,14 @@ const CONFIG = { DEMO: false, REDUCED_FX: false };
     P = { id: l.id, type: l.type || (l.source === 'gtfs' ? 'realna' : 'fiktivni'), voice: l.voice || 'synt', tags: (l.tags || []).slice() };
     $('pb-num').value = l.num; $('pb-name').value = l.name; $('pb-desc').value = ''; $('pb-ok').checked = false; $('pb-tag-in').value = ''; $('pb-user-name').textContent = $('hwid-display').textContent;
     $$('#pb-type button').forEach((b) => b.classList.toggle('on', b.dataset.t === P.type)); $$('#pb-voice button').forEach((b) => b.classList.toggle('on', b.dataset.v === P.voice)); renderTags();
-    const miss = l.stops.length - annOf(l); $('pb-warn').hidden = !miss; $('pb-warn-t').textContent = 'U ' + miss + ' zastávek chybí hlášení. Před zveřejněním je doplňte (Upravit → Nahrát hlášení).'; $('pb-submit').disabled = miss > 0;
+    const miss = l.stops.length - annOf(l);
+    $('pb-warn').hidden = !miss;
+    if (annOf(l) === 0) {
+      $('pb-warn-t').textContent = 'Linka nemá nahraná žádná hlášení. Bude zveřejněna s automatickým štítkem „bez zvuku“.';
+    } else if (miss > 0) {
+      $('pb-warn-t').textContent = 'U ' + miss + ' zastávek chybí hlášení. Linka bude označena štítkem „bez zvuku“.';
+    }
+    $('pb-submit').disabled = false;
     openModal('publish-modal');
   }
   $$('#pb-type button').forEach((b) => (b.onclick = () => { P.type = b.dataset.t; $$('#pb-type button').forEach((x) => x.classList.toggle('on', x === b)); }));
@@ -2111,7 +2201,12 @@ const CONFIG = { DEMO: false, REDUCED_FX: false };
     const v = $('pb-tag-in').value.trim(); if (v && !P.tags.includes(v)) { P.tags.push(v); $('pb-tag-in').value = ''; }
     if (!$('pb-num').value.trim() || !$('pb-name').value.trim()) return toast('warn', 'Vyplňte číslo a název linky');
     if (!$('pb-ok').checked) return toast('warn', 'Je potřeba souhlas se sdílením');
-    const l = S.lines.find((x) => x.id === P.id); l.num = $('pb-num').value.trim(); l.name = $('pb-name').value.trim(); l.type = P.type; l.voice = P.voice; l.tags = P.tags.slice(); l.status = 'pending'; l.desc = $('pb-desc').value;
+    const l = S.lines.find((x) => x.id === P.id);
+    const miss = l.stops.length - annOf(l);
+    if ((miss > 0 || annOf(l) === 0) && !P.tags.includes('bez zvuku')) {
+      P.tags.push('bez zvuku');
+    }
+    l.num = $('pb-num').value.trim(); l.name = $('pb-name').value.trim(); l.type = P.type; l.voice = P.voice; l.tags = P.tags.slice(); l.status = 'pending'; l.desc = $('pb-desc').value;
     S.queue = S.queue.filter((q) => q.id !== l.id); S.queue.push({ id: l.id, num: l.num, name: l.name, author: $('hwid-display').textContent, type: l.type, voice: l.voice, tags: l.tags.slice(), desc: l.desc, scope: l.scope, stops: l.stops.map((s) => ({ n: s.n, snd: s.snd })) });
     closeModal('publish-modal'); renderMine(l.id); syncAdminTab(S.role); renderAdmin(); emit('line-publish', { line: l, type: l.type, voice: l.voice, tags: l.tags, desc: l.desc });
     toast('info', 'Odesláno ke kontrole', 'Správci si poslechnou hlášení. O výsledku Vás informujeme přes ' + S.notifyVia + '.', 6500);
@@ -2144,7 +2239,8 @@ const CONFIG = { DEMO: false, REDUCED_FX: false };
     const q = S.queue.find((x) => x.id === id); if (!q) return; S.queue = S.queue.filter((x) => x.id !== id);
     const l = S.lines.find((x) => x.id === id);
     if (l) { l.status = ok ? 'published' : 'rejected'; if (!ok) l.reject = o.msg || 'Linka byla zamítnuta bez dalšího vysvětlení.'; }
-    if (ok) S.comm.unshift({ id: 'c' + Date.now(), num: q.num, dest: q.stops[q.stops.length - 1].n, author: q.author, dl: 0, size: Math.max(8, q.stops.length * 5) + ' kB', type: q.type, voice: q.voice, scope: q.scope, tags: q.tags.slice(), isNew: true, state: l ? 'installed' : 'idle' });
+    const qLastStop = (q.stops && q.stops.length) ? (q.stops[q.stops.length - 1].n || '') : '';
+    if (ok) S.comm.unshift({ id: 'c' + Date.now(), num: q.num, dest: qLastStop, author: q.author, dl: 0, size: Math.max(8, (q.stops ? q.stops.length : 1) * 5) + ' kB', type: q.type, voice: q.voice, scope: q.scope, tags: q.tags.slice(), isNew: true, state: l ? 'installed' : 'idle' });
     emit('line-decision', { id, ok, discord: !!o.disc, message: o.msg });
     if (asUser) toast(ok ? 'ok' : 'err', 'Linka ' + q.num + (ok ? ' byla schválena' : ' byla zamítnuta'), (ok ? 'Je v Komunitních linkách. ' : 'Důvod uvidíte u linky. ') + 'Oznámení: ' + S.notifyVia + '.', 6500);
     else toast(ok ? 'ok' : 'info', 'Linka ' + q.num + (ok ? ' schválena' : ' zamítnuta'), (ok && o.disc ? 'Oznámení odesláno na Discord. ' : '') + 'Uživatel dostane ' + (o.msg ? 'zprávu přes ' : 'oznámení přes ') + S.notifyVia + '.', 6000);

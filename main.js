@@ -1840,7 +1840,7 @@ function createLauncher() {
         maximizable: false,
         frame: false,
         title: "Lancher OIS IDPK",
-        webPreferences: { nodeIntegration: true, contextIsolation: false },
+        webPreferences: { nodeIntegration: true, contextIsolation: false, webSecurity: false, autoplayPolicy: 'no-user-gesture-required' },
         icon: path.join(__dirname, 'icon.ico'),
         backgroundColor: '#080d1a'
     });
@@ -1979,7 +1979,7 @@ ipcMain.handle('gtfs-editor-search', async (event, query) => {
         const searchInDb = (dbInstance, scopeName) => {
             if (!dbInstance) return [];
             try {
-                let stmt = dbInstance.prepare("SELECT route_id, route_short_name, route_long_name FROM routes WHERE route_short_name LIKE $q OR route_long_name LIKE $q LIMIT 25");
+                let stmt = dbInstance.prepare("SELECT route_id, route_short_name, route_long_name FROM routes WHERE route_short_name LIKE $q OR route_long_name LIKE $q OR route_id LIKE $q LIMIT 60");
                 stmt.bind({ $q: `%${qClean}%` });
                 let routes = [];
                 while (stmt.step()) {
@@ -1988,8 +1988,24 @@ ipcMain.handle('gtfs-editor-search', async (event, query) => {
                 stmt.free();
 
                 let results = [];
+                let seenRouteKeys = new Set();
+
                 for (let r of routes) {
-                    let tStmt = dbInstance.prepare("SELECT t.trip_id, t.trip_headsign, COUNT(st.stop_sequence) as cnt FROM trips t JOIN stop_times st ON t.trip_id = st.trip_id WHERE t.route_id = $r GROUP BY t.trip_id ORDER BY cnt DESC LIMIT 2");
+                    let rawShort = cleanStr(r.route_short_name);
+                    let rawId = cleanStr(r.route_id);
+                    let num = rawShort;
+                    let license = rawShort.length >= 5 ? rawShort : (rawId.length >= 5 ? rawId : '');
+                    if (num.length >= 5) {
+                        num = num.slice(-3).replace(/^0+/, '') || num;
+                    }
+
+                    // Klíč pro deduplikaci zástupce linky (jedno číslo/licence na linku)
+                    let dedupKey = `${num}_${license || rawId}`;
+                    if (seenRouteKeys.has(dedupKey)) continue;
+                    seenRouteKeys.add(dedupKey);
+
+                    // Získat všechny varianty spojů pro danou linku, seřazené od nejdelší
+                    let tStmt = dbInstance.prepare("SELECT t.trip_id, t.direction_id, COUNT(st.stop_sequence) as cnt FROM trips t JOIN stop_times st ON t.trip_id = st.trip_id WHERE t.route_id = $r GROUP BY t.trip_id ORDER BY cnt DESC LIMIT 10");
                     tStmt.bind({ $r: r.route_id });
                     let trips = [];
                     while (tStmt.step()) {
@@ -1997,33 +2013,68 @@ ipcMain.handle('gtfs-editor-search', async (event, query) => {
                     }
                     tStmt.free();
 
+                    if (!trips.length) continue;
+
+                    // Sloučení VŠECH unikátních zastávek linky (tam i zpět, všechny větve)
+                    let allStops = [];
+                    let seenStopNames = new Set();
+                    let fromName = '';
+                    let toName = '';
+
                     for (let t of trips) {
-                        let sStmt = dbInstance.prepare("SELECT s.name, COALESCE(s.zone_id, '') as zone_id, CASE WHEN st.pickup_type = '3' THEN 1 ELSE 0 END as req FROM stop_times st JOIN stops s ON st.stop_id = s.stop_id WHERE st.trip_id = $t ORDER BY st.stop_sequence");
+                        let sStmt = dbInstance.prepare("SELECT s.name, COALESCE(s.zone_id, '') as zone_id, CASE WHEN st.pickup_type = '3' THEN 1 ELSE 0 END as req FROM stop_times st JOIN stops s ON st.stop_id = s.stop_id WHERE st.trip_id = $t ORDER BY st.stop_sequence ASC");
                         sStmt.bind({ $t: t.trip_id });
-                        let stops = [];
+                        let tripStops = [];
                         while (sStmt.step()) {
                             let row = sStmt.getAsObject();
-                            stops.push([row.name, row.zone_id, row.req]);
+                            tripStops.push([cleanStr(row.name), cleanStr(row.zone_id), row.req ? 1 : 0]);
                         }
                         sStmt.free();
 
-                        if (stops.length > 0) {
-                            let num = cleanStr(r.route_short_name);
-                            if (num.length >= 5) {
-                                num = num.slice(-3).replace(/^0+/, '') || num;
+                        if (tripStops.length > 0 && !fromName) {
+                            fromName = tripStops[0][0];
+                            toName = tripStops[tripStops.length - 1][0];
+                        }
+
+                        for (let st of tripStops) {
+                            let normStop = cleanStr(st[0]).toLowerCase();
+                            if (!seenStopNames.has(normStop)) {
+                                seenStopNames.add(normStop);
+                                allStops.push(st);
                             }
-                            results.push({
-                                num: num,
-                                name: cleanStr(r.route_long_name) || `Linka ${num}`,
-                                from: stops[0][0],
-                                to: stops[stops.length - 1][0],
-                                stops: stops,
-                                scope: scopeName,
-                                dir: 0
-                            });
                         }
                     }
+
+                    if (allStops.length > 0) {
+                        results.push({
+                            num: num,
+                            license: license,
+                            name: cleanStr(r.route_long_name) || `Linka ${num}`,
+                            from: fromName || allStops[0][0],
+                            to: toName || allStops[allStops.length - 1][0],
+                            stops: allStops,
+                            scope: scopeName,
+                            dir: 0
+                        });
+                    }
                 }
+
+                // Inteligentní řazení: přesná shoda čísla nahoře, pak začínající na q, pak zbytek
+                results.sort((a, b) => {
+                    const qLow = qClean.toLowerCase();
+                    const aExact = a.num.toLowerCase() === qLow || (a.license && a.license.toLowerCase() === qLow);
+                    const bExact = b.num.toLowerCase() === qLow || (b.license && b.license.toLowerCase() === qLow);
+                    if (aExact && !bExact) return -1;
+                    if (!aExact && bExact) return 1;
+
+                    const aStarts = a.num.toLowerCase().startsWith(qLow) || (a.license && a.license.toLowerCase().startsWith(qLow));
+                    const bStarts = b.num.toLowerCase().startsWith(qLow) || (b.license && b.license.toLowerCase().startsWith(qLow));
+                    if (aStarts && !bStarts) return -1;
+                    if (!aStarts && bStarts) return 1;
+
+                    return a.num.localeCompare(b.num, undefined, { numeric: true });
+                });
+
                 return results;
             } catch(e) {
                 console.error(`[gtfs-editor-search][${scopeName}]`, e);
