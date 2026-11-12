@@ -58,7 +58,10 @@ runBootSequence();
 
 ipcRenderer.on('update-time-delay', (event, data) => {
     if (data.timeOnly) { 
-        document.getElementById('clock').innerText = data.timeStr; 
+        const clockEl = document.getElementById('clock');
+        if (clockEl && clockEl.innerText !== data.timeStr) {
+            clockEl.innerText = data.timeStr; 
+        }
     }
 });
 
@@ -255,10 +258,17 @@ function updateStopRow(num, stopData, estTime = null) {
     const timeContainer = document.getElementById(`time-c-${num}`); 
     
     if (stopData) { 
-        nameEl.textContent = formatStopName(stopData.name); 
+        const formattedName = formatStopName(stopData.name); 
+        if (nameEl && nameEl.textContent !== formattedName) {
+            nameEl.textContent = formattedName;
+            let defaultSize = (num === 1) ? 7.5 : 6; 
+            fitStopText(nameEl, defaultSize); 
+        }
         let zText = formatMultiZone(stopData.zone); 
         if(stopData.type === 'z' && !zText) zText = "ZZ"; 
-        zoneEl.innerHTML = zText; 
+        if (zoneEl && zoneEl.innerHTML !== zText) {
+            zoneEl.innerHTML = zText; 
+        }
         
         let timeHtml = "";
         if (stopData.time) {
@@ -267,14 +277,13 @@ function updateStopRow(num, stopData, estTime = null) {
                 timeHtml += `<div class="time-delay">${estTime}</div>`;
             }
         }
-        timeContainer.innerHTML = timeHtml;
-
-        let defaultSize = (num === 1) ? 7.5 : 6; 
-        fitStopText(nameEl, defaultSize); 
+        if (timeContainer && timeContainer.innerHTML !== timeHtml) {
+            timeContainer.innerHTML = timeHtml;
+        }
     } else { 
-        nameEl.textContent = ""; 
-        zoneEl.innerHTML = ""; 
-        timeContainer.innerHTML = ""; 
+        if (nameEl && nameEl.textContent !== "") nameEl.textContent = ""; 
+        if (zoneEl && zoneEl.innerHTML !== "") zoneEl.innerHTML = ""; 
+        if (timeContainer && timeContainer.innerHTML !== "") timeContainer.innerHTML = ""; 
     }
 }
 

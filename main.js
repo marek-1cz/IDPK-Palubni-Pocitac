@@ -427,7 +427,7 @@ ipcMain.on('fallback-to-launcher', () => {
     createLauncher();
 });
 ipcMain.on('open-userdata-folder', () => {
-    const udPath = path.join(process.env.APPDATA || os.homedir(), 'idpk-palubni-pocitac', 'userdata');
+    const udPath = path.join(process.env.APPDATA || os.homedir(), 'idpk-palubni-pocitac', 'userdata', 'linky');
     if (!fs.existsSync(udPath)) fs.mkdirSync(udPath, { recursive: true });
     require('electron').shell.openPath(udPath);
 });
@@ -1060,11 +1060,13 @@ function invalidateGtfsCache() {
 let crDb = null;
 let crCachePromise = null;
 function getCrDbPath() {
+    let p0 = path.join(PATH_USERDATA, 'data', 'gtfs_stops_cr.db');
+    if (fs.existsSync(p0) && fs.statSync(p0).size > 1000000) return p0;
     let p1 = getDataFilePath('gtfs_stops_cr.db');
-    if (fs.existsSync(p1)) return p1;
+    if (fs.existsSync(p1) && fs.statSync(p1).size > 1000000) return p1;
     let p2 = getDataFilePath('gtfs_stops_fallback.db');
-    if (fs.existsSync(p2)) return p2;
-    return p1;
+    if (fs.existsSync(p2) && fs.statSync(p2).size > 1000000) return p2;
+    return p0;
 }
 async function ensureCrCache() {
     if (crDb) return crDb;
@@ -1885,7 +1887,7 @@ ipcMain.handle('gtfs-editor-get-all-stops', async () => {
 ipcMain.handle('gtfs-check-cr', async () => {
     try {
         const dbPath = getCrDbPath();
-        return fs.existsSync(dbPath);
+        return fs.existsSync(dbPath) && fs.statSync(dbPath).size > 1000000;
     } catch(e) {
         return false;
     }
@@ -1922,7 +1924,8 @@ ipcMain.handle('gtfs-download-cr', async () => {
 
         const dataDir = path.join(PATH_USERDATA, 'data');
         if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true });
-        const destFile = getDataFilePath('gtfs_stops_fallback.db');
+        const destFile = path.join(dataDir, 'gtfs_stops_cr.db');
+        const tempFile = path.join(dataDir, 'gtfs_stops_cr.db.tmp');
         const totalSize = asset.size || 0;
         let downloaded = 0;
 
@@ -1945,7 +1948,7 @@ ipcMain.handle('gtfs-download-cr', async () => {
                 if (resDl.statusCode !== 200) {
                     return dlReject(new Error('HTTP ' + resDl.statusCode));
                 }
-                const file = fs.createWriteStream(destFile);
+                const file = fs.createWriteStream(tempFile);
                 resDl.on('data', (chunk) => {
                     downloaded += chunk.length;
                     if (totalSize > 0 && launcherWindow && !launcherWindow.isDestroyed()) {
@@ -1958,13 +1961,19 @@ ipcMain.handle('gtfs-download-cr', async () => {
                 });
                 resDl.pipe(file);
                 file.on('finish', () => {
-                    file.close();
-                    dlResolve();
+                    file.close(() => {
+                        try {
+                            if (fs.existsSync(destFile)) fs.unlinkSync(destFile);
+                            fs.renameSync(tempFile, destFile);
+                            dlResolve();
+                        } catch(e) { dlReject(e); }
+                    });
                 });
             };
             https.get(dlOptions, handleDl).on('error', dlReject);
         });
 
+        invalidateGtfsCache();
         await ensureCrCache();
         log.info('[GTFS ČR] Stahování a inicializace databáze ČR dokončena.');
         if (launcherWindow && !launcherWindow.isDestroyed()) {
@@ -1977,17 +1986,43 @@ ipcMain.handle('gtfs-download-cr', async () => {
     }
 });
 
+function getBuiltinLineNumbers() {
+    const builtin = new Set();
+    const dirs = [
+        path.join(PATH_EXE, 'linky'),
+        path.join(PATH_DEV, 'linky'),
+        path.join(process.resourcesPath, 'linky'),
+        path.join(__dirname, 'linky')
+    ];
+    for (const d of dirs) {
+        if (!fs.existsSync(d)) continue;
+        try {
+            const files = fs.readdirSync(d);
+            for (const f of files) {
+                if (!f.endsWith('.txt')) continue;
+                if (f.includes('_custom') || f.startsWith('comm_')) continue;
+                const match = f.match(/^([0-9a-zA-Z]+)(?:_auto)?(?:\.txt)?$/i);
+                if (match && match[1]) {
+                    builtin.add(match[1].toLowerCase());
+                }
+            }
+        } catch(e) {}
+    }
+    return builtin;
+}
+
 ipcMain.handle('gtfs-editor-search', async (event, query) => {
     try {
         await ensureGtfsCache();
         await ensureCrCache();
         if (!query) return [];
         const qClean = cleanStr(String(query).trim());
+        const builtinLines = getBuiltinLineNumbers();
 
         const searchInDb = (dbInstance, scopeName) => {
             if (!dbInstance) return [];
             try {
-                let stmt = dbInstance.prepare("SELECT route_id, route_short_name, route_long_name FROM routes WHERE route_short_name LIKE $q OR route_long_name LIKE $q OR route_id LIKE $q LIMIT 60");
+                let stmt = dbInstance.prepare("SELECT route_id, route_short_name, route_long_name FROM routes WHERE route_short_name LIKE $q OR route_long_name LIKE $q LIMIT 80");
                 stmt.bind({ $q: `%${qClean}%` });
                 let routes = [];
                 while (stmt.step()) {
@@ -1996,7 +2031,7 @@ ipcMain.handle('gtfs-editor-search', async (event, query) => {
                 stmt.free();
 
                 let results = [];
-                let seenRouteKeys = new Set();
+                let routesByKey = new Map();
 
                 for (let r of routes) {
                     let rawShort = cleanStr(r.route_short_name);
@@ -2007,62 +2042,65 @@ ipcMain.handle('gtfs-editor-search', async (event, query) => {
                         num = num.slice(-3).replace(/^0+/, '') || num;
                     }
 
-                    // Klíč pro deduplikaci zástupce linky (jedno číslo/licence na linku)
-                    let dedupKey = `${num}_${license || rawId}`;
-                    if (seenRouteKeys.has(dedupKey)) continue;
-                    seenRouteKeys.add(dedupKey);
-
-                    // Získat všechny varianty spojů pro danou linku, seřazené od nejdelší
-                    let tStmt = dbInstance.prepare("SELECT t.trip_id, t.direction_id, COUNT(st.stop_sequence) as cnt FROM trips t JOIN stop_times st ON t.trip_id = st.trip_id WHERE t.route_id = $r GROUP BY t.trip_id ORDER BY cnt DESC LIMIT 10");
-                    tStmt.bind({ $r: r.route_id });
-                    let trips = [];
-                    while (tStmt.step()) {
-                        trips.push(tStmt.getAsObject());
+                    let dedupKey = `${num}_${license}`;
+                    if (!routesByKey.has(dedupKey)) {
+                        routesByKey.set(dedupKey, { num, license, name: cleanStr(r.route_long_name) || `Linka ${num}`, routeIds: [] });
                     }
-                    tStmt.free();
+                    routesByKey.get(dedupKey).routeIds.push(r.route_id);
+                }
 
-                    if (!trips.length) continue;
-
-                    // Sloučení VŠECH unikátních zastávek linky (tam i zpět, všechny větve)
+                for (let [dedupKey, group] of routesByKey) {
                     let allStops = [];
                     let seenStopNames = new Set();
                     let fromName = '';
                     let toName = '';
 
-                    for (let t of trips) {
-                        let sStmt = dbInstance.prepare("SELECT s.name, COALESCE(s.zone_id, '') as zone_id, CASE WHEN st.pickup_type = '3' THEN 1 ELSE 0 END as req FROM stop_times st JOIN stops s ON st.stop_id = s.stop_id WHERE st.trip_id = $t ORDER BY st.stop_sequence ASC");
-                        sStmt.bind({ $t: t.trip_id });
-                        let tripStops = [];
-                        while (sStmt.step()) {
-                            let row = sStmt.getAsObject();
-                            tripStops.push([cleanStr(row.name), cleanStr(row.zone_id), row.req ? 1 : 0]);
+                    for (let rId of group.routeIds.slice(0, 4)) {
+                        let tStmt = dbInstance.prepare("SELECT t.trip_id, COUNT(st.stop_sequence) as cnt FROM trips t JOIN stop_times st ON t.trip_id = st.trip_id WHERE t.route_id = $r GROUP BY t.trip_id ORDER BY cnt DESC LIMIT 3");
+                        tStmt.bind({ $r: rId });
+                        let trips = [];
+                        while (tStmt.step()) {
+                            trips.push(tStmt.getAsObject());
                         }
-                        sStmt.free();
+                        tStmt.free();
 
-                        if (tripStops.length > 0 && !fromName) {
-                            fromName = tripStops[0][0];
-                            toName = tripStops[tripStops.length - 1][0];
-                        }
+                        for (let t of trips) {
+                            let sStmt = dbInstance.prepare("SELECT s.name, COALESCE(s.zone_id, '') as zone_id, CASE WHEN st.pickup_type = '3' THEN 1 ELSE 0 END as req FROM stop_times st JOIN stops s ON st.stop_id = s.stop_id WHERE st.trip_id = $t ORDER BY st.stop_sequence ASC");
+                            sStmt.bind({ $t: t.trip_id });
+                            let tripStops = [];
+                            while (sStmt.step()) {
+                                let row = sStmt.getAsObject();
+                                tripStops.push([cleanStr(row.name), cleanStr(row.zone_id), row.req ? 1 : 0]);
+                            }
+                            sStmt.free();
 
-                        for (let st of tripStops) {
-                            let normStop = cleanStr(st[0]).toLowerCase();
-                            if (!seenStopNames.has(normStop)) {
-                                seenStopNames.add(normStop);
-                                allStops.push(st);
+                            if (tripStops.length > 0 && !fromName) {
+                                fromName = tripStops[0][0];
+                                toName = tripStops[tripStops.length - 1][0];
+                            }
+
+                            for (let st of tripStops) {
+                                let normStop = cleanStr(st[0]).toLowerCase();
+                                if (!seenStopNames.has(normStop)) {
+                                    seenStopNames.add(normStop);
+                                    allStops.push(st);
+                                }
                             }
                         }
                     }
 
                     if (allStops.length > 0) {
+                        const isBuiltin = builtinLines.has(group.num.toLowerCase()) || (group.license && builtinLines.has(group.license.toLowerCase()));
                         results.push({
-                            num: num,
-                            license: license,
-                            name: cleanStr(r.route_long_name) || `Linka ${num}`,
-                            from: fromName || allStops[0][0],
-                            to: toName || allStops[allStops.length - 1][0],
+                            num: group.num,
+                            license: group.license,
+                            name: group.name,
+                            from: fromName || (allStops[0] ? allStops[0][0] : ''),
+                            to: toName || (allStops[allStops.length - 1] ? allStops[allStops.length - 1][0] : ''),
                             stops: allStops,
                             scope: scopeName,
-                            dir: 0
+                            dir: 0,
+                            alreadyExists: Boolean(isBuiltin)
                         });
                     }
                 }
@@ -2074,6 +2112,11 @@ ipcMain.handle('gtfs-editor-search', async (event, query) => {
                     const bExact = b.num.toLowerCase() === qLow || (b.license && b.license.toLowerCase() === qLow);
                     if (aExact && !bExact) return -1;
                     if (!aExact && bExact) return 1;
+
+                    const aEnds = a.num.toLowerCase().endsWith(qLow) || (a.license && a.license.toLowerCase().endsWith(qLow));
+                    const bEnds = b.num.toLowerCase().endsWith(qLow) || (b.license && b.license.toLowerCase().endsWith(qLow));
+                    if (aEnds && !bEnds) return -1;
+                    if (!aEnds && bEnds) return 1;
 
                     const aStarts = a.num.toLowerCase().startsWith(qLow) || (a.license && a.license.toLowerCase().startsWith(qLow));
                     const bStarts = b.num.toLowerCase().startsWith(qLow) || (b.license && b.license.toLowerCase().startsWith(qLow));

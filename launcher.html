@@ -1671,8 +1671,23 @@ const CONFIG = { DEMO: false, REDUCED_FX: false };
     '170': { name: 'Praha – Kladno', vars: [[['Praha, Dejvická', '1', 0], ['Praha, Zličín', '2', 0], ['Kladno, nádraží', '3', 0]]] },
   };
   const CRPOOL = ['Brno, hlavní nádraží', 'Brno, Zvonařka', 'Praha, Florenc', 'Praha, Anděl', 'Kladno, nádraží', 'Ostrava, Svinov', 'Olomouc, hl. n.', 'Jihlava, aut. nádr.', 'Pardubice, Tesla', 'Zlín, náměstí Práce', 'Liberec, Fügnerova', 'České Budějovice, Mercury'];
-  const mkStop = (n, z, req, snd) => ({ id: uid(), n: n || '', orig: n || '', z: z || '1', zOrig: z || '1', req: !!req, reqOrig: !!req, snd: snd || null, hint: null });
-  const mkStops = (arr) => (Array.isArray(arr) ? arr : []).map((a) => {
+  const mkStop = (n, z, req, snd) => {
+    const cleanN = String(n || '').trim();
+    const cleanZ = String(z || '1').trim() || '1';
+    return {
+      id: uid(),
+      n: cleanN,
+      orig: cleanN,
+      z: cleanZ,
+      zOrig: cleanZ,
+      req: !!req,
+      reqOrig: !!req,
+      snd: snd || null,
+      hint: null,
+      sug: null
+    };
+  };
+  const mkStops = (arr) => (Array.isArray(arr) ? arr : []).filter(Boolean).map((a) => {
     if (Array.isArray(a)) return mkStop(a[0], a[1], a[2]);
     if (typeof a === 'object' && a !== null) return mkStop(a.name || a.n, a.zone || a.z, a.req, a.snd);
     return mkStop(String(a), '1', false);
@@ -1965,13 +1980,42 @@ const CONFIG = { DEMO: false, REDUCED_FX: false };
     $('g-results').hidden = false;
     $('g-results').innerHTML = '<div class="rh">Nalezeno ' + gRes.length + ' linek</div>' + gRes.map((r, i) => {
       const licHtml = r.license && r.license !== r.num ? '<small style="display:inline-block;margin-left:4px;font-size:11px;opacity:0.75;font-weight:normal">(' + esc(r.license) + ')</small>' : '';
-      return '<div class="rcard"><span class="numchip">' + esc(r.num) + licHtml + '</span><div class="tx"><b>' + esc(r.from || '') + ' → ' + esc(r.to || '') + '</b><small>' + (r.stops ? r.stops.length : 0) + ' zastávek · ' + esc(r.name) + '</small></div><span class="badge ' + (r.scope === 'cr' ? 'c' : 'g') + '">' + (r.scope === 'cr' ? 'Data ČR' : 'IDPK') + '</span><button class="btn primary sm" data-i="' + i + '">Vybrat</button></div>';
+      const existsBadge = r.alreadyExists ? '<span class="badge w" style="background:#e67e22;color:#fff;font-weight:bold;">JIŽ EXISTUJE</span>' : '';
+      return '<div class="rcard"><span class="numchip">' + esc(r.num) + licHtml + '</span><div class="tx"><b>' + esc(r.from || '') + ' → ' + esc(r.to || '') + '</b><small>' + (r.stops ? r.stops.length : 0) + ' zastávek · ' + esc(r.name) + '</small></div>' + existsBadge + '<span class="badge ' + (r.scope === 'cr' ? 'c' : 'g') + '">' + (r.scope === 'cr' ? 'Data ČR' : 'IDPK') + '</span><button class="btn primary sm" data-i="' + i + '">Vybrat</button></div>';
     }).join('');
     try { $('g-results').scrollIntoView({ behavior: 'smooth', block: 'nearest' }); } catch(_) {}
     $$('#g-results [data-i]').forEach((b) => (b.onclick = () => {
       const r = gRes[+b.dataset.i];
       if (!r) return;
-      openEdit({ id: null, num: r.num, license: r.license || '', name: r.name, from: r.from, to: r.to, dest: r.to, source: 'gtfs', scope: r.scope, stops: mkStops(r.stops || []), trips: [], type: 'realna', voice: 'synt', tags: r.scope === 'cr' ? ['Data ČR'] : ['IDPK'], status: 'local' }, true);
+      const doPick = () => {
+        openEdit({
+          id: null,
+          num: r.num || '',
+          license: r.license || '',
+          name: r.name || ('Linka ' + (r.num || '')),
+          from: r.from || '',
+          to: r.to || '',
+          dest: r.to || '',
+          source: 'gtfs',
+          scope: r.scope || 'idpk',
+          stops: mkStops(r.stops || []),
+          trips: [],
+          type: 'realna',
+          voice: 'synt',
+          tags: r.scope === 'cr' ? ['Data ČR'] : ['IDPK'],
+          status: 'local'
+        }, true);
+      };
+
+      if (r.alreadyExists) {
+        confirmBox({
+          title: 'Linka ' + r.num + ' již existuje',
+          desc: 'Tato linka (' + r.num + ') je již v aplikaci jako oficiální linka. Chcete přesto vytvořit její kopii / vlastní verzi?',
+          yes: 'Vytvořit kopii'
+        }, doPick);
+      } else {
+        doPick();
+      }
     }));
   }
   $('g-find').onclick = gFind; $('g-q').onkeydown = (e) => { if (e.key === 'Enter') gFind(); };
@@ -2067,10 +2111,35 @@ const CONFIG = { DEMO: false, REDUCED_FX: false };
   function openEdit(l, isNew) {
     E = JSON.parse(JSON.stringify(l || {}));
     if (!Array.isArray(E.stops)) E.stops = [];
-    E.stops = E.stops.filter(Boolean);
-    E.stops.forEach((s) => { if (s && s.snd && l && l.stops) { const o = l.stops.find((x) => x && x.id === s.id); if (o && o.snd && o.snd.url) s.snd.url = o.snd.url; } });
-    E.mode = (l && (l.source === 'gtfs' || l.source === 'comm')) ? 'gtfs' : 'manual'; E.id = isNew ? null : (l ? l.id : null); E.existing = !isNew; E.dirty = false;
-    flowShow('edit'); renderEdit(); setStatus(false);
+    E.stops = E.stops.filter(Boolean).map((s) => {
+      if (typeof s === 'string') return mkStop(s);
+      return {
+        id: s.id || uid(),
+        n: String(s.n != null ? s.n : (s.name != null ? s.name : '')).trim(),
+        orig: String(s.orig != null ? s.orig : (s.n != null ? s.n : (s.name != null ? s.name : ''))).trim(),
+        z: String(s.z != null ? s.z : (s.zone != null ? s.zone : '1')).trim() || '1',
+        zOrig: String(s.zOrig != null ? s.zOrig : (s.z != null ? s.z : '1')).trim() || '1',
+        req: !!s.req,
+        reqOrig: !!(s.reqOrig != null ? s.reqOrig : s.req),
+        snd: s.snd || null,
+        hint: s.hint || null,
+        sug: s.sug || null,
+        _open: !!s._open
+      };
+    });
+    E.stops.forEach((s) => {
+      if (s && s.snd && l && l.stops && Array.isArray(l.stops)) {
+        const o = l.stops.find((x) => x && x.id === s.id);
+        if (o && o.snd && o.snd.url) s.snd.url = o.snd.url;
+      }
+    });
+    E.mode = (l && (l.source === 'gtfs' || l.source === 'comm')) ? 'gtfs' : 'manual';
+    E.id = isNew ? null : (l ? l.id : null);
+    E.existing = !isNew;
+    E.dirty = false;
+    flowShow('edit');
+    renderEdit();
+    setStatus(false);
   }
   function setStatus(d) { E.dirty = d; const st = $('ed-status'); st.classList.toggle('saved', !d); st.querySelector('span').textContent = d ? 'Neuložené změny' : 'Beze změn'; }
   function dirty() { setStatus(true); }
@@ -2114,8 +2183,8 @@ const CONFIG = { DEMO: false, REDUCED_FX: false };
           '<div class="sdet"><label class="fld"><span>Název na panelu</span><input class="inp" value="' + esc(s.n) + '" data-k="n"></label><label class="fld"><span>Tarifní pásmo</span><input class="inp" value="' + esc(s.z) + '" data-k="z"></label><div class="fld"><span>Znamení</span>' + tog + '</div>' + (chg ? '<button class="btn sm ghost rst" data-a="reset">' + ic('refresh') + 'Vrátit dle GTFS</button>' : '') + '</div>';
       } else {
         r.className = 'stp m'; r.draggable = true;
-        const hint = s.hint ? '<button class="hd ' + s.hint + '" data-a="hint" title="' + (s.hint === 'ok' ? 'Přiřazeno podle jízdních řádů' : 'Návrh: ' + esc(s.sug ? s.sug.n : '') + ' – kliknutím použít') + '"></button>' : '<span class="grip">' + ic('grip') + '</span>';
-        r.innerHTML = '<div class="srow">' + hint + '<span class="no">' + (i + 1) + '</span><input class="inp" value="' + esc(s.n) + '" placeholder="Název zastávky" data-k="n"><input class="inp" value="' + esc(s.z) + '" data-k="z" title="Tarifní pásmo">' + tog + '<div class="aslot">' + audHtml(s) + '</div><button class="ib" data-a="del" title="Odebrat zastávku">' + ic('trash') + '</button></div>';
+        const hint = (s && s.hint) ? '<button class="hd ' + s.hint + '" data-a="hint" title="' + (s.hint === 'ok' ? 'Přiřazeno podle jízdních řádů' : 'Návrh: ' + esc(s.sug ? (s.sug.n || '') : '') + ' – kliknutím použít') + '"></button>' : '<span class="grip">' + ic('grip') + '</span>';
+        r.innerHTML = '<div class="srow">' + hint + '<span class="no">' + (i + 1) + '</span><input class="inp" value="' + esc((s && s.n) || '') + '" placeholder="Název zastávky" data-k="n"><input class="inp" value="' + esc((s && s.z) || '') + '" data-k="z" title="Tarifní pásmo">' + tog + '<div class="aslot">' + audHtml(s) + '</div><button class="ib" data-a="del" title="Odebrat zastávku">' + ic('trash') + '</button></div>';
         r.ondragstart = (e) => { e.dataTransfer.setData('text/plain', i); r.style.opacity = .4; }; r.ondragend = () => (r.style.opacity = ''); r.ondragover = (e) => e.preventDefault();
         r.ondrop = (e) => { e.preventDefault(); const f = +e.dataTransfer.getData('text/plain'); if (isNaN(f) || f === i) return; E.stops.splice(i, 0, E.stops.splice(f, 1)[0]); dirty(); renderEdit(); };
       }
@@ -2145,7 +2214,7 @@ const CONFIG = { DEMO: false, REDUCED_FX: false };
   $('bulk-cancel').onclick = () => ($('bulk-box').hidden = true);
   $('bulk-ok').onclick = () => {
     const parts = $('bulk-text').value.split(/[;\n]+/).map((x) => x.trim()).filter(Boolean); if (!parts.length) return;
-    E.stops = E.stops.filter((s) => s.n.trim() || s.snd); parts.forEach((n) => E.stops.push(mkStop(n, '1', 0)));
+    E.stops = (E.stops || []).filter((s) => (s && (s.n || '').trim()) || (s && s.snd)); parts.forEach((n) => E.stops.push(mkStop(n, '1', 0)));
     $('bulk-text').value = ''; $('bulk-box').hidden = true; dirty(); renderEdit(); toast('ok', 'Vloženo', parts.length + ' zastávek přidáno.');
   };
   $('ed-cancel').onclick = () => $('flow-back').click();
@@ -2156,17 +2225,17 @@ const CONFIG = { DEMO: false, REDUCED_FX: false };
     $('trips').innerHTML = trips.map((t) => { const k = tripKind(t.no); return '<div class="tcard"><span class="numchip sm">' + t.no + '</span><span class="badge ' + k[1] + '">' + k[0] + '</span><div class="tx"><b>' + esc(nameOf(t.items[0].s)) + ' → ' + esc(nameOf(t.items[t.items.length - 1].s)) + '</b><small>' + t.items.length + ' zastávek · ' + (t.items[0].time || '—') + ' – ' + (t.items[t.items.length - 1].time || '—') + '</small></div><button class="ib" data-t="edit" data-id="' + t.id + '" title="Upravit">' + ic('edit') + '</button><button class="ib" data-t="del" data-id="' + t.id + '" title="Smazat">' + ic('trash') + '</button></div>'; }).join('') || '<div class="tnone">Zatím žádný spoj. Vytvořte první tlačítkem níže.</div>';
     $$('#trips [data-t]').forEach((b) => (b.onclick = () => { const t = E.trips.find((x) => x.id === b.dataset.id); if (b.dataset.t === 'edit') openTrip(t); else { E.trips = E.trips.filter((x) => x.id !== t.id); dirty(); renderTrips(); } }));
   }
-  const nameOf = (id) => { const s = E.stops.find((x) => x.id === id); return s ? s.n || '(bez názvu)' : '?'; };
+  const nameOf = (id) => { const s = (E.stops || []).find((x) => x && x.id === id); return s ? (s.n || '(bez názvu)') : '?'; };
   let T = null;
   function nextNo() { const used = new Set((E.trips || []).map((t) => t.no)); let n = 1; while (used.has(n)) n++; return n; }
   function openTrip(t) {
-    if (E.stops.filter((s) => s.n.trim()).length < 2) return toast('warn', 'Nejdřív přidejte zastávky', 'Pro spoj potřebujete alespoň dvě pojmenované zastávky.');
+    if ((E.stops || []).filter((s) => s && (s.n || '').trim()).length < 2) return toast('warn', 'Nejdřív přidejte zastávky', 'Pro spoj potřebujete alespoň dvě pojmenované zastávky.');
     T = t ? JSON.parse(JSON.stringify(t)) : { id: null, no: nextNo(), items: [] };
     $('tm-title').textContent = t ? 'Upravit spoj ' + t.no : 'Nový spoj'; $('tm-no').value = T.no; renderTrip(); openModal('trip-modal');
   }
   function renderTrip() {
     const k = tripKind(+$('tm-no').value || 0); $('tm-kind').querySelector('.badge').className = 'badge ' + k[1]; $('tm-kind').querySelector('.badge').textContent = $('tm-no').value ? k[0] : '—';
-    $('tm-lib').innerHTML = E.stops.filter((s) => s.n.trim()).map((s) => '<button class="tm-s" data-id="' + s.id + '">' + ic('plus') + '<span>' + esc(s.n) + '</span></button>').join('');
+    $('tm-lib').innerHTML = (E.stops || []).filter((s) => s && (s.n || '').trim()).map((s) => '<button class="tm-s" data-id="' + s.id + '">' + ic('plus') + '<span>' + esc(s.n || '') + '</span></button>').join('');
     $$('#tm-lib .tm-s').forEach((b) => (b.onclick = () => { const last = T.items[T.items.length - 1]; T.items.push({ s: b.dataset.id, time: last && last.time ? addMin(last.time, 5) : '06:00' }); renderTrip(); const q = $('tm-seq'); q.scrollTop = q.scrollHeight; }));
     $('tm-count').textContent = T.items.length + ' zastávek';
     $('tm-seq').innerHTML = T.items.map((x, i) => '<div class="tm-r"><span class="no">' + (i + 1) + '</span><span class="tn">' + esc(nameOf(x.s)) + '</span><input class="inp mono" type="text" inputmode="numeric" maxlength="5" placeholder="HH:MM" autocomplete="off" value="' + esc(x.time) + '" data-i="' + i + '"><button class="ib" data-m="up" data-i="' + i + '" title="Výš">' + ic('chev', 'rot180') + '</button><button class="ib" data-m="dn" data-i="' + i + '" title="Níž">' + ic('chev') + '</button><button class="ib" data-m="rm" data-i="' + i + '" title="Odebrat">' + ic('x') + '</button></div>').join('') || '<div class="tnone">Klikejte na zastávky vlevo.</div>';
@@ -2192,16 +2261,16 @@ const CONFIG = { DEMO: false, REDUCED_FX: false };
 
   /* ---------- uložení ---------- */
   function buildLine() {
-    const stops = E.stops.filter((s) => s.n.trim()); const prev = E.id && S.lines.find((x) => x.id === E.id);
+    const stops = (E.stops || []).filter((s) => s && (s.n || '').trim()); const prev = E.id && S.lines.find((x) => x && x.id === E.id);
     const fic = S.lines.filter((x) => x.source === 'manual').length + 1;
     const lastStopN = stops.length ? (stops[stops.length - 1].n || '') : '';
     return { id: E.id || 'n' + Date.now(), num: String(E.num || '').trim() || (E.mode === 'gtfs' ? '?' : 'F' + fic), name: (E.name || '').trim() || 'Linka ' + (E.num || 'F' + fic), dest: (E.dest || '').trim() || lastStopN, source: E.source, scope: E.scope || null, type: E.type || 'fiktivni', voice: E.voice || 'synt', tags: E.tags || [], status: prev ? (prev.status === 'published' || prev.status === 'pending' ? 'local' : prev.status) : 'local', reject: prev && prev.reject, stops: stops.map((s) => ({ ...s, _open: undefined })), trips: E.trips || [] };
   }
   function commit(o, prev) { if (prev) S.lines[S.lines.indexOf(prev)] = o; else S.lines.unshift(o); setStatus(false); emit('line-save', { line: o }); home(); selTab('mine'); renderMine(o.id); renderComm(); }
   $('ed-save').onclick = () => {
-    const stops = E.stops.filter((s) => s.n.trim());
+    const stops = (E.stops || []).filter((s) => s && (s.n || '').trim());
     if (E.mode === 'manual' && stops.length < 2) return toast('warn', 'Málo zastávek', 'Linka potřebuje alespoň dvě pojmenované zastávky.');
-    const prev = E.id && S.lines.find((x) => x.id === E.id);
+    const prev = E.id && S.lines.find((x) => x && x.id === E.id);
     if (prev) { const o = buildLine(); commit(o, prev); const missing = o.stops.length - annOf(o); toast('ok', 'Linka ' + o.num + ' uložena', 'Je dostupná ve hře.' + (prev.status === 'published' || prev.status === 'pending' ? ' Po úpravě ji můžete znovu zveřejnit.' : '') + (missing ? ' Bez hlášení: ' + missing + ' zastávek.' : ''), 5500); return; }
     openModal('save-modal');
   };
@@ -2240,7 +2309,7 @@ const CONFIG = { DEMO: false, REDUCED_FX: false };
       P.tags.push('bez zvuku');
     }
     l.num = $('pb-num').value.trim(); l.name = $('pb-name').value.trim(); l.type = P.type; l.voice = P.voice; l.tags = P.tags.slice(); l.status = 'pending'; l.desc = $('pb-desc').value;
-    S.queue = S.queue.filter((q) => q.id !== l.id); S.queue.push({ id: l.id, num: l.num, name: l.name, author: $('hwid-display').textContent, type: l.type, voice: l.voice, tags: l.tags.slice(), desc: l.desc, scope: l.scope, stops: l.stops.map((s) => ({ n: s.n, snd: s.snd })) });
+    S.queue = S.queue.filter((q) => q.id !== l.id); S.queue.push({ id: l.id, num: l.num, name: l.name, author: $('hwid-display').textContent, type: l.type, voice: l.voice, tags: l.tags.slice(), desc: l.desc, scope: l.scope, stops: (l.stops || []).map((s) => ({ n: (s && s.n) || '', snd: (s && s.snd) || null })) });
     closeModal('publish-modal'); renderMine(l.id); syncAdminTab(S.role); renderAdmin(); emit('line-publish', { line: l, type: l.type, voice: l.voice, tags: l.tags, desc: l.desc });
     toast('info', 'Odesláno ke kontrole', 'Správci si poslechnou hlášení. O výsledku Vás informujeme přes ' + S.notifyVia + '.', 6500);
   };
@@ -2253,7 +2322,7 @@ const CONFIG = { DEMO: false, REDUCED_FX: false };
       return '<div class="acard" data-id="' + q.id + '"><div class="top"><span class="numchip">' + esc(q.num) + '</span><div class="tx"><b>' + esc(q.name) + '</b><small>od ' + esc(q.author) + ' · účet ověřen ✓</small></div></div>' +
         '<div class="meta"><span class="badge ' + t[1] + '">' + t[0] + '</span><span class="badge">' + ic('sound') + vo[0] + '</span>' + (q.scope === 'cr' ? '<span class="badge c">Data ČR</span>' : '') + '<span>' + ic('map') + ' ' + q.stops.length + ' zastávek</span></div>' +
         (q.tags.length ? '<div class="tags">' + q.tags.map((x) => '<span class="tag">' + esc(x) + '</span>').join('') + '</div>' : '') + (q.desc ? '<div class="adesc">' + esc(q.desc) + '</div>' : '') +
-        '<div class="alist">' + q.stops.map((s, i) => '<div class="ar"><span class="no">' + (i + 1) + '</span><span class="an">' + esc(s.n) + '</span>' + (s.snd ? '<span class="aud' + (s.snd._p ? ' play' : '') + '"><button data-p="' + q.id + ':' + i + '" title="Přehrát">' + ic(s.snd._p ? 'min' : 'play') + '</button><em>' + esc(s.snd.name) + '</em><small>' + fmtDur(s.snd.dur) + '</small></span>' : '<span class="badge r">bez hlášení</span>') + '</div>').join('') + '</div>' +
+        '<div class="alist">' + (q.stops || []).map((s, i) => '<div class="ar"><span class="no">' + (i + 1) + '</span><span class="an">' + esc((s && s.n) || '') + '</span>' + (s.snd ? '<span class="aud' + (s.snd._p ? ' play' : '') + '"><button data-p="' + q.id + ':' + i + '" title="Přehrát">' + ic(s.snd._p ? 'min' : 'play') + '</button><em>' + esc(s.snd.name) + '</em><small>' + fmtDur(s.snd.dur) + '</small></span>' : '<span class="badge r">bez hlášení</span>') + '</div>').join('') + '</div>' +
         '<div class="acts2"><button class="btn danger" data-d="no" data-id="' + q.id + '">' + ic('x') + 'Zamítnout</button><button class="btn green" data-d="ok" data-id="' + q.id + '">' + ic('check') + 'Schválit</button></div></div>';
     }).join('') || '<div class="empty"><b>Nic ke schválení</b>Všechny odeslané linky jsou vyřízeny.</div>';
     $$('#adm-list [data-p]').forEach((b) => (b.onclick = () => { const [id, i] = b.dataset.p.split(':'); playSnd(S.queue.find((x) => x.id === id).stops[+i].snd, renderAdmin); }));

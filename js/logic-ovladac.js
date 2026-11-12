@@ -3448,11 +3448,13 @@ window.announceStop = function(idx) {
         let errMsg = `U zastávky [${window.currentAnnouncingStopName}] chybí zápis zvuku v .txt souboru (nebo nebyl detekován)!`;
         debugLog("<span style='color:#e74c3c;'>[CHYBA LINKY " + routeData.line + "] " + errMsg + "</span>");
         
-        fetchBlesk(`${API_BASE}/api/report_error`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ discord_id: dId, nick: nick, type: `CHYBA - LINKA ${routeData.line}`, message: errMsg })
-        }, 3000).catch(()=>{});
+        if (isOfficialBuiltinRoute(routeData && routeData.line)) {
+            fetchBlesk(`${API_BASE}/api/report_error`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ discord_id: dId, nick: nick, type: `CHYBA - LINKA ${routeData.line}`, message: errMsg })
+            }, 3000).catch(()=>{});
+        }
     } 
     
     if (stop.type === 'z') {
@@ -3480,11 +3482,13 @@ window.announceNextStop = function(idx) {
         let errMsg = `U zastávky [${window.currentAnnouncingStopName}] chybí zápis zvuku v .txt souboru (nebo nebyl detekován)!`;
         debugLog("<span style='color:#e74c3c;'>[CHYBA LINKY " + routeData.line + "] " + errMsg + "</span>");
         
-        fetchBlesk(`${API_BASE}/api/report_error`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ discord_id: dId, nick: nick, type: `CHYBA - LINKA ${routeData.line}`, message: errMsg })
-        }, 3000).catch(()=>{});
+        if (isOfficialBuiltinRoute(routeData && routeData.line)) {
+            fetchBlesk(`${API_BASE}/api/report_error`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ discord_id: dId, nick: nick, type: `CHYBA - LINKA ${routeData.line}`, message: errMsg })
+            }, 3000).catch(()=>{});
+        }
     }
     if (stop.type === 'z') {
         sequence.push('zvuky/hlaseni/ZZ.wav'); 
@@ -3621,7 +3625,13 @@ window.updateDriveUI = function() {
         if(rStop) rStop.textContent = "JÍZDA UKONČENA"; 
         
         let nStop = window.getEl('drive-next-stop'); 
-        if(nStop) nStop.textContent = ""; 
+        if(nStop) { nStop.textContent = ""; nStop.style.display = 'none'; }
+        let nextLabel = window.getEl('drive-next-stop-label');
+        if(nextLabel) nextLabel.style.display = 'none';
+        let realLabel = window.getEl('drive-real-stop-label');
+        if(realLabel) realLabel.style.display = 'none';
+        let hdr = document.querySelector('.drive-header-box');
+        if(hdr) hdr.style.marginBottom = '6px';
         
         let pvBox = window.getEl('drive-preview-box'); 
         if(pvBox) pvBox.style.display = 'none'; 
@@ -3638,6 +3648,15 @@ window.updateDriveUI = function() {
         window.syncDom(); 
         return; 
     } 
+    
+    let nextLabel = window.getEl('drive-next-stop-label');
+    if(nextLabel) nextLabel.style.display = 'block';
+    let nStop = window.getEl('drive-next-stop'); 
+    if(nStop) nStop.style.display = 'block';
+    let realLabel = window.getEl('drive-real-stop-label');
+    if(realLabel) realLabel.style.display = 'block';
+    let hdr = document.querySelector('.drive-header-box');
+    if(hdr) hdr.style.marginBottom = '15px';
     
     if(btnMain) btnMain.style.display = 'flex'; 
     if(btnManualContinue) btnManualContinue.style.display = 'none'; 
@@ -4060,9 +4079,43 @@ window.processAudioQueue = function() {
     window.playDirectAudio(item.file, true); 
 };
 
+function isOfficialBuiltinRoute(lineName) {
+    if (!lineName) return false;
+    const l = String(lineName).trim().toLowerCase();
+    if (l.includes('_custom') || l.includes('comm_') || l.includes('fiktiv') || l.includes('ai_') || l.includes('komunit')) {
+        return false;
+    }
+    if (typeof routeData !== 'undefined' && routeData) {
+        if (routeData.isCustom || routeData.isComm || routeData.isFictional) return false;
+    }
+    return true;
+}
+
+function resolveAudioFilePath(relPath) {
+    if (!relPath) return '';
+    const cleanRel = String(relPath).replace(/\\/g, '/');
+    const baseName = path.basename(cleanRel);
+    const candidatePaths = [
+        path.join(PATH_USERDATA, 'zvuky', 'zastavky', baseName),
+        path.join(PATH_USERDATA, 'zvuky', baseName),
+        path.join(PATH_USERDATA, 'sounds', baseName),
+        path.join(PATH_USERDATA, cleanRel),
+        path.join(getBasePath(), cleanRel),
+        path.join(getBasePath(), 'zvuky', 'zastavky', baseName),
+        path.join(getBasePath(), 'zvuky', baseName)
+    ];
+    for (const c of candidatePaths) {
+        try {
+            if (fs.existsSync(c)) return c;
+        } catch(_) {}
+    }
+    return path.join(getBasePath(), cleanRel);
+}
+
 // --- OPRAVENÁ DETEKCE CHYBEJÍCÍCH ZVUKŮ S ODESLÁNÍM DO DISCORDU ---
 window.playDirectAudio = function(relativePath, fromQueue = false) { 
-    let absolutePath = "file:///" + path.join(getBasePath(), relativePath).replace(/\\/g, '/'); 
+    const resolvedPath = resolveAudioFilePath(relativePath);
+    let absolutePath = "file:///" + resolvedPath.replace(/\\/g, '/'); 
     audioPlayer.src = absolutePath; 
     
     audioPlayer.onended = () => { 
@@ -4081,11 +4134,13 @@ window.playDirectAudio = function(relativePath, fromQueue = false) {
         
         debugLog("<span style='color:#e74c3c;'>[CHYBA LINKY " + routeData.line + "] " + errMsg + "</span>");
         
-        fetchBlesk(`${API_BASE}/api/report_error`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ discord_id: dId, nick: nick, type: `CHYBA - LINKA ${routeData.line}`, message: errMsg })
-        }, 3000).catch(()=>{});
+        if (isOfficialBuiltinRoute(routeData && routeData.line)) {
+            fetchBlesk(`${API_BASE}/api/report_error`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ discord_id: dId, nick: nick, type: `CHYBA - LINKA ${routeData.line}`, message: errMsg })
+            }, 3000).catch(()=>{});
+        }
 
         if (fromQueue) { 
             isPlayingQueue = false; 
@@ -4102,11 +4157,13 @@ window.playDirectAudio = function(relativePath, fromQueue = false) {
         
         debugLog("<span style='color:#e74c3c;'>[CHYBA LINKY " + routeData.line + "] " + errMsg + "</span>");
         
-        fetchBlesk(`${API_BASE}/api/report_error`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ discord_id: dId, nick: nick, type: `CHYBA - LINKA ${routeData.line}`, message: errMsg })
-        }, 3000).catch(()=>{});
+        if (isOfficialBuiltinRoute(routeData && routeData.line)) {
+            fetchBlesk(`${API_BASE}/api/report_error`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ discord_id: dId, nick: nick, type: `CHYBA - LINKA ${routeData.line}`, message: errMsg })
+            }, 3000).catch(()=>{});
+        }
 
         if (fromQueue) { 
             isPlayingQueue = false; 
@@ -4386,6 +4443,10 @@ window.renderSmartLinkList = function(query, mode = 'LINKOSPOJ') {
     }
 
     const normalize = s => (s || '').normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+    const isCustomOrComm = (raw) => {
+        const s = (raw || '').toLowerCase();
+        return s.includes('_custom') || s.startsWith('comm_') || s.includes('komunit');
+    };
     
     let items = dataSrc.map(f => f.toLowerCase().replace(/_auto-beta/i,'').replace(/_auto/i,'').replace(/-beta/i,'').trim());
     let unique = [...new Set(items)];
@@ -4401,32 +4462,13 @@ window.renderSmartLinkList = function(query, mode = 'LINKOSPOJ') {
         return;
     }
 
-    if (!query) {
-        let html = `<div class="link-select-section-title">Všechny dostupné linky (${matches.length})</div>`;
-        matches.slice(0, 60).forEach((name, i) => {
-            const orig = dataSrc.find(f => normalize(f.replace(/_auto-beta/i,'').replace(/_auto/i,'').replace(/-beta/i,'').trim()) === name) || dataSrc.find(f => f.toLowerCase().includes(name)) || name;
-            const isBeta = orig.toUpperCase().includes('BETA');
-            let routeName = orig.includes('|') ? orig.split('|')[1].trim() : '';
-            routeName = routeName.replace(/(^|[\s-,\.]+)([a-zěščřžýáíéóúůďťňA-ZĚŠČŘŽÝÁÍÉÓÚŮĎŤŇ])/g, (match, sep, char) => sep + char.toUpperCase());
-            const cleanBadge = name.split('|')[0].trim().toUpperCase();
-            html += `
-            <div class="link-suggestion-item" onclick='window.selectSmartLink(${JSON.stringify(orig).replace(/'/g, "&apos;")}, "${mode}")'>
-                <span class="lsi-badge${isBeta ? ' beta' : ''}">${cleanBadge}</span>
-                <span class="lsi-name">${routeName}${isBeta ? ' BETA' : ''}</span>
-            </div>`;
-        });
-        if (matches.length > 60) html += `<div class="link-no-results">... a ${matches.length - 60} dalších. Upřesněte vyhledávání.</div>`;
-        container.innerHTML = html;
-        return;
-    }
-
-    let html = `<div class="link-select-section-title">Nalezeno ${matches.length} linek</div>`;
-    matches.slice(0, 40).forEach(name => {
+    const renderItem = (name) => {
         const orig = dataSrc.find(f => normalize(f.replace(/_auto-beta/i,'').replace(/_auto/i,'').replace(/-beta/i,'').trim()) === name) || dataSrc.find(f => f.toLowerCase().includes(name)) || name;
         const isBeta = orig.toUpperCase().includes('BETA');
+        const isComm = isCustomOrComm(orig) || isCustomOrComm(name);
         let routeName = orig.includes('|') ? orig.split('|')[1].trim() : '';
         routeName = routeName.replace(/(^|[\s-,\.]+)([a-zěščřžýáíéóúůďťňA-ZĚŠČŘŽÝÁÍÉÓÚŮĎŤŇ])/g, (match, sep, char) => sep + char.toUpperCase());
-        const cleanBadge = name.split('|')[0].trim().toUpperCase();
+        let cleanBadge = name.split('|')[0].replace(/_custom/i, '').replace(/^comm_/i, '').trim().toUpperCase();
         
         let displayRouteName = routeName;
         let displayBadge = cleanBadge;
@@ -4437,12 +4479,36 @@ window.renderSmartLinkList = function(query, mode = 'LINKOSPOJ') {
             displayRouteName = routeName.replace(regex, m => `<span class="lsi-match">${m}</span>`);
         }
         
-        html += `
+        const commBadge = isComm ? '<span style="background:#f59e0b; color:#000; font-size:10px; font-weight:bold; padding:2px 6px; border-radius:4px; margin-left:6px; vertical-align:middle;">KOMUNITNÍ</span>' : '';
+
+        return `
         <div class="link-suggestion-item" onclick='window.selectSmartLink(${JSON.stringify(orig).replace(/'/g, "&apos;")}, "${mode}")'>
             <span class="lsi-badge${isBeta ? ' beta' : ''}">${displayBadge}</span>
-            <span class="lsi-name">${displayRouteName}${isBeta ? ' BETA' : ''}</span>
+            <span class="lsi-name">${displayRouteName}${commBadge}${isBeta ? ' BETA' : ''}</span>
         </div>`;
+    };
+
+    const commMatches = matches.filter(name => {
+        const orig = dataSrc.find(f => normalize(f.replace(/_auto-beta/i,'').replace(/_auto/i,'').replace(/-beta/i,'').trim()) === name) || name;
+        return isCustomOrComm(orig) || isCustomOrComm(name);
     });
+    const officialMatches = matches.filter(name => !commMatches.includes(name));
+
+    let html = '';
+    if (commMatches.length > 0) {
+        html += `<div class="link-select-section-title" style="color:var(--idpk-yellow); border-color:var(--idpk-yellow);">⭐ KOMUNITNÍ / MOJE LINKY (${commMatches.length})</div>`;
+        html += commMatches.slice(0, 30).map(renderItem).join('');
+    }
+
+    if (officialMatches.length > 0) {
+        html += `<div class="link-select-section-title" style="margin-top:${commMatches.length > 0 ? '12px' : '0'};">OFICIÁLNÍ LINKY (${officialMatches.length})</div>`;
+        html += officialMatches.slice(0, 50).map(renderItem).join('');
+    }
+
+    if (matches.length > 80) {
+        html += `<div class="link-no-results">... a ${matches.length - 80} dalších. Upřesněte vyhledávání.</div>`;
+    }
+
     container.innerHTML = html;
 };
 

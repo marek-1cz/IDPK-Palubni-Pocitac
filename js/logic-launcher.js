@@ -1532,6 +1532,10 @@ let lockedClickCount = 0;
 let lockedClickTimer = null;
 
 btnLaunch.addEventListener('click', async () => {
+    if (window.LC) {
+        // Nový launcher vysílá lc:launch – zabránit duplicitnímu spuštění hry
+        return;
+    }
     if (btnLaunch.classList.contains('btn-locked')) {
         lockedClickCount++;
         clearTimeout(lockedClickTimer);
@@ -2724,6 +2728,7 @@ async function loadLocalEditorLines() {
         ]);
         const files = fs.readdirSync(customDataPath).filter(f => f.endsWith('.json'));
         const lines = [];
+        const seenKeys = new Set();
         for (const f of files) {
             if (IGNORED_CONFIG_FILES.has(f) || f.startsWith('_')) {
                 continue;
@@ -2744,6 +2749,14 @@ async function loadLocalEditorLines() {
                         if (!parsed.tags) parsed.tags = [];
                         if (!parsed.tags.includes('Komunita')) parsed.tags.unshift('Komunita');
                     }
+
+                    // Deduplikace podle unikátního ID i čísla linky (aby se nezobrazovaly duplikáty)
+                    const dedupKey = `${parsed.num}_${parsed.id}`;
+                    if (seenKeys.has(dedupKey) || seenKeys.has(String(parsed.id))) {
+                        continue;
+                    }
+                    seenKeys.add(dedupKey);
+                    seenKeys.add(String(parsed.id));
 
                     // Doplnění platných lokálních URL pro přehrávání zvuku v launcheru
                     for (const s of parsed.stops) {
@@ -2773,6 +2786,11 @@ async function loadCommunityEditorLines() {
             const data = await res.json();
             const list = data.routes || [];
             const customDataPath = path.join(centralUserDataPath, 'data');
+            const cfg = loadConfig();
+            const currentNick = (cfg && (cfg.discord_nick || cfg.discord_id || '')) || '';
+            const localLines = await loadLocalEditorLines();
+            const localNums = new Set(localLines.map(l => String(l.num)));
+
             const commLines = list.map(r => {
                 let stops = [];
                 try {
@@ -2780,6 +2798,10 @@ async function loadCommunityEditorLines() {
                 } catch(e) {}
                 const dest = (stops && stops.length) ? (stops[stops.length - 1].name || stops[stops.length - 1].n || r.route_name) : r.route_name;
                 const isInstalled = fs.existsSync(path.join(customDataPath, `comm_${r.id}.json`));
+                const isOwnAuthor = Boolean(currentNick && r.author_name && (r.author_name.toLowerCase().includes(currentNick.toLowerCase()) || currentNick.toLowerCase().includes(r.author_name.toLowerCase())));
+                const isLocal = localNums.has(String(r.route_number));
+                const isAlreadyPresent = isInstalled || isOwnAuthor || isLocal;
+
                 return {
                     id: String(r.id),
                     num: String(r.route_number),
@@ -2792,7 +2814,7 @@ async function loadCommunityEditorLines() {
                     scope: r.system_tag && r.system_tag.toUpperCase() !== 'IDPK' ? 'cr' : 'idpk',
                     tags: r.system_tag ? [r.system_tag] : ['IDPK'],
                     isNew: Boolean(r.is_new),
-                    state: isInstalled ? 'installed' : 'idle',
+                    state: isAlreadyPresent ? 'installed' : 'idle',
                     packageUrl: r.audio_package_url,
                     stops: stops
                 };
@@ -3178,12 +3200,21 @@ document.addEventListener('lc:sound-add', (e) => {
     const { file, stop, stopRef } = e.detail || {};
     if (file && file.path) {
         try {
-            const soundsDir = path.join(centralUserDataPath, 'sounds');
-            if (!fs.existsSync(soundsDir)) fs.mkdirSync(soundsDir, { recursive: true });
-            const dest = path.join(soundsDir, path.basename(file.path));
-            fs.copyFileSync(file.path, dest);
+            const fileName = path.basename(file.path);
+            const targetDirs = [
+                path.join(centralUserDataPath, 'sounds'),
+                path.join(centralUserDataPath, 'zvuky'),
+                path.join(centralUserDataPath, 'zvuky', 'zastavky')
+            ];
+            let firstDest = '';
+            for (const d of targetDirs) {
+                if (!fs.existsSync(d)) fs.mkdirSync(d, { recursive: true });
+                const dest = path.join(d, fileName);
+                if (!firstDest) firstDest = dest;
+                fs.copyFileSync(file.path, dest);
+            }
             // Nastavit funkční lokální URL pro okamžité přehrání v editoru
-            const localFileUrl = 'file:///' + dest.replace(/\\/g, '/');
+            const localFileUrl = 'file:///' + firstDest.replace(/\\/g, '/');
             if (stopRef && stopRef.snd) {
                 stopRef.snd.url = localFileUrl;
             }
