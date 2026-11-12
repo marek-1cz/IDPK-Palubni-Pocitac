@@ -3689,7 +3689,6 @@ window.updateDriveUI = function() {
         }
     }
     
-    let nStop = window.getEl('drive-next-stop'); 
     if (nStop) {
         if (stops[realIdx+1]) {
             let pIcon = (stops[realIdx+1].type === 'z' || stops[realIdx+1].isPhoneDemand) ? ' <span style="margin-left:5px; color:rgba(255,255,255,0.9); font-size:0.9em; position:relative; top:-1px;">&#10006;</span>' : '';

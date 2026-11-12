@@ -2142,15 +2142,25 @@ ipcMain.handle('gtfs-editor-search', async (event, query) => {
     }
 });
 
+let isLaunchingDevBuild = false;
 ipcMain.on('launch-dev-build', async () => {
-    if (launcherWindow && !launcherWindow.isDestroyed()) {
-        launcherWindow.removeAllListeners('closed');
+    if (isLaunchingDevBuild) return;
+    isLaunchingDevBuild = true;
+    try {
+        if (launcherWindow && !launcherWindow.isDestroyed()) {
+            launcherWindow.removeAllListeners('closed');
+        }
+        await syncGtfsData();
+        if (launcherWindow && !launcherWindow.isDestroyed()) {
+            launcherWindow.close();
+            launcherWindow = null;
+        }
+        if (!controllerWindow || controllerWindow.isDestroyed()) {
+            createController();
+        }
+    } finally {
+        setTimeout(() => { isLaunchingDevBuild = false; }, 3000);
     }
-    await syncGtfsData();
-    if (launcherWindow && !launcherWindow.isDestroyed()) {
-        launcherWindow.close();
-    }
-    createController();
 });
 
 function getHWIDForUpdater() {

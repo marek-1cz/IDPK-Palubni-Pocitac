@@ -1147,11 +1147,13 @@ async function initLauncher(config) {
                         const btnDevBuild = document.getElementById('btn-dev-build');
                         if (btnDevBuild) {
                             btnDevBuild.style.display = 'block';
-                            btnDevBuild.addEventListener('click', () => {
-                                btnDevBuild.disabled = true;
-                                btnDevBuild.innerHTML = '<i class="fas fa-spinner fa-spin"></i> SPOUŠTÍM...';
-                                ipcRenderer.send('launch-dev-build');
-                            });
+                            if (!window.LC) {
+                                btnDevBuild.addEventListener('click', () => {
+                                    btnDevBuild.disabled = true;
+                                    btnDevBuild.innerHTML = '<i class="fas fa-spinner fa-spin"></i> SPOUŠTÍM...';
+                                    ipcRenderer.send('launch-dev-build');
+                                });
+                            }
                         }
                     }
                 } else {
@@ -3224,8 +3226,12 @@ document.addEventListener('lc:sound-add', (e) => {
     }
 });
 
+let isDevBuildLaunching = false;
 document.addEventListener('lc:launch-dev-build', () => {
+    if (isDevBuildLaunching) return;
+    isDevBuildLaunching = true;
     ipcRenderer.send('launch-dev-build');
+    setTimeout(() => { isDevBuildLaunching = false; }, 3000);
 });
 
 document.addEventListener('lc:line-publish', async (e) => {
