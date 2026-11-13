@@ -3627,6 +3627,16 @@ document.addEventListener('lc:delete-all', () => {
     }
 });
 
+async function syncGtfsData() {
+    try {
+        return await ipcRenderer.invoke('sync-gtfs-data');
+    } catch (e) {
+        console.warn('[syncGtfsData IPC fallback error]', e);
+        return { error: e.message };
+    }
+}
+window.syncGtfsData = syncGtfsData;
+
 document.addEventListener('lc:gtfs-download', async () => {
     try {
         if (window.LC) window.LC.toast('info', 'Stahování GTFS dat', 'Zahajuji stahování databáze GTFS...');

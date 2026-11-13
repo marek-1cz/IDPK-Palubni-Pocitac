@@ -982,6 +982,7 @@ function loadRawJsonRoute(jsonId) {
     }
     return null;
 }
+global.loadRawJsonRoute = loadRawJsonRoute;
 
 function extractSpojNumber(tripId, routeId) {
     let cleanTrip = cleanStr(tripId);
@@ -2381,6 +2382,7 @@ async function syncGtfsData() {
         req.end();
     });
 }
+global.syncGtfsData = syncGtfsData;
 
 const { autoUpdater } = require('electron-updater');
 

@@ -4375,7 +4375,7 @@ window.updateAudioStatusIndicator = function() {
         el.style.background = '#15803d';
         el.style.borderColor = '#22c55e';
         el.style.boxShadow = '0 0 12px rgba(34, 197, 94, 0.85)';
-        el.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" style="display:block;"><path d="M11 5L6 9H2v6h4l5 4V5z" fill="#ffffff"/><path d="M15.5 8.5a5 5 0 0 1 0 7" stroke="#ffffff" stroke-width="2.2" stroke-linecap="round"/><path d="M19 5a9.5 9.5 0 0 1 0 14" stroke="#ffffff" stroke-width="2.2" stroke-linecap="round"/></svg>';
+        el.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" style="display:block;margin:auto;"><path d="M11 5L6 9H2v6h4l5 4V5z" fill="#ffffff"/><path d="M15.5 8.5a5 5 0 0 1 0 7" stroke="#ffffff" stroke-width="2.2" stroke-linecap="round"/><path d="M19 5a9.5 9.5 0 0 1 0 14" stroke="#ffffff" stroke-width="2.2" stroke-linecap="round"/></svg>';
         el.title = 'Hraje hlášení';
         return;
     }
@@ -4422,7 +4422,7 @@ window.updateAudioStatusIndicator = function() {
         el.style.background = '#b91c1c';
         el.style.borderColor = '#ef4444';
         el.style.boxShadow = '0 0 10px rgba(239, 68, 68, 0.85)';
-        el.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" style="display:block;"><path d="M11 5L6 9H2v6h4l5 4V5z" fill="#ffffff"/><line x1="21" y1="9" x2="15" y2="15" stroke="#ffffff" stroke-width="2.2" stroke-linecap="round"/><line x1="15" y1="9" x2="21" y2="15" stroke="#ffffff" stroke-width="2.2" stroke-linecap="round"/></svg>';
+        el.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" style="display:block;margin:auto;"><path d="M11 5L6 9H2v6h4l5 4V5z" fill="#ffffff"/><line x1="21" y1="9" x2="15" y2="15" stroke="#ffffff" stroke-width="2.2" stroke-linecap="round"/><line x1="15" y1="9" x2="21" y2="15" stroke="#ffffff" stroke-width="2.2" stroke-linecap="round"/></svg>';
         el.title = 'Zvuk chybí';
     }
 };

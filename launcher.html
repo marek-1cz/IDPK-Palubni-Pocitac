@@ -411,7 +411,7 @@ html.lite *,html.lite *::before,html.lite *::after{animation-duration:.001s!impo
 .ed-top .ed-tabs{margin:0}
 .toolbar{display:flex;gap:12px;flex-wrap:wrap;align-items:center;margin-bottom:16px}
 .toolbar .search{flex:1;min-width:220px}
-.mine-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px}
+.mine-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(330px,1fr));gap:14px}
 .lcard{padding:16px;border-radius:16px;background:var(--card);border:1px solid var(--line);display:flex;flex-direction:column;gap:12px;transition:.3s var(--ease);animation:vIn .4s var(--ease) both;overflow:hidden;box-sizing:border-box;}
 .lcard:hover{border-color:rgba(59,130,246,.5);transform:translateY(-2px);}
 .lcard.flash{animation:flash 1.6s ease}
@@ -419,11 +419,11 @@ html.lite *,html.lite *::before,html.lite *::after{animation-duration:.001s!impo
 .lcard .top{display:flex;align-items:center;gap:12px}
 .lcard .top>div{min-width:0}.lcard .top b{display:block;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.lcard .top small{color:var(--dim);font-size:12px;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .lcard .meta{display:flex;gap:8px;flex-wrap:wrap;align-items:center;color:var(--muted);font-size:12px}
-.lcard .acts2{display:flex;gap:6px;align-items:center;width:100%;box-sizing:border-box}
+.lcard .acts2{display:flex;gap:8px;align-items:center;justify-content:space-between;width:100%;box-sizing:border-box;flex-wrap:wrap}
 .lcard .acts2-main{display:flex;gap:6px;flex:1 1 auto;min-width:0}
-.lcard .acts2-main .btn{flex:1 1 0;min-width:0;height:32px;padding:0 6px;font-size:11.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;box-sizing:border-box}
-.lcard .acts2-icons{display:flex;gap:6px;flex-shrink:0}
-.lcard .acts2-icons .ibx{width:32px;height:32px;padding:0;display:inline-flex;align-items:center;justify-content:center;box-sizing:border-box}
+.lcard .acts2-main .btn{flex:1 1 auto;min-width:max-content;height:36px;padding:0 12px;font-size:12.5px;font-weight:600;white-space:nowrap;display:inline-flex;align-items:center;justify-content:center;gap:6px;box-sizing:border-box}
+.lcard .acts2-icons{display:flex;gap:6px;flex-shrink:0;margin-left:auto}
+.lcard .acts2-icons .ibx{width:36px;height:36px;padding:0;display:inline-flex;align-items:center;justify-content:center;box-sizing:border-box;border-radius:10px}
 .rej{font-size:12px;color:#fecaca;background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.3);border-radius:10px;padding:8px 10px;line-height:1.5}
 .empty{grid-column:1/-1;text-align:center;padding:50px 20px;color:var(--muted)}
 .empty b{display:block;color:var(--text);font-size:16px;margin-bottom:6px}
@@ -695,7 +695,7 @@ button.chip.dl:hover{border-color:var(--blue);color:#fff}
 <!-- ===== Aplikace ===== -->
 <div class="launcher-container" id="app">
   <aside class="sidebar">
-    <div class="brand"><div class="mark"><img src="assets/img/datacorebot_pf-lepsi.png" alt="DataCoreBot"></div><div><b>Projekt OIS</b><small>IDPK · Plzeňský kraj</small></div></div>
+    <div class="brand"><div class="mark"><img src="assets/img/datacorebot_icon.png" alt="DataCoreBot"></div><div><b>Projekt OIS</b><small>IDPK · Plzeňský kraj</small></div></div>
     <div class="user-info">
       <div class="avatar" id="avatar">??</div>
       <div class="user-details">
@@ -1021,14 +1021,14 @@ button.chip.dl:hover{border-color:var(--blue);color:#fff}
 
 <!-- ===== Načítání ===== -->
 <div class="overlay" id="initial-loading-overlay">
-  <div class="boot"><div class="rg"></div><div class="rg rg2"></div><div class="mk"><img src="assets/img/datacorebot_pf-lepsi.png" alt="DataCoreBot"></div></div>
+  <div class="boot"><div class="rg"></div><div class="rg rg2"></div><div class="mk"><img src="assets/img/datacorebot_icon.png" alt="DataCoreBot"></div></div>
   <div class="boot-t"><span>Načítání</span> <span style="animation-delay:.2s">launcheru</span><span style="animation-delay:.4s">…</span></div>
 </div>
 
 <!-- ===== Přihlášení ===== -->
 <div class="overlay" id="login-overlay" hidden>
   <div class="lg">
-    <div class="lg-top"><div class="mark"><img src="assets/img/datacorebot_pf-lepsi.png" alt="DataCoreBot"></div><h2>Přihlášení</h2><small>Projekt OIS IDPK</small></div>
+    <div class="lg-top"><div class="mark"><img src="assets/img/datacorebot_icon.png" alt="DataCoreBot"></div><h2>Přihlášení</h2><small>Projekt OIS IDPK</small></div>
     <div class="lg-err" id="login-error-message" hidden><svg class="ic"><use href="#i-alert"/></svg><span id="login-error-text">Chyba</span></div>
 
     <div class="lg-view" id="login-discord-view">
@@ -1271,7 +1271,7 @@ button.chip.dl:hover{border-color:var(--blue);color:#fff}
 <div class="launch-fx" id="launch-fx" hidden>
   <div class="fx-core">
     <svg class="fx-ring" viewBox="0 0 120 120"><circle class="fx-track" cx="60" cy="60" r="54"/><circle class="fx-arc" cx="60" cy="60" r="54"/></svg>
-    <div class="fx-mark"><img src="assets/img/datacorebot_pf-lepsi.png" alt="DataCoreBot"></div>
+    <div class="fx-mark"><img src="assets/img/datacorebot_icon.png" alt="DataCoreBot"></div>
   </div>
   <div class="fx-title" id="fx-title">Spouštění hry</div>
   <div class="fx-step" id="fx-step">Kontrola souborů hry</div>
@@ -2104,7 +2104,12 @@ const CONFIG = { DEMO: false, REDUCED_FX: false };
       const crInstalled = Boolean(S.gtfsCR);
       $('g-dl').hidden = crInstalled;
       const msgEl = $('g-nf-msg');
-      if (msgEl) {
+      const commLine = (S.comm || []).find(c => String(c.num || '').trim().toLowerCase() === q.toLowerCase());
+      if (commLine && msgEl) {
+        msgEl.innerHTML = 'Linka sice není v oficiálních GTFS datech, ale je <b>k dispozici jako komunitní linka ' + esc(commLine.num) + '</b> (' + esc(commLine.name || '') + ') od autora <b>' + esc(commLine.author || 'Komunita') + '</b>!<br><button class="btn primary sm" id="btn-nf-comm-dl" style="margin-top:10px;"><svg class="ic"><use href="#i-download"/></svg> Stáhnout z komunity</button>';
+        const bDl = $('btn-nf-comm-dl');
+        if (bDl) bDl.onclick = () => commGet(commLine.id);
+      } else if (msgEl) {
         msgEl.innerHTML = crInstalled
           ? 'Prohledali jsme data IDPK (Plzeňský kraj) i celostátní data ČR, ale linku „<b>' + esc(q) + '</b>“ se nepodařilo najít. Zkontrolujte číslo linky nebo ji vytvořte ručně / pomocí AI.'
           : 'V datech IDPK (Plzeňský kraj) tato linka není. <b>Chcete-li linku mimo IDPK, stáhněte si GTFS data celé České republiky</b> a hledejte znovu.';
@@ -2115,9 +2120,24 @@ const CONFIG = { DEMO: false, REDUCED_FX: false };
     $('g-results').innerHTML = '<div class="rh">Nalezeno ' + gRes.length + ' linek</div>' + gRes.map((r, i) => {
       const licHtml = r.license && r.license !== r.num ? '<small style="display:inline-block;margin-left:4px;font-size:11px;opacity:0.75;font-weight:normal">(' + esc(r.license) + ')</small>' : '';
       const existsBadge = r.alreadyExists ? '<span class="badge w" style="background:#e67e22;color:#fff;font-weight:bold;">JIŽ EXISTUJE</span>' : '';
-      return '<div class="rcard"><span class="numchip">' + esc(r.num) + licHtml + '</span><div class="tx"><b>' + esc(r.from || '') + ' → ' + esc(r.to || '') + '</b><small>' + (r.stops ? r.stops.length : 0) + ' zastávek · ' + esc(r.name) + '</small></div>' + existsBadge + '<span class="badge ' + (r.scope === 'cr' ? 'c' : 'g') + '">' + (r.scope === 'cr' ? 'Data ČR' : 'IDPK') + '</span><button class="btn primary sm" data-i="' + i + '">Vybrat</button></div>';
+      
+      const qClean = String(r.num || '').trim().toLowerCase();
+      const licClean = String(r.license || '').trim().toLowerCase();
+      const commLine = (S.comm || []).find(c => {
+        const cNum = String(c.num || '').trim().toLowerCase();
+        const cLic = String(c.license || '').trim().toLowerCase();
+        return (cNum && cNum === qClean) || (cLic && cLic === licClean);
+      });
+      const commBadge = commLine ? '<span class="badge" style="background:#0284c7;color:#fff;font-weight:bold;">KOMUNITNÍ VERZE</span>' : '';
+      const commBtn = commLine ? '<button class="btn sm" data-comm-dl="' + esc(commLine.id) + '" style="background:#0284c7;color:#fff;font-weight:700;margin-left:4px;" title="Stáhnout linku z komunity"><svg class="ic"><use href="#i-download"/></svg> Komunitní download</button>' : '';
+
+      return '<div class="rcard"><span class="numchip">' + esc(r.num) + licHtml + '</span><div class="tx"><b>' + esc(r.from || '') + ' → ' + esc(r.to || '') + '</b><small>' + (r.stops ? r.stops.length : 0) + ' zastávek · ' + esc(r.name) + '</small></div>' + existsBadge + commBadge + '<span class="badge ' + (r.scope === 'cr' ? 'c' : 'g') + '">' + (r.scope === 'cr' ? 'Data ČR' : 'IDPK') + '</span>' + commBtn + '<button class="btn primary sm" data-i="' + i + '">Vybrat</button></div>';
     }).join('');
     try { $('g-results').scrollIntoView({ behavior: 'smooth', block: 'nearest' }); } catch(_) {}
+    $$('#g-results [data-comm-dl]').forEach((b) => (b.onclick = (e) => {
+      e.stopPropagation();
+      commGet(b.dataset.commDl);
+    }));
     $$('#g-results [data-i]').forEach((b) => (b.onclick = () => {
       const r = gRes[+b.dataset.i];
       if (!r) return;
