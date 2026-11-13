@@ -46,6 +46,7 @@ const PATH_EXE = path.dirname(process.execPath);
 const PATH_DEV = __dirname;
 // Cesta k permanentním uživatelským datům (nepřepsána updatem)
 const PATH_USERDATA = path.join(process.env.APPDATA || os.homedir(), 'idpk-palubni-pocitac', 'userdata');
+const CUSTOM_ROUTES_CACHE = new Map();
 try {
     const fsRef = require('fs');
     const customDataPath = path.join(PATH_USERDATA, 'data');
@@ -1132,9 +1133,6 @@ async function getDbTargetsForRoute(routeId) {
 }
 
 async function findRouteId(shortName, exactRouteId = null) {
-    let jsonId = getJsonRouteId(shortName) || (exactRouteId ? getJsonRouteId(exactRouteId) : null);
-    if (jsonId) return jsonId;
-
     await ensureGtfsCache();
     await ensureCrCache();
     let query = "SELECT route_id, route_short_name FROM routes";
@@ -1173,7 +1171,12 @@ async function findRouteId(shortName, exactRouteId = null) {
 
     let found = scanDb(idpkDb);
     if (!found && crDb) found = scanDb(crDb);
-    return found;
+    if (found) return found;
+
+    let jsonId = getJsonRouteId(shortName) || (exactRouteId ? getJsonRouteId(exactRouteId) : null);
+    if (jsonId) return jsonId;
+
+    return null;
 }
 
 ipcMain.handle('process-hybrid-file', async (event, fileContent) => {
@@ -1214,25 +1217,27 @@ ipcMain.handle('process-hybrid-file', async (event, fileContent) => {
         let isJsonMatch = false;
         let jsonId = jsonMatchId || getJsonRouteId(linkaNum) || getJsonRouteId(exactRouteId);
         let routeId = null;
+        let routeName = "";
 
         if (jsonId) {
             const rawJson = loadRawJsonRoute(jsonId);
+            if (rawJson && rawJson.name) routeName = rawJson.name;
             if (rawJson && (rawJson.source === 'gtfs' || rawJson.license || rawJson.gtfs_route_id)) {
                 const cand = rawJson.license || rawJson.gtfs_route_id || rawJson.num || linkaNum;
                 const foundGId = await findRouteId(rawJson.num || linkaNum, cand);
-                if (foundGId) {
+                if (foundGId && !foundGId.startsWith('user_') && !foundGId.startsWith('comm_')) {
                     routeId = foundGId;
                     linkaNum = cleanLineDisplay(rawJson.num || linkaNum);
                     isJsonMatch = false;
                 } else {
-                    linkaNum = jsonId;
+                    linkaNum = cleanLineDisplay(rawJson.num || linkaNum);
                     isJsonMatch = true;
-                    routeId = linkaNum;
+                    routeId = jsonId;
                 }
             } else {
-                linkaNum = jsonId;
+                linkaNum = cleanLineDisplay(rawJson ? (rawJson.num || linkaNum) : linkaNum);
                 isJsonMatch = true;
-                routeId = linkaNum;
+                routeId = jsonId;
             }
         } else if (forcedRouteId) {
             routeId = forcedRouteId;
@@ -1258,21 +1263,108 @@ ipcMain.handle('process-hybrid-file', async (event, fileContent) => {
                         }
                         return { audio, name: display || stopName, zone, time, type };
                     });
-                    const lastDest = parsedStops.length > 0 ? parsedStops[parsedStops.length - 1].name : "";
+
+                    const customRouteKey = 'custom_' + cleanLineDisplay(linkaNum).toLowerCase().replace(/[^a-z0-9_-]/g, '_');
+                    const cleanNum = cleanLineDisplay(linkaNum);
+                    const start1 = parsedStops[0].name;
+                    const start2 = parsedStops[parsedStops.length - 1].name;
+                    const isBidirectional = parsedStops.length >= 2 && start1 !== start2;
+
+                    const forwardStops = parsedStops.map((s, idx) => {
+                        let t = s.time;
+                        if (!t) {
+                            let m = idx * 3;
+                            let hh = String(6 + Math.floor(m / 60)).padStart(2, '0');
+                            let mm = String(m % 60).padStart(2, '0');
+                            t = `${hh}:${mm}`;
+                        }
+                        return { ...s, time: t };
+                    });
+
+                    const backwardStops = isBidirectional ? parsedStops.slice().reverse().map((s, idx) => {
+                        let m = idx * 3;
+                        let hh = String(7 + Math.floor(m / 60)).padStart(2, '0');
+                        let mm = String(m % 60).padStart(2, '0');
+                        return { ...s, time: `${hh}:${mm}` };
+                    }) : [];
+
+                    const trips = [];
+                    [1, 3, 5, 7].forEach((sNo, sIdx) => {
+                        const startH = 6 + sIdx * 2;
+                        const tStops = forwardStops.map((st, idx) => {
+                            let m = idx * 3;
+                            let hh = String(startH + Math.floor(m / 60)).padStart(2, '0');
+                            let mm = String(m % 60).padStart(2, '0');
+                            return { ...st, time: `${hh}:${mm}` };
+                        });
+                        trips.push({
+                            tripId: `custom:::${customRouteKey}:::${sNo}`,
+                            spojNum: sNo,
+                            start: start1,
+                            dest: start2,
+                            time: tStops[0].time,
+                            stops: tStops
+                        });
+                    });
+
+                    if (isBidirectional) {
+                        [2, 4, 6, 8].forEach((sNo, sIdx) => {
+                            const startH = 7 + sIdx * 2;
+                            const tStops = backwardStops.map((st, idx) => {
+                                let m = idx * 3;
+                                let hh = String(startH + Math.floor(m / 60)).padStart(2, '0');
+                                let mm = String(m % 60).padStart(2, '0');
+                                return { ...st, time: `${hh}:${mm}` };
+                            });
+                            trips.push({
+                                tripId: `custom:::${customRouteKey}:::${sNo}`,
+                                spojNum: sNo,
+                                start: start2,
+                                dest: start1,
+                                time: tStops[0].time,
+                                stops: tStops
+                            });
+                        });
+                    }
+
+                    CUSTOM_ROUTES_CACHE.set(customRouteKey, {
+                        routeId: customRouteKey,
+                        lineNum: cleanNum,
+                        starts: isBidirectional ? [start1, start2] : [start1],
+                        destsMap: isBidirectional ? {
+                            [start1]: [start2],
+                            [start2]: [start1]
+                        } : {
+                            [start1]: [start1]
+                        },
+                        trips: trips
+                    });
+
+                    if (spojNum) {
+                        const sNumInt = parseInt(spojNum, 10) || 1;
+                        const matchTrip = trips.find(t => t.spojNum === sNumInt) || trips[0];
+                        return {
+                            success: true,
+                            line: cleanNum,
+                            linkospoj: targetLinkospoj,
+                            destination: matchTrip.dest,
+                            stops: matchTrip.stops
+                        };
+                    }
+
                     return {
-                        success: true,
-                        isCustomDirect: true,
-                        line: cleanLineDisplay(linkaNum),
-                        linkospoj: targetLinkospoj,
-                        destination: lastDest,
-                        stops: parsedStops
+                        isTemplate: true,
+                        lineNum: cleanNum,
+                        routeId: customRouteKey,
+                        routeName: routeName,
+                        stopMap: parseTextFileStopsToMap(textFileStops)
                     };
                 }
                 return { error: `Linka ${exactRouteId} nenalezena v GTFS` };
             }
         }
 
-        if (!spojNum) return { isTemplate: true, lineNum: cleanLineDisplay(linkaNum), routeId: routeId, stopMap: parseTextFileStopsToMap(textFileStops) };
+        if (!spojNum) return { isTemplate: true, lineNum: cleanLineDisplay(linkaNum), routeId: routeId, routeName: routeName, stopMap: parseTextFileStopsToMap(textFileStops) };
 
         let tripId = await findTripId(routeId, spojNum);
         if (!tripId) return { error: `Spoj ${spojNum} nenalezen` };
@@ -1287,6 +1379,28 @@ ipcMain.handle('process-hybrid-file', async (event, fileContent) => {
 
 ipcMain.handle('hybrid-get-trip-data', async (event, { tripId, stopMapObj }) => {
     try {
+        if (tripId && tripId.startsWith('custom:::')) {
+            const parts = tripId.split(':::');
+            const customRouteKey = parts[1];
+            const spojNum = parseInt(parts[2], 10) || 1;
+            const cRoute = CUSTOM_ROUTES_CACHE.get(customRouteKey);
+            if (cRoute) {
+                const trip = cRoute.trips.find(t => t.spojNum === spojNum) || cRoute.trips[0];
+                if (trip) {
+                    const finalStops = trip.stops.map(st => {
+                        let res = resolveStopAudio(st.name, stopMapObj);
+                        return {
+                            audio: res ? res.audio : (st.audio || ""),
+                            name: formatStopForDisplay(st.name),
+                            zone: cleanZones(st.zone || "1"),
+                            time: st.time || "",
+                            type: st.type || "n"
+                        };
+                    });
+                    return { stops: finalStops, destination: formatStopForDisplay(trip.dest) };
+                }
+            }
+        }
         let gtfsStops = await getGtfsStopsForTrip(tripId); 
         let finalStops = []; 
         const stopMap = stopMapObj;
@@ -1338,6 +1452,9 @@ function mergeStops(gtfsStops, textFileLines) {
 }
 
 async function findTripId(routeId, cleanSpojNum) {
+    if (CUSTOM_ROUTES_CACHE.has(routeId)) {
+        return `custom:::${routeId}:::${cleanSpojNum}`;
+    }
     let jsonId = getJsonRouteId(routeId);
     if (jsonId) return `json:::${jsonId}:::${cleanSpojNum}`;
 
@@ -1365,6 +1482,17 @@ async function findTripId(routeId, cleanSpojNum) {
 }
 
 async function getHeadsign(tripId) {
+    if (tripId && tripId.startsWith('custom:::')) {
+        const parts = tripId.split(':::');
+        const customRouteKey = parts[1];
+        const spojNum = parseInt(parts[2], 10) || 1;
+        const cRoute = CUSTOM_ROUTES_CACHE.get(customRouteKey);
+        if (cRoute) {
+            const trip = cRoute.trips.find(t => t.spojNum === spojNum) || cRoute.trips[0];
+            if (trip) return formatStopForDisplay(trip.dest);
+        }
+        return "";
+    }
     const jsonInfo = parseJsonTripId(tripId);
     if (jsonInfo) {
         const data = loadJsonData(jsonInfo.jsonId);
@@ -1510,6 +1638,28 @@ async function interpolateMissingTimes(stops) {
     }
 }
 async function getGtfsStopsForTrip(tripId) {
+    if (tripId && tripId.startsWith('custom:::')) {
+        const parts = tripId.split(':::');
+        const customRouteKey = parts[1];
+        const spojNum = parseInt(parts[2], 10) || 1;
+        const cRoute = CUSTOM_ROUTES_CACHE.get(customRouteKey);
+        if (cRoute) {
+            const trip = cRoute.trips.find(t => t.spojNum === spojNum) || cRoute.trips[0];
+            if (trip) {
+                return trip.stops.map(st => ({
+                    name: formatStopForDisplay(st.name),
+                    zone: cleanZones(st.zone || "1"),
+                    time: st.time || "",
+                    type: st.type || "n",
+                    seq: 0,
+                    isPhoneDemand: false,
+                    audio: st.audio || ""
+                }));
+            }
+        }
+        return [];
+    }
+
     const jsonInfo = parseJsonTripId(tripId);
     if (jsonInfo) {
         const data = loadJsonData(jsonInfo.jsonId);
@@ -1748,6 +1898,9 @@ ipcMain.handle('gtfs-load-routes', async () => {
 });
 
 ipcMain.handle('gtfs-get-start-stops', async (event, routeId) => {
+    if (CUSTOM_ROUTES_CACHE.has(routeId)) {
+        return CUSTOM_ROUTES_CACHE.get(routeId).starts;
+    }
     let jsonId = getJsonRouteId(routeId);
     if (jsonId) {
         const data = loadJsonData(jsonId);
@@ -1785,6 +1938,10 @@ ipcMain.handle('gtfs-get-start-stops', async (event, routeId) => {
 });
 
 ipcMain.handle('gtfs-get-destinations-from-start', async (event, {routeId, startStopName}) => {
+    if (CUSTOM_ROUTES_CACHE.has(routeId)) {
+        const cRoute = CUSTOM_ROUTES_CACHE.get(routeId);
+        return cRoute.destsMap[startStopName] || cRoute.starts.filter(s => s !== startStopName);
+    }
     let jsonId = getJsonRouteId(routeId);
     if (jsonId) {
         const data = loadJsonData(jsonId);
@@ -1840,6 +1997,25 @@ ipcMain.handle('gtfs-get-destinations-from-start', async (event, {routeId, start
 
 ipcMain.handle('gtfs-get-final-trips', async (event, {routeId, startStopName, headsign}) => {
     console.log('gtfs-get-final-trips called with:', routeId, startStopName, headsign);
+    if (CUSTOM_ROUTES_CACHE.has(routeId)) {
+        const cRoute = CUSTOM_ROUTES_CACHE.get(routeId);
+        const canonStart = canonicalizeStopName(startStopName);
+        const canonHead = canonicalizeStopName(headsign);
+        const matched = cRoute.trips.filter(t => {
+            const cStart = canonicalizeStopName(t.start);
+            const cDest = canonicalizeStopName(t.dest);
+            return (t.start === startStopName || shortenStopName(t.start) === shortenStopName(startStopName) || cStart === canonStart) &&
+                   (t.dest === headsign || shortenStopName(t.dest) === shortenStopName(headsign) || cDest === canonHead);
+        });
+        return matched.map(t => ({
+            tripId: t.tripId,
+            time: t.time,
+            formattedName: `${cRoute.lineNum}/${t.spojNum}`,
+            spojNum: t.spojNum,
+            headsign: t.dest,
+            tripNumber: `${cRoute.lineNum}/${t.spojNum}`
+        })).sort((a, b) => a.time.localeCompare(b.time));
+    }
     let jsonId = getJsonRouteId(routeId);
     if (jsonId) {
         const rawJson = loadRawJsonRoute(jsonId);

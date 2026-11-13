@@ -2563,34 +2563,14 @@ window.submitAction = function() {
                             if(loadScreen) loadScreen.style.display = 'none';
                             
                             if (response.error) { 
-                                if (isCustomRoute) {
-                                    routeData.isMuted = false;
-                                    window.parseRouteData(content);
-                                    window.initStatsTracking();
-                                    window.switchToDriveScreen();
-                                    window.sendDataToPanel();
-                                } else {
-                                    window.showErrorModal("CHYBA LINKY", response.error);
-                                }
+                                window.showErrorModal("CHYBA LINKY", response.error);
                             } 
-                            else if (response.isCustomDirect) {
-                                routeData.isMuted = false;
-                                routeData.line = response.line;
-                                routeData.routeId = response.line;
-                                routeData.linkospojCode = response.linkospoj;
-                                routeData.destination = response.destination;
-                                routeData.stops = response.stops;
-                                routeData.realStopIndex = 0;
-                                routeData.previewStopIndex = 0;
-                                drivePhase = 0;
-                                window.initStatsTracking();
-                                window.switchToDriveScreen();
-                                window.sendDataToPanel();
-                            }
                             else if (response.isTemplate) {
                                 currentHybridTemplate = response; 
                                 selectedIdpkRouteId = response.routeId; 
                                 inputValues.idpk = response.lineNum; 
+                                if (response.routeName) window.selectedIdpkRouteName = response.routeName;
+                                else window.selectedIdpkRouteName = "";
                                 isSystemLoading = true; 
                                 if(loadScreen) loadScreen.style.display = 'flex'; 
                                 window.syncDom();
@@ -2601,20 +2581,12 @@ window.submitAction = function() {
                                     if (starts && starts.length > 0) {
                                         window.showStartStopSelection(starts); 
                                     } else {
-                                        routeData.isMuted = false; 
-                                        window.parseRouteData(content); 
-                                        window.initStatsTracking(); 
-                                        window.switchToDriveScreen(); 
-                                        window.sendDataToPanel(); 
+                                        window.showErrorModal("CHYBA LINKY", "Tato linka nemá žádné dostupné zastávky.");
                                     }
-                                }).catch(() => {
+                                }).catch((err) => {
                                     isSystemLoading = false;
                                     if(loadScreen) loadScreen.style.display = 'none';
-                                    routeData.isMuted = false;
-                                    window.parseRouteData(content);
-                                    window.initStatsTracking();
-                                    window.switchToDriveScreen();
-                                    window.sendDataToPanel();
+                                    window.showErrorModal("CHYBA LINKY", (err && err.message) || "Nepodařilo se načíst zastávky linky");
                                 });
                             } else {
                                 routeData.isMuted = false; 
@@ -3033,6 +3005,7 @@ window.selectStartStop = function(s) {
 };
 
 window.showStartStopSelection = function(starts) { 
+    const priorState = appState;
     appState = 'IDPK_START'; 
     let w1 = document.getElementById('idpk-db-wrapper'); 
     if(w1) w1.style.display = 'none'; 
@@ -3066,7 +3039,7 @@ window.showStartStopSelection = function(starts) {
         }
     }
     
-    const backAction = (appState === 'IDPK_LINE') ? "window.backToIdpkMode()" : "window.backToManual()";
+    const backAction = (priorState === 'IDPK_LINE') ? "window.backToIdpkMode()" : "window.backToManual()";
     window.updateSelectionHeader("OD — Výchozí zastávka", backAction); 
     
     window.lastDirectionType = 'starts';
@@ -3125,7 +3098,7 @@ window.renderDirectionList = function(items, type) {
                                  <span class="lsi-name" style="font-size:14px; font-weight:bold; color:white;">${d}</span>
                                  <span style="font-size:10px; color:rgba(255,255,255,0.4); text-transform:uppercase; letter-spacing:1px; margin-top:2px;">Cílová zastávka (DO)</span>
                              </div>`;
-            div.setAttribute('onclick', `window.selectDestination('${d.replace(/'/g, "\\'")}')`); 
+            div.setAttribute('onclick', `window.selectDestination(${JSON.stringify(d)})`); 
             container.appendChild(div); 
         }); 
     }
