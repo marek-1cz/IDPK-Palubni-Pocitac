@@ -25,6 +25,7 @@ Přehýšov = prehysov | Display:  | Tarifní zona:  | Čas:  | Další znaky:
 Heřmanova Huť = her_h | Display:  | Tarifní zona:  | Čas:  | Další znaky: 
 Kotovice,Nový = koto_novy | Display:  | Tarifní zona:  | Čas:  | Další znaky: ZZ
 Kotovice = koto | Display:  | Tarifní zona:  | Čas:  | Další znaky: 
+Kotovice, u rybníka = koto | Display:  | Tarifní zona:  | Čas:  | Další znaky: 
 Stod, u hliniště = stod__hlin | Display:  | Tarifní zona:  | Čas:  | Další znaky: ZZ
 Stod, Kotovická = stod_koto | Display:  | Tarifní zona:  | Čas:  | Další znaky: ZZ
 Stod, žel.st. = stod_zel_st | Display:  | Tarifní zona:  | Čas:  | Další znaky: 

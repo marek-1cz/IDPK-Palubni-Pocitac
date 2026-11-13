@@ -719,48 +719,60 @@ function loadAudioFilesIndex() {
     return _AUDIO_FILES_INDEX;
 }
 
+const STOP_KNOWN_ALIASES = {
+    'kotovice rybnika': 'kotovice',
+    'kotovice u rybnika': 'kotovice'
+};
+
 function resolveStopAudio(stopName, localStopMap = null) {
     if (!stopName) return null;
     const canon = canonicalizeStopName(stopName);
     if (!canon) return null;
-    
-    // 1. Zkontrolovat v lokální mapě načteného .txt souboru linky
-    if (localStopMap) {
-        if (localStopMap[canon]) {
-            const val = localStopMap[canon];
-            const audio = val.split('|')[0].trim().replace(/"/g, '');
-            return { source: 'local_exact', audio: audio.endsWith('.wav') ? audio : audio + '.wav', lineData: val };
-        }
-        for (const [k, v] of Object.entries(localStopMap)) {
-            if (matchCanonicalStops(canon, canonicalizeStopName(k))) {
-                const audio = v.split('|')[0].trim().replace(/"/g, '');
-                return { source: 'local_canon', audio: audio.endsWith('.wav') ? audio : audio + '.wav', lineData: v };
+
+    const candidates = [canon];
+    if (STOP_KNOWN_ALIASES[canon] && !candidates.includes(STOP_KNOWN_ALIASES[canon])) {
+        candidates.push(STOP_KNOWN_ALIASES[canon]);
+    }
+
+    for (const testCanon of candidates) {
+        // 1. Zkontrolovat v lokální mapě načteného .txt souboru linky
+        if (localStopMap) {
+            if (localStopMap[testCanon]) {
+                const val = localStopMap[testCanon];
+                const audio = val.split('|')[0].trim().replace(/"/g, '');
+                return { source: 'local_exact', audio: audio.endsWith('.wav') ? audio : audio + '.wav', lineData: val };
+            }
+            for (const [k, v] of Object.entries(localStopMap)) {
+                if (matchCanonicalStops(testCanon, canonicalizeStopName(k))) {
+                    const audio = v.split('|')[0].trim().replace(/"/g, '');
+                    return { source: 'local_canon', audio: audio.endsWith('.wav') ? audio : audio + '.wav', lineData: v };
+                }
             }
         }
-    }
-    
-    // 2. Prohledat globální katalog zastávek ze všech .txt souborů
-    const catalog = loadGlobalStopCatalog();
-    if (catalog.has(canon)) {
-        const entry = catalog.get(canon);
-        return { source: 'global_txt_exact', audio: entry.audio, lineData: entry.lineData };
-    }
-    for (const [cKey, entry] of catalog.entries()) {
-        if (matchCanonicalStops(canon, cKey)) {
-            return { source: 'global_txt_token', audio: entry.audio, lineData: entry.lineData };
+
+        // 2. Prohledat globální katalog zastávek ze všech .txt souborů
+        const catalog = loadGlobalStopCatalog();
+        if (catalog.has(testCanon)) {
+            const entry = catalog.get(testCanon);
+            return { source: 'global_txt_exact', audio: entry.audio, lineData: entry.lineData };
+        }
+        for (const [cKey, entry] of catalog.entries()) {
+            if (matchCanonicalStops(testCanon, cKey)) {
+                return { source: 'global_txt_token', audio: entry.audio, lineData: entry.lineData };
+            }
+        }
+
+        // 3. Prohledat fyzické zvukové soubory ve složkách zvuky/zastavky a zvuky/hlaseni
+        const audioIdx = loadAudioFilesIndex();
+        if (audioIdx.has(testCanon)) {
+            return { source: 'direct_wav', audio: audioIdx.get(testCanon), lineData: "" };
+        }
+        const noSpace = testCanon.replace(/\s+/g, '');
+        if (audioIdx.has(noSpace)) {
+            return { source: 'direct_wav_nospace', audio: audioIdx.get(noSpace), lineData: "" };
         }
     }
-    
-    // 3. Prohledat fyzické zvukové soubory ve složkách zvuky/zastavky a zvuky/hlaseni
-    const audioIdx = loadAudioFilesIndex();
-    if (audioIdx.has(canon)) {
-        return { source: 'direct_wav', audio: audioIdx.get(canon), lineData: "" };
-    }
-    const noSpace = canon.replace(/\s+/g, '');
-    if (audioIdx.has(noSpace)) {
-        return { source: 'direct_wav_nospace', audio: audioIdx.get(noSpace), lineData: "" };
-    }
-    
+
     return null;
 }
 
