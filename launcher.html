@@ -42,14 +42,14 @@ svg.ic{width:1.15em;height:1.15em;fill:none;stroke:currentColor;stroke-width:2;s
 .launcher-container{position:fixed;top:34px;left:0;right:0;bottom:0;display:grid;grid-template-columns:240px 1fr;z-index:1}
 .sidebar{display:flex;flex-direction:column;padding:18px 14px;border-right:1px solid var(--line);background:rgba(255,255,255,.03)}
 .brand{display:flex;align-items:center;gap:12px;padding:4px 8px 18px}
-.brand .mark{width:48px;height:48px;border-radius:12px;display:grid;place-items:center;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.12);overflow:hidden;flex-shrink:0;box-shadow:0 4px 12px rgba(0,0,0,.35);padding:3px}
-.brand .mark img{width:100%;height:100%;object-fit:contain;border-radius:10px;display:block}
-.brand b{display:block;font-size:15px;letter-spacing:.02em;font-weight:800}
+.brand .mark{width:52px;height:52px;border-radius:14px;display:grid;place-items:center;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.14);overflow:hidden;flex-shrink:0;box-shadow:0 4px 14px rgba(0,0,0,.4);padding:2px}
+.brand .mark img{width:100%;height:100%;object-fit:contain;border-radius:12px;display:block}
+.brand b{display:block;font-size:15.5px;letter-spacing:.02em;font-weight:800}
 .brand small{color:var(--dim);font-size:11px}
 .user-info{display:flex;align-items:center;gap:10px;padding:10px;border-radius:14px;background:var(--card);border:1px solid var(--line);margin-bottom:16px}
-.avatar{width:42px;height:42px;border-radius:50%;display:grid;place-items:center;font-weight:800;font-size:14px;background:#1e293b;border:2px solid var(--line2);color:#cbd5e1;flex:none;position:relative;overflow:visible}
-.avatar img{width:100%;height:100%;object-fit:cover;border-radius:50%;display:block;overflow:hidden}
-.avatar::after{content:"";position:absolute;right:-2px;bottom:-2px;width:12px;height:12px;border-radius:50%;background:#22c55e;border:2.5px solid var(--panel);z-index:3;box-shadow:0 0 6px rgba(34,197,94,0.6)}
+.avatar{width:44px;height:44px;border-radius:50%;display:grid;place-items:center;font-weight:800;font-size:14px;background:#1e293b;border:2px solid rgba(255,255,255,.15);color:#cbd5e1;flex:none;position:relative;overflow:visible}
+.avatar img{width:100%;height:100%;object-fit:cover;border-radius:50%;display:block;}
+.avatar::after{content:"";position:absolute;right:0;bottom:0;width:10px;height:10px;border-radius:50%;background:#22c55e;border:2px solid #0f1729;z-index:3;box-shadow:0 0 6px rgba(34,197,94,0.6)}
 .avatar.off::after{background:var(--amber);box-shadow:0 0 6px rgba(245,158,11,0.6)}
 .user-details{flex:1;min-width:0}
 #hwid-display{display:block;font-weight:700;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -419,7 +419,11 @@ html.lite *,html.lite *::before,html.lite *::after{animation-duration:.001s!impo
 .lcard .top{display:flex;align-items:center;gap:12px}
 .lcard .top>div{min-width:0}.lcard .top b{display:block;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.lcard .top small{color:var(--dim);font-size:12px;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .lcard .meta{display:flex;gap:8px;flex-wrap:wrap;align-items:center;color:var(--muted);font-size:12px}
-.lcard .acts2{display:flex;gap:6px;flex-wrap:wrap;align-items:center;width:100%}.lcard .acts2 .btn{flex:1 1 0;min-width:0;padding:0 8px;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.lcard .acts2 .ibx{flex:0 0 34px;width:34px;height:34px;padding:0;display:inline-flex;align-items:center;justify-content:center}
+.lcard .acts2{display:flex;gap:6px;align-items:center;width:100%;box-sizing:border-box}
+.lcard .acts2-main{display:flex;gap:6px;flex:1 1 auto;min-width:0}
+.lcard .acts2-main .btn{flex:1 1 0;min-width:0;height:32px;padding:0 6px;font-size:11.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;box-sizing:border-box}
+.lcard .acts2-icons{display:flex;gap:6px;flex-shrink:0}
+.lcard .acts2-icons .ibx{width:32px;height:32px;padding:0;display:inline-flex;align-items:center;justify-content:center;box-sizing:border-box}
 .rej{font-size:12px;color:#fecaca;background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.3);border-radius:10px;padding:8px 10px;line-height:1.5}
 .empty{grid-column:1/-1;text-align:center;padding:50px 20px;color:var(--muted)}
 .empty b{display:block;color:var(--text);font-size:16px;margin-bottom:6px}
@@ -1914,7 +1918,7 @@ const CONFIG = { DEMO: false, REDUCED_FX: false };
         '<div class="meta"><span class="badge ' + (l.source === 'comm' ? 'c' : 'b') + '">' + (SRC[l.source] || 'Komunita') + '</span><span class="badge ' + st[1] + '">' + st[0] + '</span>' + (l.scope === 'cr' ? '<span class="badge c">Data ČR</span>' : '') + '</div>' +
         '<div class="meta"><span>' + ic('map') + ' ' + l.stops.length + ' zastávek</span><span class="' + (full ? 'okt2' : 'warnt2') + '">' + ic('sound') + ' hlášení ' + a + '/' + l.stops.length + '</span>' + (l.trips && l.trips.length ? '<span>' + ic('clock') + ' ' + l.trips.length + ' spojů</span>' : '') + '</div>' +
         (l.status === 'rejected' ? '<div class="rej"><b>Zpráva od správce:</b> ' + esc(l.reject || '—') + '</div>' : '') +
-        '<div class="acts2">' + main + '<button class="btn ibx" data-a="export" data-id="' + l.id + '" title="Exportovat balíček (.zip)">' + ic('download') + '</button><button class="btn danger ibx" data-a="del" data-id="' + l.id + '" title="Smazat">' + ic('trash') + '</button></div></div>';
+        '<div class="acts2"><div class="acts2-main">' + main + '</div><div class="acts2-icons"><button class="btn ibx" data-a="export" data-id="' + l.id + '" title="Exportovat balíček (.zip)">' + ic('download') + '</button><button class="btn danger ibx" data-a="del" data-id="' + l.id + '" title="Smazat">' + ic('trash') + '</button></div></div></div>';
     }).join('') || '<div class="empty"><b>Zatím tu nic není</b>Vytvořte si první linku tlačítkem „Vytvořit vlastní linku“ nebo si stáhněte komunitní linku.</div>';
     $$('#mine-grid [data-a]').forEach((b) => (b.onclick = () => {
       const l = S.lines.find((x) => x.id === b.dataset.id), a = b.dataset.a;

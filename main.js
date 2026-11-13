@@ -1241,7 +1241,7 @@ ipcMain.handle('process-hybrid-file', async (event, fileContent) => {
         let routeName = "";
 
         if (jsonId) {
-            const rawJson = loadRawJsonRoute(jsonId);
+            const rawJson = typeof loadRawJsonRoute === 'function' ? loadRawJsonRoute(jsonId) : null;
             if (rawJson && rawJson.name) routeName = rawJson.name;
             if (rawJson && (rawJson.source === 'gtfs' || rawJson.license || rawJson.gtfs_route_id)) {
                 const cand = rawJson.license || rawJson.gtfs_route_id || rawJson.num || linkaNum;
@@ -2051,7 +2051,7 @@ ipcMain.handle('gtfs-get-final-trips', async (event, {routeId, startStopName, he
     }
     let jsonId = getJsonRouteId(routeId);
     if (jsonId) {
-        const rawJson = loadRawJsonRoute(jsonId);
+        const rawJson = typeof loadRawJsonRoute === 'function' ? loadRawJsonRoute(jsonId) : null;
         const data = loadJsonData(jsonId);
         const results = [];
         const cleanNum = cleanLineDisplay(rawJson ? (rawJson.num || jsonId) : jsonId);

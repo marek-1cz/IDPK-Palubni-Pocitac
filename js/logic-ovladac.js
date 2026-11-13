@@ -2494,6 +2494,8 @@ window.autoStartRandomTrip = async function() {
         }
         
         routeData.isMuted = false; 
+        routeData.isSilentRoute = false;
+        window.isSilentDatabaseActive = false;
         routeData.line = responseObj.lineNum; 
         routeData.routeId = responseObj.routeId; 
         routeData.linkospojCode = responseObj.linkospojCode;
@@ -2593,6 +2595,8 @@ window.submitAction = function() {
                                 });
                             } else {
                                 routeData.isMuted = false; 
+                                routeData.isSilentRoute = false;
+                                window.isSilentDatabaseActive = false;
                                 routeData.line = response.line; 
                                 routeData.routeId = response.routeId; 
                                 routeData.linkospojCode = response.linkospoj; 
@@ -2617,6 +2621,8 @@ window.submitAction = function() {
                         if(loadScreen) loadScreen.style.display = 'none'; 
                         currentHybridTemplate = null; 
                         routeData.isMuted = false; 
+                        routeData.isSilentRoute = false;
+                        window.isSilentDatabaseActive = false;
                         window.parseRouteData(content); 
                         window.initStatsTracking(); // START ZÁZNAMU
                         window.switchToDriveScreen(); 
@@ -3320,6 +3326,8 @@ window.finalizeTripSelection = function(tripId, destination, tripNumber) {
             } 
             
             routeData.isMuted = false; 
+            routeData.isSilentRoute = false;
+            window.isSilentDatabaseActive = false;
             routeData.line = currentHybridTemplate.lineNum; 
             routeData.routeId = selectedIdpkRouteId; 
             routeData.linkospojCode = tripNumber; 
@@ -3353,7 +3361,7 @@ window.startIdpkRide = function(tripId, destination, tripNumber) {
     if(l) l.style.display = 'flex'; 
     window.syncDom(); 
     
-    const isSilentMode = Boolean(window.isSilentDatabaseActive || (appState && appState.startsWith('IDPK_')));
+    const isSilentMode = Boolean(window.isSilentDatabaseActive);
     ipcRenderer.invoke('gtfs-get-stops', { tripId: tripId, isSilent: isSilentMode }).then(stops => { 
         isSystemLoading = false; 
         if(l) l.style.display = 'none'; 
@@ -3367,7 +3375,8 @@ window.startIdpkRide = function(tripId, destination, tripNumber) {
             return; 
         } 
         
-        const isSilent = isSilentMode || stops.isSilentRoute || !stops.some(s => s.audio && s.audio.length > 4);
+        const hasAudio = stops.some(s => (s.audio && String(s.audio).trim().length > 4) || (s.snd && s.snd.name));
+        const isSilent = isSilentMode || stops.isSilentRoute || (!hasAudio && isSilentMode);
         routeData.isMuted = isSilent; 
         routeData.isSilentRoute = isSilent;
         if (isSilent) {
@@ -4379,7 +4388,7 @@ window.updateAudioStatusIndicator = function() {
         el.style.background = '#b45309';
         el.style.borderColor = '#f59e0b';
         el.style.boxShadow = '0 0 10px rgba(245, 158, 11, 0.7)';
-        el.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" style="display:block;"><path d="M11 5L6 9H2v6h4l5 4V5z" fill="#ffffff"/><line x1="22" y1="2" x2="2" y2="22" stroke="#ffffff" stroke-width="2.5" stroke-linecap="round"/></svg>';
+        el.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" style="display:block;margin:auto;"><path d="M13 6L8 10H4v4h4l5 4V6z" fill="#ffffff"/><line x1="19" y1="5" x2="5" y2="19" stroke="#ffffff" stroke-width="2.5" stroke-linecap="round"/></svg>';
         el.title = 'Linka bez zvuku';
         return;
     }
@@ -4406,7 +4415,7 @@ window.updateAudioStatusIndicator = function() {
         el.style.background = '#0284c7';
         el.style.borderColor = '#38bdf8';
         el.style.boxShadow = '0 0 8px rgba(56, 189, 248, 0.6)';
-        el.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" style="display:block;"><path d="M11 5L6 9H2v6h4l5 4V5z" fill="#ffffff"/></svg>';
+        el.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" style="display:block;margin:auto;"><path d="M14 6L9 10H5v4h4l5 4V6z" fill="#ffffff"/></svg>';
         el.title = 'Zvuk OK';
     } else {
         // 3. Zvuk chybí: červený kruh + bílý repráček s křížkem

@@ -1210,6 +1210,33 @@ async function initLauncher(config) {
     }
 }
 
+function showLockedScreen(msg) {
+    const overlay = document.getElementById('initial-loading-overlay');
+    if (!overlay) return;
+    overlay.style.display = 'flex';
+    overlay.hidden = false;
+    overlay.innerHTML = `
+        <div style="background: rgba(18, 10, 10, 0.95); padding: 42px 36px; border-radius: 20px; border: 2px solid #ef4444; text-align: center; max-width: 480px; box-shadow: 0 0 50px rgba(239, 68, 68, 0.4); animation: mIn 0.35s ease both; position: relative; z-index: 1000;">
+            <div style="width: 70px; height: 70px; border-radius: 50%; background: rgba(239, 68, 68, 0.15); border: 2px solid #ef4444; display: flex; align-items: center; justify-content: center; margin: 0 auto 20px; box-shadow: 0 0 20px rgba(239, 68, 68, 0.5);">
+                <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                    <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+                </svg>
+            </div>
+            <h1 style="color: #ffffff; margin: 0 0 10px; font-size: 24px; font-weight: 800; letter-spacing: 0.05em; text-transform: uppercase;">Launcher Uzamčen</h1>
+            <p style="color: #cbd5e1; font-size: 15px; font-weight: 600; margin: 0 0 16px;">
+                Tento launcher byl uzamčen administrátorem.
+            </p>
+            <div style="background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.3); border-radius: 12px; padding: 12px 16px; color: #fca5a5; font-size: 13.5px; line-height: 1.5; margin-bottom: 24px;">
+                ${msg || 'Probíhá údržba systému nebo byla pozastavena distribuce. Pro více informací kontaktujte podporu na Discordu.'}
+            </div>
+            <button onclick="window.close()" style="background: #ef4444; border: none; color: #ffffff; padding: 12px 32px; border-radius: 10px; cursor: pointer; font-weight: 800; font-size: 14px; text-transform: uppercase; letter-spacing: 0.05em; transition: 0.2s; box-shadow: 0 4px 14px rgba(239, 68, 68, 0.4);">
+                Ukončit launcher
+            </button>
+        </div>
+    `;
+}
+
 async function loadAvailableVersions() {
     document.getElementById('initial-loading-overlay').style.display = 'none';
     let dbVersions = [];
@@ -1254,6 +1281,12 @@ async function loadAvailableVersions() {
                             </div>
                         </div>
                     `;
+                    return;
+                } else if (data.status === 'locked' || (data.status === 'error' && data.message && (data.message.includes('uzamčen') || data.message.includes('údržb'))) || data.is_locked || data.launcher_locked) {
+                    showLockedScreen(data.message || "Launcher byl uzamčen administrátorem.");
+                    return;
+                } else if (data.status === 'error') {
+                    showLockedScreen(data.message || "Přístup k aplikaci byl odmítnut.");
                     return;
                 } else {
                     console.error("Chyba při načítání verzí z API:", data.message);
@@ -1603,8 +1636,8 @@ btnLaunch.addEventListener('click', async () => {
                         return;
                     }
                 }
-            } else if (dataCheck.status === 'error') {
-                alert(dataCheck.message || "Launcher je dočasně uzamčen.");
+            } else if (dataCheck.status === 'error' || dataCheck.status === 'locked' || dataCheck.status === 'banned') {
+                showLockedScreen(dataCheck.message || "Launcher je uzamčen administrátorem.");
                 isLaunchingApp = false;
                 btnLaunch.classList.add('btn-locked');
                 return;
@@ -3397,8 +3430,22 @@ document.addEventListener('lc:sound-add', (e) => {
 });
 
 let isDevBuildLaunching = false;
-document.addEventListener('lc:launch-dev-build', () => {
+document.addEventListener('lc:launch-dev-build', async () => {
     if (isDevBuildLaunching) return;
+    try {
+        let cfg = loadConfig();
+        let id_param = cfg.discord_id || (cfg.email ? 'email-' + cfg.email : '');
+        if (navigator.onLine && id_param) {
+            const resCheck = await safeFetch(`${API_BASE}/api/launcher/versions?discord_id=${id_param}`, {}, 4000);
+            if (resCheck.ok) {
+                const dataCheck = await resCheck.json();
+                if (dataCheck.status === 'locked' || (dataCheck.status === 'error' && dataCheck.message && (dataCheck.message.includes('uzamčen') || dataCheck.message.includes('údržb')))) {
+                    showLockedScreen(dataCheck.message || "Launcher byl uzamčen administrátorem.");
+                    return;
+                }
+            }
+        }
+    } catch (_) {}
     isDevBuildLaunching = true;
     ipcRenderer.send('launch-dev-build');
     setTimeout(() => { isDevBuildLaunching = false; }, 3000);
@@ -3587,13 +3634,16 @@ document.addEventListener('lc:gtfs-download', async () => {
         if (resCr && resCr.error) {
             throw new Error(resCr.error);
         }
-        await ipcRenderer.invoke('sync-gtfs-data');
+        const resSync = await ipcRenderer.invoke('sync-gtfs-data');
+        if (resSync && resSync.error) {
+            console.warn('[sync-gtfs-data] Upozornění:', resSync.error);
+        }
         if (window.LC) {
             window.LC.setGtfsCR(true);
             window.LC.toast('ok', 'GTFS data aktualizována', 'Byla stažena aktuální data zastávek a linek celé ČR.');
         }
     } catch(e) {
-        if (window.LC) window.LC.toast('err', 'Chyba GTFS', e.message);
+        if (window.LC) window.LC.toast('err', 'Chyba GTFS', e.message || 'Nepodařilo se stáhnout GTFS data');
     }
 });
 
