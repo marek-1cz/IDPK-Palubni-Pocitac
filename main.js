@@ -962,6 +962,23 @@ function loadJsonData(jsonId) {
     return [];
 }
 
+function loadRawJsonRoute(jsonId) {
+    try {
+        let p = getUniversalPath('data', `${jsonId}.json`);
+        if (!p) {
+            const resolvedId = getJsonRouteId(jsonId);
+            if (resolvedId) p = getUniversalPath('data', `${resolvedId}.json`);
+        }
+        if (p && fs.existsSync(p)) {
+            const content = fs.readFileSync(p, 'utf-8');
+            return JSON.parse(content);
+        }
+    } catch(e) {
+        console.error('[loadRawJsonRoute] Chyba:', e);
+    }
+    return null;
+}
+
 function extractSpojNumber(tripId, routeId) {
     let cleanTrip = cleanStr(tripId);
     let routeNumeric = routeId.trim().replace(/\D/g, '');
