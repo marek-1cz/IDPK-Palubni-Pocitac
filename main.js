@@ -1658,7 +1658,7 @@ async function interpolateMissingTimes(stops) {
         }
     }
 }
-async function getGtfsStopsForTrip(tripId) {
+async function getGtfsStopsForTrip(tripId, forceSilent = false) {
     if (tripId && tripId.startsWith('custom:::')) {
         const parts = tripId.split(':::');
         const customRouteKey = parts[1];
@@ -1667,15 +1667,17 @@ async function getGtfsStopsForTrip(tripId) {
         if (cRoute) {
             const trip = cRoute.trips.find(t => t.spojNum === spojNum) || cRoute.trips[0];
             if (trip) {
-                return trip.stops.map(st => ({
+                const sStops = trip.stops.map(st => ({
                     name: formatStopForDisplay(st.name),
                     zone: cleanZones(st.zone || "1"),
                     time: st.time || "",
                     type: st.type || "n",
                     seq: 0,
                     isPhoneDemand: false,
-                    audio: st.audio || ""
+                    audio: forceSilent ? "" : (st.audio || "")
                 }));
+                if (forceSilent) sStops.isSilentRoute = true;
+                return sStops;
             }
         }
         return [];
@@ -1686,15 +1688,17 @@ async function getGtfsStopsForTrip(tripId) {
         const data = loadJsonData(jsonInfo.jsonId);
         const trip = data.find(t => t.spoj === jsonInfo.spojNum);
         if(trip && Array.isArray(trip.zastavky)) {
-            return trip.zastavky.map(z => ({
+            const sStops = trip.zastavky.map(z => ({
                 name: formatStopForDisplay(z.name || z.n || ""),
                 zone: cleanZones(z.zone || z.z || "1"),
                 time: z.time || "",
                 type: z.type || (z.req ? 'z' : 'n'),
                 seq: 0,
                 isPhoneDemand: false,
-                audio: (z.snd && z.snd.name) ? z.snd.name : (z.audio || "")
+                audio: forceSilent ? "" : ((z.snd && z.snd.name) ? z.snd.name : (z.audio || ""))
             }));
+            if (forceSilent) sStops.isSilentRoute = true;
+            return sStops;
         }
         return [];
     }
@@ -1729,8 +1733,8 @@ async function getGtfsStopsForTrip(tripId) {
         let finalZone = zonesList.join("<br>");
         let isPhoneDemand = (row.pickup_type == 2 || row.pickup_type == 3);
         let finalAudio = "";
-        // Databáze ČR (bez zvuku) je VŽDY 100% bez zvuku, i kdyby v Plzni existovala shoda názvu
-        if (!isCr) {
+        // Databáze bez zvuku je VŽDY 100% bez zvuku, i kdyby existovala shoda názvu
+        if (!isCr && !forceSilent) {
             let resAudio = resolveStopAudio(stopName);
             finalAudio = resAudio ? resAudio.audio : "";
         }
@@ -1764,9 +1768,12 @@ async function getGtfsStopsForTrip(tripId) {
         return foundAny;
     };
 
-    let hasStops = runStopsQuery(idpkDb, false);
+    let hasStops = runStopsQuery(idpkDb, forceSilent);
     if (!hasStops && crDb) {
         runStopsQuery(crDb, true);
+        results.isSilentRoute = true;
+    }
+    if (forceSilent) {
         results.isSilentRoute = true;
     }
     
@@ -2195,7 +2202,15 @@ ipcMain.handle('gtfs-get-final-trips', async (event, {routeId, startStopName, he
     return finalResults.sort((a, b) => a.time.localeCompare(b.time));
 });
 
-ipcMain.handle('gtfs-get-stops', async (event, tripId) => { return getGtfsStopsForTrip(tripId); });
+ipcMain.handle('gtfs-get-stops', async (event, payload) => {
+    let tripId = payload;
+    let isSilent = false;
+    if (typeof payload === 'object' && payload !== null) {
+        tripId = payload.tripId;
+        isSilent = Boolean(payload.isSilent);
+    }
+    return getGtfsStopsForTrip(tripId, isSilent);
+});
 
 app.whenReady().then(() => { 
     if (app.isPackaged) {
@@ -2698,7 +2713,8 @@ ipcMain.handle('sync-gtfs-data', async () => {
 });
 
 function getBuiltinLineNumbers() {
-    const builtin = new Set();
+    const builtinLicenses = new Set();
+    const builtinShorts = new Set();
     const dirs = [
         path.join(PATH_EXE, 'linky'),
         path.join(PATH_DEV, 'linky'),
@@ -2714,12 +2730,19 @@ function getBuiltinLineNumbers() {
                 if (f.includes('_custom') || f.startsWith('comm_')) continue;
                 const match = f.match(/^([0-9a-zA-Z]+)(?:_auto)?(?:\.txt)?$/i);
                 if (match && match[1]) {
-                    builtin.add(match[1].toLowerCase());
+                    builtinShorts.add(match[1].toLowerCase());
                 }
+                try {
+                    const content = fs.readFileSync(path.join(d, f), 'utf8');
+                    const m = content.match(/Linka:\s*([^\r\n]+)/i);
+                    if (m && m[1]) {
+                        builtinLicenses.add(m[1].trim().toLowerCase());
+                    }
+                } catch(_) {}
             }
         } catch(e) {}
     }
-    return builtin;
+    return { licenses: builtinLicenses, shorts: builtinShorts };
 }
 
 ipcMain.handle('gtfs-editor-search', async (event, query) => {
@@ -2728,7 +2751,9 @@ ipcMain.handle('gtfs-editor-search', async (event, query) => {
         await ensureCrCache();
         if (!query) return [];
         const qClean = cleanStr(String(query).trim());
-        const builtinLines = getBuiltinLineNumbers();
+        const builtinInfo = getBuiltinLineNumbers();
+        const builtinLicenses = builtinInfo.licenses;
+        const builtinShorts = builtinInfo.shorts;
 
         const searchInDb = (dbInstance, scopeName) => {
             if (!dbInstance) return [];
@@ -2797,7 +2822,16 @@ ipcMain.handle('gtfs-editor-search', async (event, query) => {
                     }
 
                     if (tripStops.length > 0) {
-                        const isBuiltin = builtinLines.has(group.num.toLowerCase()) || (group.license && builtinLines.has(group.license.toLowerCase()));
+                        let isBuiltin = false;
+                        if (scopeName === 'idpk') {
+                            const licClean = (group.license || '').toLowerCase();
+                            const numClean = (group.num || '').toLowerCase();
+                            if (licClean && builtinLicenses.has(licClean)) {
+                                isBuiltin = true;
+                            } else if (!licClean && builtinShorts.has(numClean)) {
+                                isBuiltin = true;
+                            }
+                        }
                         results.push({
                             num: group.num,
                             license: group.license,

@@ -2863,6 +2863,7 @@ window.updateSelectionHeader = function(title, backActionStr) {
 };
 
 window.switchToIdpkMode = function() {
+    window.isSilentDatabaseActive = true;
 
     const mk = document.getElementById('main-keypad');
     if (mk) mk.style.display = 'none';
@@ -2913,6 +2914,7 @@ window.switchToIdpkMode = function() {
 };
 
 window.backToManual = function() {
+    window.isSilentDatabaseActive = false;
 
     const mk = document.getElementById('main-keypad');
     if (mk) mk.style.display = 'none';
@@ -3351,7 +3353,8 @@ window.startIdpkRide = function(tripId, destination, tripNumber) {
     if(l) l.style.display = 'flex'; 
     window.syncDom(); 
     
-    ipcRenderer.invoke('gtfs-get-stops', tripId).then(stops => { 
+    const isSilentMode = Boolean(window.isSilentDatabaseActive || (appState && appState.startsWith('IDPK_')));
+    ipcRenderer.invoke('gtfs-get-stops', { tripId: tripId, isSilent: isSilentMode }).then(stops => { 
         isSystemLoading = false; 
         if(l) l.style.display = 'none'; 
         
@@ -3364,11 +3367,15 @@ window.startIdpkRide = function(tripId, destination, tripNumber) {
             return; 
         } 
         
-        const isSilent = stops.isSilentRoute || (appState === 'IDPK_LINE') || !stops.some(s => s.audio && s.audio.length > 4);
+        const isSilent = isSilentMode || stops.isSilentRoute || !stops.some(s => s.audio && s.audio.length > 4);
         routeData.isMuted = isSilent; 
         routeData.isSilentRoute = isSilent;
         if (isSilent) {
-            stops.forEach(s => { s.audio = ""; });
+            stops.forEach(s => { 
+                s.audio = ""; 
+                s.audio_file = "";
+                s.snd = null;
+            });
         }
         routeData.line = inputValues.idpk; 
         routeData.routeId = selectedIdpkRouteId; 
@@ -4173,6 +4180,7 @@ window.updateStopVisuals = function() {
 };
 
 window.playStopSound = function() { 
+    if (routeData.isMuted || routeData.isSilentRoute || window.isSilentDatabaseActive) return;
     if (isPlayingQueue || audioQueue.length > 0) {
         pendingStopSound = true; 
     } else {
@@ -4181,7 +4189,7 @@ window.playStopSound = function() {
 };
 
 window.playAudioSequence = function(fileList) { 
-    if (routeData.isMuted) return; 
+    if (routeData.isMuted || routeData.isSilentRoute || window.isSilentDatabaseActive) return; 
     lastPlayedSequence = [...fileList]; 
     fileList.forEach(f => { 
         audioQueue.push({ file: f }); 
@@ -4274,6 +4282,13 @@ function resolveAudioFilePath(relPath) {
 
 // --- OPRAVENÁ DETEKCE CHYBEJÍCÍCH ZVUKŮ S ODESLÁNÍM DO DISCORDU ---
 window.playDirectAudio = function(relativePath, fromQueue = false) { 
+    if (routeData.isMuted || routeData.isSilentRoute || window.isSilentDatabaseActive) {
+        if (fromQueue) {
+            isPlayingQueue = false;
+            window.processAudioQueue();
+        }
+        return;
+    }
     const resolvedPath = resolveAudioFilePath(relativePath);
     let absolutePath = "file:///" + resolvedPath.replace(/\\/g, '/'); 
     audioPlayer.src = absolutePath; 
@@ -4746,6 +4761,7 @@ window.renderSmartLinkList = function(query, mode = 'LINKOSPOJ') {
 window.selectSmartLink = function(linkName, mode = 'LINKOSPOJ') {
     window.playClick();
     if (mode === 'IDPK') {
+        window.isSilentDatabaseActive = true;
         let parts = linkName.split('|');
         inputValues.idpk = parts[0].trim();
         selectedIdpkRouteId = parts[2] ? parts[2].trim() : "";
@@ -4756,6 +4772,7 @@ window.selectSmartLink = function(linkName, mode = 'LINKOSPOJ') {
         
         window.submitAction();
     } else {
+        window.isSilentDatabaseActive = false;
         inputValues.linkospoj = linkName;
         const searchEl = document.getElementById('search-linkospoj-input');
         if (searchEl) searchEl.value = linkName.replace(/_auto-beta/i,'').replace(/_auto/i,'').replace(/-beta/i,'').trim().toUpperCase();
