@@ -284,6 +284,9 @@ window.prepareStatsPayload = function() {
         lineToSend = String(routeData.routeId).trim();
     }
     if (!lineToSend || statsAnnouncedStops.length === 0) return null;
+    if (lineToSend.startsWith('user_') || lineToSend.startsWith('comm_') || lineToSend.includes(':::') || lineToSend.includes('1794516125535') || lineToSend.includes('user_732') || routeData.isCustomRoute) {
+        return null;
+    }
     let dId = localStorage.getItem('discordId') || storedDiscordId || "";
     return {
         line: lineToSend,
@@ -3656,7 +3659,7 @@ window.parseRouteData = function(text) {
                         const d = pt.replace('Display:', '').trim();
                         if (d) name = d;
                     }
-                    if(pt.startsWith('Tarifní zona:')) zone = pt.replace('Tarifní zona:', '').trim();
+                    if(pt.startsWith('Tarifní zona:')) zone = pt.replace('Tarifní zona:', '').trim().replace(/^P/i, '');
                     if(pt.startsWith('Čas:')) time = pt.replace('Čas:', '').trim();
                     if(p.includes('ZZ') || p.includes('Další znaky: ZZ') || p.includes('KZ') || p.includes('Další znaky: KZ')) type = 'z';
                 });
@@ -3671,7 +3674,7 @@ window.parseRouteData = function(text) {
                     audio = parts[0].trim().replace(/"/g, '');
                     parts.forEach(p => { 
                         if(p.trim().startsWith('Display:')) name = p.replace('Display:', '').trim(); 
-                        if(p.trim().startsWith('Tarifní zona:')) zone = p.replace('Tarifní zona:', '').trim(); 
+                        if(p.trim().startsWith('Tarifní zona:')) zone = p.replace('Tarifní zona:', '').trim().replace(/^P/i, ''); 
                         if(p.trim().startsWith('Čas:')) time = p.replace('Čas:', '').trim(); 
                         if(p.includes('ZZ') || p.includes('Další znaky: ZZ')) type = 'z'; 
                         if(p.includes('KZ') || p.includes('Další znaky: KZ')) type = 'z'; 

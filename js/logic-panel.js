@@ -304,7 +304,7 @@ function updateStopRow(num, stopData, estTime = null) {
 
 function formatMultiZone(zoneStr) {
     if (!zoneStr) return "";
-    let parts = zoneStr.split(/<br>|,/g).filter(x => x.trim().length > 0);
+    let parts = String(zoneStr).split(/<br>|,/g).map(x => x.trim().replace(/^P/i, '')).filter(x => x.length > 0);
     if (parts.length <= 1) return parts[0] || "";
     let html = "";
     for (let i = 0; i < parts.length; i++) {

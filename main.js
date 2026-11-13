@@ -346,6 +346,10 @@ function sendStatsToBackend(data) {
     return new Promise((resolve) => {
         try {
             if (!data || !data.line) return resolve();
+            const lStr = String(data.line).trim();
+            if (lStr.startsWith('user_') || lStr.startsWith('comm_') || lStr.includes(':::') || lStr.includes('1794516125535') || lStr.includes('user_732')) {
+                return resolve();
+            }
             const payload = JSON.stringify(data);
             const req = https.request('https://datacorebot.koyeb.app/api/submit_stats', {
                 method: 'POST',
@@ -470,7 +474,7 @@ ipcMain.handle('get-link-files', async () => {
         try {
             await ensureGtfsCache();
             if (idpkDb) {
-                let stmt = idpkDb.prepare('SELECT route_short_name, route_long_name FROM routes');
+                let stmt = idpkDb.prepare("SELECT route_short_name, route_long_name FROM routes WHERE (route_type = '3' OR route_type = 3)");
                 while (stmt.step()) {
                     let row = stmt.getAsObject();
                     let rShort = cleanStr(row.route_short_name);
@@ -544,7 +548,7 @@ ipcMain.handle('read-route-file', async (event, filename) => {
     return null;
 });
 
-function cleanZones(zoneStr) { if (!zoneStr) return ""; let parts = zoneStr.split(/[ ,;]+/).filter(x => x.trim().length > 0); return [...new Set(parts)].join('<br>'); }
+function cleanZones(zoneStr) { if (!zoneStr) return ""; let parts = String(zoneStr).split(/[ ,;]+/).map(x => x.trim().replace(/^P/i, '')).filter(x => x.length > 0); return [...new Set(parts)].join('<br>'); }
 
 function parseCSV(str) {
     if (str.charCodeAt(0) === 0xFEFF) str = str.slice(1);
@@ -803,7 +807,7 @@ function normalizeJsonRouteTrips(rawJson, defaultRouteNum = '') {
                 odjezd: rawJson[0].time || '08:00',
                 zastavky: rawJson.map(s => ({
                     name: s.name || s.n || '',
-                    zone: s.zone || s.z || '1',
+                    zone: cleanZones(s.zone || s.z || '1'),
                     time: s.time || '',
                     type: s.req ? 'z' : 'n',
                     audio: (s.snd && s.snd.name) ? s.snd.name : (s.audio || '')
@@ -819,7 +823,7 @@ function normalizeJsonRouteTrips(rawJson, defaultRouteNum = '') {
     stops.forEach((s, idx) => {
         const sId = s.id != null ? String(s.id) : String(idx);
         const name = (s.n || s.name || s.orig || '').trim();
-        const zone = (s.z || s.zone || '1').toString().trim();
+        const zone = cleanZones(s.z || s.zone || '1');
         const req = !!s.req;
         const audio = (s.snd && s.snd.name) ? s.snd.name : (s.audio_file || s.audio || '');
         stopMap.set(sId, { name, zone, req, audio });
@@ -864,7 +868,7 @@ function normalizeJsonRouteTrips(rawJson, defaultRouteNum = '') {
     if (resultTrips.length === 0 && stops.length >= 2) {
         const forwardStops = stops.map((s, idx) => {
             const sName = (s.n || s.name || s.orig || '').trim();
-            const sZone = (s.z || s.zone || '1').toString().trim();
+            const sZone = cleanZones(s.z || s.zone || '1');
             const sReq = !!s.req;
             const sAudio = (s.snd && s.snd.name) ? s.snd.name : (s.audio_file || s.audio || '');
             const m = idx * 3;
@@ -903,7 +907,7 @@ function normalizeJsonRouteTrips(rawJson, defaultRouteNum = '') {
 
         const backwardStops = stops.slice().reverse().map((s, idx) => {
             const sName = (s.n || s.name || s.orig || '').trim();
-            const sZone = (s.z || s.zone || '1').toString().trim();
+            const sZone = cleanZones(s.z || s.zone || '1');
             const sReq = !!s.req;
             const sAudio = (s.snd && s.snd.name) ? s.snd.name : (s.audio_file || s.audio || '');
             const m = idx * 3;
@@ -1066,7 +1070,7 @@ function getRouteIdsForShortName(routeId, db) {
         let rIds = new Set();
         let shortNames = new Set();
 
-        let stmt1 = db.prepare("SELECT route_id, route_short_name FROM routes WHERE route_id = ? OR route_short_name = ?");
+        let stmt1 = db.prepare("SELECT route_id, route_short_name FROM routes WHERE (route_type = '3' OR route_type = 3) AND (route_id = ? OR route_short_name = ?)");
         stmt1.bind([clean, clean]);
         while (stmt1.step()) {
             let row = stmt1.getAsObject();
@@ -1078,7 +1082,7 @@ function getRouteIdsForShortName(routeId, db) {
         stmt1.free();
 
         if (rIds.size === 0 && /^\d+$/.test(clean)) {
-            let stmt2 = db.prepare("SELECT route_id, route_short_name FROM routes WHERE route_short_name LIKE ? OR route_id LIKE ?");
+            let stmt2 = db.prepare("SELECT route_id, route_short_name FROM routes WHERE (route_type = '3' OR route_type = 3) AND (route_short_name LIKE ? OR route_id LIKE ?)");
             stmt2.bind(['%' + clean, '%' + clean]);
             while (stmt2.step()) {
                 let row = stmt2.getAsObject();
@@ -1093,7 +1097,7 @@ function getRouteIdsForShortName(routeId, db) {
         }
 
         for (let sn of shortNames) {
-            let stmt3 = db.prepare("SELECT route_id FROM routes WHERE route_short_name = ?");
+            let stmt3 = db.prepare("SELECT route_id FROM routes WHERE (route_type = '3' OR route_type = 3) AND route_short_name = ?");
             stmt3.bind([sn]);
             while (stmt3.step()) {
                 let row = stmt3.getAsObject();
@@ -1152,7 +1156,7 @@ async function getDbTargetsForRoute(routeId) {
 async function findRouteId(shortName, exactRouteId = null) {
     await ensureGtfsCache();
     await ensureCrCache();
-    let query = "SELECT route_id, route_short_name FROM routes";
+    let query = "SELECT route_id, route_short_name FROM routes WHERE (route_type = '3' OR route_type = 3)";
     
     const checkRow = (rId, rShort) => {
         const sClean = String(shortName || '').trim();
@@ -1274,11 +1278,11 @@ ipcMain.handle('process-hybrid-file', async (event, fileContent) => {
                         for (let p of parts) {
                             let pt = p.trim();
                             if (pt.startsWith('Display:')) display = pt.replace('Display:', '').trim();
-                            else if (pt.startsWith('Tarifní zona:')) zone = pt.replace('Tarifní zona:', '').trim();
+                            else if (pt.startsWith('Tarifní zona:')) zone = cleanZones(pt.replace('Tarifní zona:', '').trim());
                             else if (pt.startsWith('Čas:')) time = pt.replace('Čas:', '').trim();
                             else if (pt.includes('ZZ') || pt.includes('KZ')) type = 'z';
                         }
-                        return { audio, name: display || stopName, zone, time, type };
+                        return { audio, name: display || stopName, zone: cleanZones(zone), time, type };
                     });
 
                     const customRouteKey = 'custom_' + cleanLineDisplay(linkaNum).toLowerCase().replace(/[^a-z0-9_-]/g, '_');
@@ -1879,7 +1883,7 @@ ipcMain.handle('gtfs-load-routes', async () => {
     await ensureGtfsCache();
     if (idpkDb) {
         try {
-            let res = idpkDb.exec("SELECT route_id, route_short_name, route_long_name FROM routes");
+            let res = idpkDb.exec("SELECT route_id, route_short_name, route_long_name FROM routes WHERE (route_type = '3' OR route_type = 3)");
             if (res.length > 0) {
                 let seenNames = new Set();
                 res[0].values.forEach(v => {
@@ -2622,7 +2626,7 @@ ipcMain.handle('gtfs-editor-search', async (event, query) => {
         const searchInDb = (dbInstance, scopeName) => {
             if (!dbInstance) return [];
             try {
-                let stmt = dbInstance.prepare("SELECT route_id, route_short_name, route_long_name FROM routes WHERE route_short_name LIKE $q OR route_long_name LIKE $q LIMIT 80");
+                let stmt = dbInstance.prepare("SELECT route_id, route_short_name, route_long_name FROM routes WHERE (route_type = '3' OR route_type = 3) AND (route_short_name LIKE $q OR route_long_name LIKE $q OR route_id LIKE $q) LIMIT 80");
                 stmt.bind({ $q: `%${qClean}%` });
                 let routes = [];
                 while (stmt.step()) {
@@ -2677,7 +2681,9 @@ ipcMain.handle('gtfs-editor-search', async (event, query) => {
                             sStmt.bind({ $t: bestTripId });
                             while (sStmt.step()) {
                                 let row = sStmt.getAsObject();
-                                tripStops.push([cleanStr(row.name), cleanStr(row.zone_id), row.req ? 1 : 0]);
+                                let rawZone = cleanStr(row.zone_id);
+                                let zClean = rawZone.split(/[,;]+/).map(z => z.trim().replace(/^P/i, '')).filter(z => z.length > 0).join(',');
+                                tripStops.push([cleanStr(row.name), zClean, row.req ? 1 : 0]);
                             }
                             sStmt.free();
                         } catch (_) {}
