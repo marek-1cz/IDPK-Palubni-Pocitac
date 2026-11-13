@@ -2642,6 +2642,16 @@ ipcMain.handle('gtfs-download-cr', async () => {
     }
 });
 
+ipcMain.handle('sync-gtfs-data', async () => {
+    try {
+        await syncGtfsData();
+        return { success: true };
+    } catch(err) {
+        log.error('[sync-gtfs-data] Selhání synchronizace:', err);
+        return { success: false, error: err.message };
+    }
+});
+
 function getBuiltinLineNumbers() {
     const builtin = new Set();
     const dirs = [

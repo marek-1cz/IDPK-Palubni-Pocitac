@@ -4338,20 +4338,35 @@ window.updateAudioStatusIndicator = function() {
         return;
     }
 
-    el.style.display = 'inline-flex';
+    el.style.display = 'flex';
 
     if (isAnnouncementPlaying) {
-        el.style.background = '#14532d';
-        el.style.color = '#86efac';
+        // 1. Zvuk právě hraje: zelený repráček s vlnami + záře
+        el.style.background = 'rgba(20, 83, 45, 0.85)';
+        el.style.color = '#22c55e';
         el.style.borderColor = '#22c55e';
-        el.style.boxShadow = '0 0 8px rgba(34,197,94,0.6)';
-        el.innerHTML = '<i class="fas fa-volume-up"></i> HRAJE';
+        el.style.boxShadow = '0 0 10px rgba(34, 197, 94, 0.7)';
+        el.innerHTML = '<i class="fas fa-volume-up"></i>';
+        el.title = 'Hraje hlášení';
         return;
     }
 
-    const stops = routeData.stops;
+    const stops = routeData.stops || [];
+    const isRouteEntirelySilent = stops.length > 0 && stops.every(s => !s.audio || s.audio === '.wav' || String(s.audio).trim().length <= 4);
+
+    if (isRouteEntirelySilent || routeData.isMuted) {
+        // 4. Linka bez zvuku naschvál: oranžový škrtnutý repráček
+        el.style.background = 'rgba(69, 26, 3, 0.85)';
+        el.style.color = '#f59e0b';
+        el.style.borderColor = '#f59e0b';
+        el.style.boxShadow = '0 0 6px rgba(245, 158, 11, 0.5)';
+        el.innerHTML = '<i class="fas fa-volume-mute"></i>';
+        el.title = 'Linka bez zvuku';
+        return;
+    }
+
     const targetIdx = (drivePhase === 0) ? routeData.realStopIndex : (routeData.realStopIndex + 1);
-    const targetStop = (stops && stops[targetIdx]) ? stops[targetIdx] : null;
+    const targetStop = stops[targetIdx] || null;
 
     let hasAudio = false;
     if (targetStop) {
@@ -4368,17 +4383,21 @@ window.updateAudioStatusIndicator = function() {
     }
 
     if (hasAudio) {
-        el.style.background = '#1e293b';
+        // 2. Zvuk je připraven (OK): repráček svítí modře bez čárek
+        el.style.background = 'rgba(15, 23, 42, 0.85)';
         el.style.color = '#38bdf8';
-        el.style.borderColor = 'rgba(56,189,248,0.4)';
-        el.style.boxShadow = 'none';
-        el.innerHTML = '<i class="fas fa-volume-down"></i> ZVUK OK';
+        el.style.borderColor = 'rgba(56, 189, 248, 0.6)';
+        el.style.boxShadow = '0 0 6px rgba(56, 189, 248, 0.3)';
+        el.innerHTML = '<i class="fas fa-volume-off"></i>';
+        el.title = 'Zvuk OK';
     } else {
-        el.style.background = '#7f1d1d';
-        el.style.color = '#fca5a5';
+        // 3. Zvuk chybí: červený repráček s křížkem
+        el.style.background = 'rgba(127, 29, 29, 0.85)';
+        el.style.color = '#ef4444';
         el.style.borderColor = '#ef4444';
-        el.style.boxShadow = '0 0 6px rgba(239,68,68,0.4)';
-        el.innerHTML = '<i class="fas fa-volume-mute"></i> BEZ ZVUKU';
+        el.style.boxShadow = '0 0 8px rgba(239, 68, 68, 0.6)';
+        el.innerHTML = '<i class="fas fa-volume-mute"></i>';
+        el.title = 'Zvuk chybí';
     }
 };
 

@@ -1134,16 +1134,20 @@ async function initLauncher(config) {
                     saveConfig(config);
 
                     if (data.avatar_url) {
-                        const avatarImg = document.querySelector('.user-info i.fa-user-circle');
-                        if (avatarImg) {
-                            const img = document.createElement('img');
-                            img.src = data.avatar_url;
-                            img.style.width = '40px';
-                            img.style.height = '40px';
-                            img.style.borderRadius = '50%';
-                            img.style.marginRight = '10px';
-                            img.style.objectFit = 'cover';
-                            avatarImg.parentNode.replaceChild(img, avatarImg);
+                        currentUserAvatarUrl = data.avatar_url;
+                        config.avatar_url = data.avatar_url;
+                        saveConfig(config);
+                        const avEl = document.getElementById('avatar');
+                        if (avEl) {
+                            avEl.innerHTML = `<img src="${data.avatar_url}" style="width:100%;height:100%;border-radius:50%;object-fit:cover;" alt="Avatar">`;
+                        }
+                        if (window.LC && window.LC.setUser) {
+                            window.LC.setUser({
+                                name: config.discord_nick || config.email || 'Uživatel',
+                                hwid: currentHWID,
+                                role: mapRoleToLC(currentUserRole),
+                                avatar_url: data.avatar_url
+                            });
                         }
                     }
                     if (currentUserRole.includes('DEV') || currentUserRole.includes('SA')) {
@@ -2892,7 +2896,8 @@ async function initLCBridgeData() {
             window.LC.setUser({
                 name: cfg.discord_nick || cfg.email || 'Uživatel',
                 hwid: currentHWID,
-                role: mapRoleToLC(currentUserRole)
+                role: mapRoleToLC(currentUserRole),
+                avatar_url: cfg.avatar_url || (typeof currentUserAvatarUrl !== 'undefined' ? currentUserAvatarUrl : null)
             });
         }
         
@@ -3178,6 +3183,130 @@ document.addEventListener('lc:line-save', (e) => {
     }
 });
 
+function getFolderSize(dirPath) {
+    let size = 0;
+    if (!fs.existsSync(dirPath)) return 0;
+    try {
+        const files = fs.readdirSync(dirPath);
+        for (const file of files) {
+            const fp = path.join(dirPath, file);
+            try {
+                const stat = fs.statSync(fp);
+                if (stat.isFile()) size += stat.size;
+                else if (stat.isDirectory()) size += getFolderSize(fp);
+            } catch(_) {}
+        }
+    } catch(_) {}
+    return size;
+}
+
+function formatBytes(bytes) {
+    if (!bytes || bytes <= 0) return '0 MB';
+    const mb = bytes / (1024 * 1024);
+    if (mb < 1) return (bytes / 1024).toFixed(1) + ' KB';
+    return mb.toFixed(1) + ' MB';
+}
+
+document.addEventListener('lc:storage-manager-open', async () => {
+    try {
+        const soundsDir = path.join(centralUserDataPath, 'sounds');
+        const dataDir = path.join(centralUserDataPath, 'data');
+        const linkyDir = path.join(centralUserDataPath, 'linky');
+
+        const soundsBytes = getFolderSize(soundsDir);
+        const dataBytes = getFolderSize(dataDir) + getFolderSize(linkyDir);
+        const totalBytes = soundsBytes + dataBytes;
+
+        const lines = (window.LC && window.LC.S && window.LC.S.lines || []).map(l => {
+            const stops = l.stops || [];
+            let audioCount = 0;
+            stops.forEach(s => {
+                if (s.snd || s.audio_file || s.audio) audioCount++;
+            });
+            return {
+                id: l.id,
+                num: l.num,
+                name: l.name,
+                source: l.source,
+                stopsCount: stops.length,
+                audioCount: audioCount
+            };
+        });
+
+        if (window.LC && window.LC.updateStorageUI) {
+            window.LC.updateStorageUI({
+                soundsSize: formatBytes(soundsBytes),
+                dataSize: formatBytes(dataBytes),
+                totalSize: formatBytes(totalBytes),
+                lines: lines
+            });
+        }
+    } catch(err) {
+        console.warn('[storage-manager-open]', err);
+    }
+});
+
+document.addEventListener('lc:storage-clean-orphans', async () => {
+    try {
+        const soundsDir = path.join(centralUserDataPath, 'sounds');
+        if (!fs.existsSync(soundsDir)) {
+            if (window.LC) window.LC.toast('info', 'Žádné zvuky', 'Složka zvuků je prázdná.');
+            return;
+        }
+
+        const referencedSounds = new Set();
+        const allLines = (window.LC && window.LC.S && window.LC.S.lines || []);
+        allLines.forEach(l => {
+            (l.stops || []).forEach(st => {
+                const sndName = (st.snd && st.snd.name) ? st.snd.name : (st.audio_file || st.audio || null);
+                if (sndName) referencedSounds.add(path.basename(String(sndName)).toLowerCase());
+            });
+        });
+
+        const dataDir = path.join(centralUserDataPath, 'data');
+        if (fs.existsSync(dataDir)) {
+            const jFiles = fs.readdirSync(dataDir).filter(f => f.endsWith('.json'));
+            jFiles.forEach(jf => {
+                try {
+                    const content = JSON.parse(fs.readFileSync(path.join(dataDir, jf), 'utf-8'));
+                    (content.stops || []).forEach(st => {
+                        const snd = st.audio || st.audio_file || (st.snd && st.snd.name);
+                        if (snd) referencedSounds.add(path.basename(String(snd)).toLowerCase());
+                    });
+                } catch(_) {}
+            });
+        }
+
+        let deletedCount = 0;
+        let deletedBytes = 0;
+        const soundFiles = fs.readdirSync(soundsDir);
+        soundFiles.forEach(sf => {
+            const lower = sf.toLowerCase();
+            if (!referencedSounds.has(lower)) {
+                try {
+                    const fp = path.join(soundsDir, sf);
+                    const sz = fs.statSync(fp).size;
+                    fs.unlinkSync(fp);
+                    deletedCount++;
+                    deletedBytes += sz;
+                } catch(_) {}
+            }
+        });
+
+        if (window.LC) {
+            if (deletedCount > 0) {
+                window.LC.toast('ok', 'Úložiště vyčištěno', `Smazáno ${deletedCount} nepoužívaných souborů (${formatBytes(deletedBytes)} uvolněno).`);
+            } else {
+                window.LC.toast('info', 'Úložiště je čisté', 'Nebyly nalezeny žádné nepotřebné zvukové soubory.');
+            }
+        }
+
+        document.dispatchEvent(new CustomEvent('lc:storage-manager-open'));
+    } catch(err) {
+        if (window.LC) window.LC.toast('err', 'Chyba čištění', err.message);
+    }
+});
+
 document.addEventListener('lc:line-delete', (e) => {
     const id = e.detail && e.detail.id;
     if (!id) return;
@@ -3188,11 +3317,21 @@ document.addEventListener('lc:line-delete', (e) => {
             path.join(customDataPath, `user_${id}.json`),
             path.join(customDataPath, `comm_${id}.json`)
         ];
+        
+        const lineSounds = new Set();
         candidates.forEach(fp => {
             if (fs.existsSync(fp)) {
+                try {
+                    const parsed = JSON.parse(fs.readFileSync(fp, 'utf-8'));
+                    (parsed.stops || []).forEach(st => {
+                        const snd = st.audio || st.audio_file || (st.snd && st.snd.name);
+                        if (snd) lineSounds.add(path.basename(String(snd)).toLowerCase());
+                    });
+                } catch(_) {}
                 try { fs.unlinkSync(fp); } catch(_) {}
             }
         });
+
         const linkyDir = path.join(centralUserDataPath, 'linky');
         if (fs.existsSync(linkyDir)) {
             const txtFiles = fs.readdirSync(linkyDir);
@@ -3201,6 +3340,14 @@ document.addEventListener('lc:line-delete', (e) => {
                     try { fs.unlinkSync(path.join(linkyDir, tf)); } catch(_) {}
                 }
             });
+        }
+
+        if (lineSounds.size > 0) {
+            setTimeout(() => {
+                try {
+                    document.dispatchEvent(new CustomEvent('lc:storage-clean-orphans'));
+                } catch(_) {}
+            }, 300);
         }
     } catch(err) {
         console.warn('Chyba při mazání souboru linky:', err);
@@ -3421,10 +3568,15 @@ document.addEventListener('lc:delete-all', () => {
 
 document.addEventListener('lc:gtfs-download', async () => {
     try {
-        await syncGtfsData();
+        if (window.LC) window.LC.toast('info', 'Stahování GTFS dat', 'Zahajuji stahování databáze GTFS...');
+        const resCr = await ipcRenderer.invoke('gtfs-download-cr');
+        if (resCr && resCr.error) {
+            throw new Error(resCr.error);
+        }
+        await ipcRenderer.invoke('sync-gtfs-data');
         if (window.LC) {
             window.LC.setGtfsCR(true);
-            window.LC.toast('ok', 'GTFS data aktualizována', 'Byla stažena aktuální data zastávek a linek.');
+            window.LC.toast('ok', 'GTFS data aktualizována', 'Byla stažena aktuální data zastávek a linek celé ČR.');
         }
     } catch(e) {
         if (window.LC) window.LC.toast('err', 'Chyba GTFS', e.message);
