@@ -122,6 +122,9 @@ function loadLauncherCache() {
 // CENTRÁLNÍ UŽIVATELSKÁ DATA (VLASTNÍ LINKY NAVÁZÁNY NA LAUNCHER)
 // =========================================================================
 const centralUserDataPath = path.join(userDataPath, 'userdata');
+const PATH_USERDATA = centralUserDataPath;
+window.PATH_USERDATA = centralUserDataPath;
+window.userDataPath = userDataPath;
 
 const KNOWN_DEFAULT_LINKS = new Set([
     '336_auto.txt', '424_auto.txt', '621_auto.txt', '711_auto.txt', '722_auto.txt',
@@ -2687,7 +2690,7 @@ function syncRouteFileToLinky(line) {
         const filename = `${safeNum}_custom.txt`;
         const filePath = path.join(linkyDir, filename);
         
-        let txt = `Linka: ${line.num}\n`;
+        let txt = `GTFS-DATA\nLinka: ${line.id || line.num}\n`;
         const lastStop = line.dest || (line.stops && line.stops.length ? (line.stops[line.stops.length - 1].n || line.stops[line.stops.length - 1].name) : '');
         txt += `Směr: ${lastStop}\n`;
         txt += `Zastávky:\n`;

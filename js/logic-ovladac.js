@@ -50,6 +50,8 @@ const processCore = require('process');
 
 const userDataPath = process.env.APPDATA ? path.join(process.env.APPDATA, 'idpk-palubni-pocitac') : os.homedir();
 const PATH_USERDATA = path.join(userDataPath, 'userdata');
+window.userDataPath = userDataPath;
+window.PATH_USERDATA = PATH_USERDATA;
 
 const API_BASE = 'https://datacorebot.koyeb.app';
 
@@ -80,6 +82,12 @@ function detectAppBuildInfo() {
         }
     } catch (e) {}
     return { version, build };
+}
+
+function isCustomOrComm(raw) {
+    if (!raw) return false;
+    const s = String(raw).toLowerCase().trim();
+    return s.includes('_custom') || s.startsWith('comm_') || s.startsWith('user_') || s.includes('komunit') || s.includes('fiktiv');
 }
 
 const APP_BUILD_INFO = detectAppBuildInfo();
@@ -2321,7 +2329,8 @@ window.autoStartRandomTrip = async function() {
         if (!content) throw new Error("Nelze přečíst " + fileToLoad);
         
         let responseObj;
-        if (content.toUpperCase().includes("GTFS-DATA") || content.toUpperCase().includes("GTSF-DATA")) {
+        const isCustomRoute = isCustomOrComm(fileToLoad) || isCustomOrComm(inputValues.linkospoj);
+        if (content.toUpperCase().includes("GTFS-DATA") || content.toUpperCase().includes("GTSF-DATA") || isCustomRoute) {
             let response = await ipcRenderer.invoke('process-hybrid-file', content);
             if (response.error) throw new Error(response.error);
             
@@ -2331,24 +2340,36 @@ window.autoStartRandomTrip = async function() {
                 inputValues.idpk = response.lineNum;
                 
                 let starts = await ipcRenderer.invoke('gtfs-get-start-stops', routeId);
-                let randomStart = starts[Math.floor(Math.random() * starts.length)];
+                let randomStart = (starts && starts.length > 0) ? starts[Math.floor(Math.random() * starts.length)] : null;
                 
-                let dests = await ipcRenderer.invoke('gtfs-get-destinations-from-start', { routeId, startStopName: randomStart });
-                let randomDest = dests[Math.floor(Math.random() * dests.length)];
+                let dests = randomStart ? await ipcRenderer.invoke('gtfs-get-destinations-from-start', { routeId, startStopName: randomStart }) : [];
+                let randomDest = (dests && dests.length > 0) ? dests[Math.floor(Math.random() * dests.length)] : null;
                 
-                let trips = await ipcRenderer.invoke('gtfs-get-final-trips', { routeId, startStopName: randomStart, headsign: randomDest });
-                let randomTrip = trips[Math.floor(Math.random() * trips.length)];
+                let trips = (randomStart && randomDest) ? await ipcRenderer.invoke('gtfs-get-final-trips', { routeId, startStopName: randomStart, headsign: randomDest }) : [];
+                let randomTrip = (trips && trips.length > 0) ? trips[Math.floor(Math.random() * trips.length)] : null;
                 
-                let tripData = await ipcRenderer.invoke('hybrid-get-trip-data', { tripId: randomTrip.tripId, stopMapObj: currentHybridTemplate.stopMap });
-                if (tripData.error) throw new Error(tripData.error);
-                
-                responseObj = { 
-                    lineNum: currentHybridTemplate.lineNum, 
-                    routeId: routeId, 
-                    linkospojCode: randomTrip.tripNumber, 
-                    destination: tripData.destination, 
-                    stops: tripData.stops 
-                };
+                if (randomTrip) {
+                    let tripData = await ipcRenderer.invoke('hybrid-get-trip-data', { tripId: randomTrip.tripId, stopMapObj: currentHybridTemplate.stopMap });
+                    if (tripData.error) throw new Error(tripData.error);
+                    
+                    responseObj = { 
+                        lineNum: currentHybridTemplate.lineNum, 
+                        routeId: routeId, 
+                        linkospojCode: randomTrip.tripNumber, 
+                        destination: tripData.destination, 
+                        stops: tripData.stops 
+                    };
+                } else {
+                    currentHybridTemplate = null; 
+                    window.parseRouteData(content);
+                    responseObj = { 
+                        lineNum: routeData.line, 
+                        routeId: routeData.routeId, 
+                        linkospojCode: routeData.linkospojCode, 
+                        destination: routeData.destination, 
+                        stops: routeData.stops 
+                    };
+                }
             } else {
                 responseObj = { 
                     lineNum: response.line, 
@@ -2482,7 +2503,8 @@ window.submitAction = function() {
             
             ipcRenderer.invoke('read-route-file', fileToLoad).then(content => {
                 if (content) {
-                    if (content.toUpperCase().includes("GTFS-DATA") || content.toUpperCase().includes("GTSF-DATA")) {
+                    const isCustomRoute = isCustomOrComm(fileToLoad) || isCustomOrComm(inputValues.linkospoj);
+                    if (content.toUpperCase().includes("GTFS-DATA") || content.toUpperCase().includes("GTSF-DATA") || isCustomRoute) {
                         ipcRenderer.invoke('process-hybrid-file', content).then(response => {
                             isSystemLoading = false; 
                             if(loadScreen) loadScreen.style.display = 'none';
@@ -2501,7 +2523,23 @@ window.submitAction = function() {
                                 ipcRenderer.invoke('gtfs-get-start-stops', selectedIdpkRouteId).then(starts => { 
                                     isSystemLoading = false; 
                                     if(loadScreen) loadScreen.style.display = 'none'; 
-                                    window.showStartStopSelection(starts); 
+                                    if (starts && starts.length > 0) {
+                                        window.showStartStopSelection(starts); 
+                                    } else {
+                                        routeData.isMuted = false; 
+                                        window.parseRouteData(content); 
+                                        window.initStatsTracking(); 
+                                        window.switchToDriveScreen(); 
+                                        window.sendDataToPanel(); 
+                                    }
+                                }).catch(() => {
+                                    isSystemLoading = false;
+                                    if(loadScreen) loadScreen.style.display = 'none';
+                                    routeData.isMuted = false;
+                                    window.parseRouteData(content);
+                                    window.initStatsTracking();
+                                    window.switchToDriveScreen();
+                                    window.sendDataToPanel();
                                 });
                             } else {
                                 routeData.isMuted = false; 
@@ -3664,6 +3702,8 @@ window.updateDriveUI = function() {
         if(realLabel) realLabel.style.display = 'none';
         let stopInd = window.getEl('drive-stop-indicator');
         if(stopInd) stopInd.style.display = 'none';
+        let headerDest = window.getEl('drive-header-dest');
+        if(headerDest) headerDest.style.display = 'none';
         let hdr = document.querySelector('.drive-header-box');
         if(hdr) hdr.style.marginBottom = '6px';
         
@@ -3692,7 +3732,8 @@ window.updateDriveUI = function() {
     let realLabel = window.getEl('drive-real-stop-label');
     if(realLabel) realLabel.style.display = 'block';
     let hdr = document.querySelector('.drive-header-box');
-    if(hdr) hdr.style.marginBottom = '15px';
+    if(hdr) { hdr.style.display = 'flex'; hdr.style.marginBottom = '15px'; }
+    if(headerDest) headerDest.style.display = 'block';
     
     if(btnMain) btnMain.style.display = 'flex'; 
     if(btnManualContinue) btnManualContinue.style.display = 'none'; 

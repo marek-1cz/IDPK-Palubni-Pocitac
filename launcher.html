@@ -2179,8 +2179,8 @@ const CONFIG = { DEMO: false, REDUCED_FX: false };
       const tog = '<button class="tog ' + (s.req ? 'on' : '') + '" data-a="req" title="Zastávka na znamení">' + (s.req ? ic('check') : '') + 'Znamení</button>';
       if (g) {
         r.className = 'stp g' + (chg ? ' chg' : '') + (s._open ? ' open' : '');
-        r.innerHTML = '<div class="srow"><span class="no">' + (i + 1) + '</span><div class="sname"><b>' + esc(s.n) + '</b><small>' + metaOf(s) + '</small></div><div class="aslot">' + audHtml(s) + '</div><button class="ib edt" data-a="edit" title="Upravit údaje zastávky">' + ic('edit') + '</button></div>' +
-          '<div class="sdet"><label class="fld"><span>Název na panelu</span><input class="inp" value="' + esc(s.n) + '" data-k="n"></label><label class="fld"><span>Tarifní pásmo</span><input class="inp" value="' + esc(s.z) + '" data-k="z"></label><div class="fld"><span>Znamení</span>' + tog + '</div>' + (chg ? '<button class="btn sm ghost rst" data-a="reset">' + ic('refresh') + 'Vrátit dle GTFS</button>' : '') + '</div>';
+        r.innerHTML = '<div class="srow"><span class="no">' + (i + 1) + '</span><div class="sname"><b>' + esc((s && s.n) || '') + '</b><small>' + metaOf(s) + '</small></div><div class="aslot">' + audHtml(s) + '</div><button class="ib edt" data-a="edit" title="Upravit údaje zastávky">' + ic('edit') + '</button></div>' +
+          '<div class="sdet"><label class="fld"><span>Název na panelu</span><input class="inp" value="' + esc((s && s.n) || '') + '" data-k="n"></label><label class="fld"><span>Tarifní pásmo</span><input class="inp" value="' + esc((s && s.z) || '') + '" data-k="z"></label><div class="fld"><span>Znamení</span>' + tog + '</div>' + (chg ? '<button class="btn sm ghost rst" data-a="reset">' + ic('refresh') + 'Vrátit dle GTFS</button>' : '') + '</div>';
       } else {
         r.className = 'stp m'; r.draggable = true;
         const hint = (s && s.hint) ? '<button class="hd ' + s.hint + '" data-a="hint" title="' + (s.hint === 'ok' ? 'Přiřazeno podle jízdních řádů' : 'Návrh: ' + esc(s.sug ? (s.sug.n || '') : '') + ' – kliknutím použít') + '"></button>' : '<span class="grip">' + ic('grip') + '</span>';

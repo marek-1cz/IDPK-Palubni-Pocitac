@@ -992,37 +992,91 @@ function getActiveServiceIds(db) {
     }
 }
 
+function parseJsonTripId(tripId) {
+    if (!tripId) return null;
+    if (tripId.startsWith('json:::')) {
+        const parts = tripId.split(':::');
+        return { jsonId: parts[1], spojNum: parseInt(parts[2], 10) || 1 };
+    }
+    if (tripId.startsWith('json_')) {
+        const lastUnderscore = tripId.lastIndexOf('_');
+        if (lastUnderscore > 5) {
+            return {
+                jsonId: tripId.substring(5, lastUnderscore),
+                spojNum: parseInt(tripId.substring(lastUnderscore + 1), 10) || 1
+            };
+        }
+        return { jsonId: tripId.replace('json_', ''), spojNum: 1 };
+    }
+    return null;
+}
+
 function getRouteIdsForShortName(routeId, db) {
     if (!db) return [routeId];
     try {
-        let stmt1 = db.prepare("SELECT route_short_name FROM routes WHERE route_id = ?");
-        stmt1.bind([routeId]);
+        let clean = String(routeId).trim();
         let shortName = null;
+        let stmt1 = db.prepare("SELECT route_short_name FROM routes WHERE route_id = ? OR route_short_name = ?");
+        stmt1.bind([clean, clean]);
         if (stmt1.step()) shortName = stmt1.getAsObject().route_short_name;
         stmt1.free();
         
-        if (!shortName) return [routeId];
-        
-        let stmt2 = db.prepare("SELECT route_id FROM routes WHERE route_short_name = ?");
-        stmt2.bind([shortName]);
+        let targetName = shortName || clean;
+        let stmt2 = db.prepare("SELECT route_id FROM routes WHERE route_short_name = ? OR route_id = ?");
+        stmt2.bind([targetName, clean]);
         let rIds = [];
         while(stmt2.step()) {
             rIds.push(stmt2.getAsObject().route_id);
         }
         stmt2.free();
-        return rIds.length > 0 ? rIds : [routeId];
+        return rIds.length > 0 ? rIds : [clean];
     } catch(e) {
         return [routeId];
     }
 }
 
+async function getDbTargetsForRoute(routeId) {
+    await ensureGtfsCache();
+    await ensureCrCache();
+    const targets = [];
+    const cleanId = String(routeId).trim();
+    if (idpkDb) {
+        const rIds = getRouteIdsForShortName(cleanId, idpkDb);
+        let has = false;
+        try {
+            let stmt = idpkDb.prepare(`SELECT 1 FROM trips WHERE route_id IN (${rIds.map(()=>'?').join(',')}) LIMIT 1`);
+            stmt.bind(rIds);
+            if (stmt.step()) has = true;
+            stmt.free();
+        } catch(_) {}
+        if (has) targets.push({ db: idpkDb, rIds, isCr: false });
+    }
+    if (crDb) {
+        const rIds = getRouteIdsForShortName(cleanId, crDb);
+        let has = false;
+        try {
+            let stmt = crDb.prepare(`SELECT 1 FROM trips WHERE route_id IN (${rIds.map(()=>'?').join(',')}) LIMIT 1`);
+            stmt.bind(rIds);
+            if (stmt.step()) has = true;
+            stmt.free();
+        } catch(_) {}
+        if (has) targets.push({ db: crDb, rIds, isCr: true });
+    }
+    if (targets.length === 0) {
+        if (idpkDb) targets.push({ db: idpkDb, rIds: getRouteIdsForShortName(cleanId, idpkDb), isCr: false });
+        if (crDb) targets.push({ db: crDb, rIds: getRouteIdsForShortName(cleanId, crDb), isCr: true });
+    }
+    return targets;
+}
+
 async function findRouteId(shortName, exactRouteId = null) {
-    let jsonId = getJsonRouteId(shortName);
+    let jsonId = getJsonRouteId(shortName) || (exactRouteId ? getJsonRouteId(exactRouteId) : null);
     if (jsonId) return jsonId;
 
     let customRoutes = getUnlockedCustomRoutes();
     
     await ensureGtfsCache();
+    await ensureCrCache();
     let query = "SELECT route_id, route_short_name FROM routes";
     
     const checkRow = (rId, rShort) => {
@@ -1041,9 +1095,10 @@ async function findRouteId(shortName, exactRouteId = null) {
         return null;
     };
     
-    if (idpkDb) {
+    const scanDb = (db) => {
+        if (!db) return null;
         try {
-            let stmt = idpkDb.prepare(query);
+            let stmt = db.prepare(query);
             while(stmt.step()) {
                 let row = stmt.getAsObject();
                 let match = checkRow(row.route_id, row.route_short_name);
@@ -1051,9 +1106,12 @@ async function findRouteId(shortName, exactRouteId = null) {
             }
             stmt.free();
         } catch(e) { console.error(e); }
-    }
-    
-    return null;
+        return null;
+    };
+
+    let found = scanDb(idpkDb);
+    if (!found && crDb) found = scanDb(crDb);
+    return found;
 }
 
 ipcMain.handle('process-hybrid-file', async (event, fileContent) => {
@@ -1068,8 +1126,14 @@ ipcMain.handle('process-hybrid-file', async (event, fileContent) => {
         }
         if (!targetLinkospoj || targetLinkospoj.length < 3) return { error: "Chybný formát Linky" };
 
-        let exactRouteId = targetLinkospoj.includes('/') ? targetLinkospoj.split('/')[0].trim().replace(/\D/g, '') : targetLinkospoj.replace(/\D/g, '');
+        let rawRoutePart = targetLinkospoj.includes('/') ? targetLinkospoj.split('/')[0].trim() : targetLinkospoj.trim();
         let spojNum = targetLinkospoj.includes('/') ? targetLinkospoj.split('/')[1].trim().replace(/\D/g, '') : "";
+        let jsonMatchId = getJsonRouteId(rawRoutePart);
+
+        let exactRouteId = rawRoutePart;
+        if (!jsonMatchId && !rawRoutePart.startsWith('user_') && !rawRoutePart.startsWith('comm_') && !rawRoutePart.includes('_custom')) {
+            exactRouteId = rawRoutePart.replace(/\D/g, '');
+        }
         
         let customRoutes = getUnlockedCustomRoutes();
         let linkaNum = exactRouteId;
@@ -1079,14 +1143,14 @@ ipcMain.handle('process-hybrid-file', async (event, fileContent) => {
             let parts = exactRouteId.split('|');
             forcedRouteId = parts[2] ? parts[2].trim() : null;
             linkaNum = parts[0].trim();
-        } else if (exactRouteId.length >= 5 && !customRoutes.has(exactRouteId)) {
+        } else if (exactRouteId.length >= 5 && !customRoutes.has(exactRouteId) && !jsonMatchId) {
             linkaNum = exactRouteId.slice(-3).replace(/^0+/, ''); 
-        } else {
+        } else if (!jsonMatchId) {
             linkaNum = exactRouteId.replace(/^0+/, ''); 
         }
 
         let isJsonMatch = false;
-        let jsonId = getJsonRouteId(linkaNum);
+        let jsonId = jsonMatchId || getJsonRouteId(linkaNum) || getJsonRouteId(exactRouteId);
         if (jsonId) {
             linkaNum = jsonId;
             isJsonMatch = true;
@@ -1168,19 +1232,23 @@ function mergeStops(gtfsStops, textFileLines) {
 }
 
 async function findTripId(routeId, cleanSpojNum) {
-    if (getJsonRouteId(routeId)) return `json_${routeId}_${cleanSpojNum}`;
+    let jsonId = getJsonRouteId(routeId);
+    if (jsonId) return `json:::${jsonId}:::${cleanSpojNum}`;
 
-    await ensureGtfsCache();
+    const targets = await getDbTargetsForRoute(routeId);
     let query = "SELECT trip_id FROM trips WHERE route_id = $r";
     let tidList = [];
     
-    if (idpkDb) {
-        try {
-            let stmt = idpkDb.prepare(query);
-            stmt.bind({$r: routeId.trim()});
-            while(stmt.step()) tidList.push(stmt.getAsObject().trip_id);
-            stmt.free();
-        } catch(e) { log.error(e); }
+    for (const { db, rIds } of targets) {
+        if (!db) continue;
+        for (const rid of rIds) {
+            try {
+                let stmt = db.prepare(query);
+                stmt.bind({$r: String(rid).trim()});
+                while(stmt.step()) tidList.push(stmt.getAsObject().trip_id);
+                stmt.free();
+            } catch(e) { log.error(e); }
+        }
     }
     
     for (let tid of tidList) {
@@ -1191,24 +1259,35 @@ async function findTripId(routeId, cleanSpojNum) {
 }
 
 async function getHeadsign(tripId) {
-    if (tripId.startsWith('json_')) {
-        let lNum = tripId.split('_')[1]; const spojNum = parseInt(tripId.split('_')[2]);
-        const data = loadJsonData(lNum); const trip = data.find(t => t.spoj === spojNum); return trip ? formatStopForDisplay(trip.smer) : "";
+    const jsonInfo = parseJsonTripId(tripId);
+    if (jsonInfo) {
+        const data = loadJsonData(jsonInfo.jsonId);
+        const trip = data.find(t => t.spoj === jsonInfo.spojNum);
+        return trip ? formatStopForDisplay(trip.smer) : "";
     }
     
     await ensureGtfsCache();
+    await ensureCrCache();
     let query = "SELECT CASE WHEN trip_headsign = '' OR trip_headsign IS NULL THEN (SELECT s2.name FROM stop_times st2 JOIN stops s2 ON st2.stop_id = s2.stop_id WHERE st2.trip_id = trips.trip_id AND NOT (st2.pickup_type = '1' AND (st2.arrival_time = '' OR st2.arrival_time IS NULL)) ORDER BY st2.stop_sequence DESC LIMIT 1) ELSE trip_headsign END as headsign FROM trips WHERE trip_id = $t";
     
-    if (idpkDb) {
+    const checkDbHeadsign = (db) => {
+        if (!db) return null;
         try {
-            let stmt = idpkDb.prepare(query);
+            let stmt = db.prepare(query);
             stmt.bind({$t: tripId.trim()});
-            if (stmt.step()) { let res = stmt.getAsObject().headsign; stmt.free(); return formatStopForDisplay(res); }
+            if (stmt.step()) {
+                let res = stmt.getAsObject().headsign;
+                stmt.free();
+                return formatStopForDisplay(res);
+            }
             stmt.free();
         } catch(e) { console.error(e); }
-    }
-    
-    return "";
+        return null;
+    };
+
+    let hs = checkDbHeadsign(idpkDb);
+    if (!hs && crDb) hs = checkDbHeadsign(crDb);
+    return hs || "";
 }
 
 // ============================================================
@@ -1325,14 +1404,26 @@ async function interpolateMissingTimes(stops) {
     }
 }
 async function getGtfsStopsForTrip(tripId) {
-    if (tripId.startsWith('json_')) {
-        let lNum = tripId.split('_')[1]; const spojNum = parseInt(tripId.split('_')[2]);
-        const data = loadJsonData(lNum); const trip = data.find(t => t.spoj === spojNum);
-        if(trip) { return trip.zastavky.map(z => ({ name: z.name, zone: z.zone || "", time: z.time || "", type: 'n', seq: 0 })); }
+    const jsonInfo = parseJsonTripId(tripId);
+    if (jsonInfo) {
+        const data = loadJsonData(jsonInfo.jsonId);
+        const trip = data.find(t => t.spoj === jsonInfo.spojNum);
+        if(trip && Array.isArray(trip.zastavky)) {
+            return trip.zastavky.map(z => ({
+                name: formatStopForDisplay(z.name || z.n || ""),
+                zone: cleanZones(z.zone || z.z || "1"),
+                time: z.time || "",
+                type: z.type || (z.req ? 'z' : 'n'),
+                seq: 0,
+                isPhoneDemand: false,
+                audio: (z.snd && z.snd.name) ? z.snd.name : (z.audio || "")
+            }));
+        }
         return [];
     }
 
     await ensureGtfsCache();
+    await ensureCrCache();
     let query = "SELECT st.arrival_time as time, st.pickup_type, s.name, st.stop_sequence as seq, s.zone_id, s.cisjr_id FROM stop_times st JOIN stops s ON st.stop_id = s.stop_id WHERE st.trip_id = $tripId AND NOT (st.pickup_type = '1' AND (st.arrival_time = '' OR st.arrival_time IS NULL)) ORDER BY st.stop_sequence";
     let fallbackQuery = "SELECT st.arrival_time as time, st.pickup_type, s.name, st.stop_sequence as seq, '' as zone_id, '' as cisjr_id FROM stop_times st JOIN stops s ON st.stop_id = s.stop_id WHERE st.trip_id = $tripId AND NOT (st.pickup_type = '1' AND (st.arrival_time = '' OR st.arrival_time IS NULL)) ORDER BY st.stop_sequence";
     let results = [];
@@ -1365,22 +1456,36 @@ async function getGtfsStopsForTrip(tripId) {
         results.push({ name: stopName, zone: finalZone, time: timeStr, type: type, seq: row.seq, isPhoneDemand: isPhoneDemand, audio: finalAudio });
     };
 
-    if (idpkDb) {
+    const runStopsQuery = (db) => {
+        if (!db) return false;
+        let foundAny = false;
         try {
-            let stmt = idpkDb.prepare(query);
+            let stmt = db.prepare(query);
             stmt.bind({$tripId: tripId.trim()});
-            while(stmt.step()) processRow(stmt.getAsObject());
+            while(stmt.step()) {
+                processRow(stmt.getAsObject());
+                foundAny = true;
+            }
             stmt.free();
         } catch(e) { 
             try {
-                let stmt = idpkDb.prepare(fallbackQuery);
+                let stmt = db.prepare(fallbackQuery);
                 stmt.bind({$tripId: tripId.trim()});
-                while(stmt.step()) processRow(stmt.getAsObject());
+                while(stmt.step()) {
+                    processRow(stmt.getAsObject());
+                    foundAny = true;
+                }
                 stmt.free();
             } catch(e2) {
                 console.error("Fallback query also failed:", e2);
             }
         }
+        return foundAny;
+    };
+
+    let hasStops = runStopsQuery(idpkDb);
+    if (!hasStops && crDb) {
+        runStopsQuery(crDb);
     }
     
     await interpolateMissingTimes(results);
@@ -1541,47 +1646,34 @@ ipcMain.handle('gtfs-get-start-stops', async (event, routeId) => {
     if (jsonId) {
         const data = loadJsonData(jsonId);
         const starts = new Set();
-        data.forEach(t => { if (t.zastavky.length > 0) starts.add(t.zastavky[0].name); });
+        data.forEach(t => { if (t.zastavky && t.zastavky.length > 0) starts.add(t.zastavky[0].name); });
         return Array.from(starts).sort();
     }
 
-    await ensureGtfsCache();
-    let rIds = getRouteIdsForShortName(routeId.trim(), idpkDb);
-    let placeholders = rIds.map(() => '?').join(',');
-    let activeServices = []; // getActiveServiceIds(idpkDb); // disabled to show all weekend/weekday trips
-    let serviceFilter = "";
-    let bindValues = [...rIds];
-    
-    if (activeServices.length > 0) {
-        let sPlaceholders = activeServices.map(() => '?').join(',');
-        serviceFilter = `AND t.service_id IN (${sPlaceholders})`;
-        bindValues = bindValues.concat(activeServices);
-    }
-
-    let query = `
-        SELECT s.name 
-        FROM trips t
-        JOIN stop_times st ON t.trip_id = st.trip_id
-        JOIN stops s ON st.stop_id = s.stop_id
-        WHERE t.route_id IN (${placeholders}) ${serviceFilter}
-        AND NOT (st.pickup_type = '1' AND (st.arrival_time = '' OR st.arrival_time IS NULL))
-        AND st.stop_sequence = (
-            SELECT MIN(stop_sequence) FROM stop_times WHERE trip_id = t.trip_id AND NOT (pickup_type = '1' AND (arrival_time = '' OR arrival_time IS NULL))
-        )
-    `;
+    const targets = await getDbTargetsForRoute(routeId);
     let starts = new Set();
     
-    const runQuery = (db) => {
-        console.log('[DEBUG] gtfs-get-start-stops routeId:', routeId, 'rIds:', rIds, 'bindValues:', bindValues);
+    for (const { db, rIds } of targets) {
+        if (!db || !rIds.length) continue;
+        let placeholders = rIds.map(() => '?').join(',');
+        let query = `
+            SELECT s.name 
+            FROM trips t
+            JOIN stop_times st ON t.trip_id = st.trip_id
+            JOIN stops s ON st.stop_id = s.stop_id
+            WHERE t.route_id IN (${placeholders})
+            AND NOT (st.pickup_type = '1' AND (st.arrival_time = '' OR st.arrival_time IS NULL))
+            AND st.stop_sequence = (
+                SELECT MIN(stop_sequence) FROM stop_times WHERE trip_id = t.trip_id AND NOT (pickup_type = '1' AND (arrival_time = '' OR arrival_time IS NULL))
+            )
+        `;
         try {
             let stmt = db.prepare(query);
-            stmt.bind(bindValues);
+            stmt.bind(rIds);
             while(stmt.step()) starts.add(shortenStopName(stmt.getAsObject().name));
             stmt.free();
-        } catch(e) { console.error(e); }
-    };
-
-    if (idpkDb) runQuery(idpkDb);
+        } catch(e) { console.error('[gtfs-get-start-stops]', e); }
+    }
     
     return Array.from(starts).sort();
 });
@@ -1591,44 +1683,38 @@ ipcMain.handle('gtfs-get-destinations-from-start', async (event, {routeId, start
     if (jsonId) {
         const data = loadJsonData(jsonId);
         const dests = new Set();
-        data.forEach(t => { if (t.zastavky.length > 0 && (t.zastavky[0].name === startStopName || shortenStopName(t.zastavky[0].name) === startStopName)) dests.add(t.smer); });
+        data.forEach(t => {
+            if (t.zastavky && t.zastavky.length > 0 && (t.zastavky[0].name === startStopName || shortenStopName(t.zastavky[0].name) === startStopName)) {
+                dests.add(t.smer);
+            }
+        });
         return Array.from(dests).sort();
     }
 
-    await ensureGtfsCache();
-    let rIds = getRouteIdsForShortName(routeId.trim(), idpkDb);
-    let placeholders = rIds.map(() => '?').join(',');
-    let activeServices = []; // getActiveServiceIds(idpkDb); // disabled to show all weekend/weekday trips
-    let serviceFilter = "";
-    let bindValues = [...rIds];
-    
-    if (activeServices.length > 0) {
-        let sPlaceholders = activeServices.map(() => '?').join(',');
-        serviceFilter = `AND t.service_id IN (${sPlaceholders})`;
-        bindValues = bindValues.concat(activeServices);
-    }
-
-    let query = `
-        SELECT DISTINCT s.name as start_name,
-        CASE WHEN t.trip_headsign = '' OR t.trip_headsign IS NULL THEN 
-            (SELECT s2.name FROM stop_times st2 JOIN stops s2 ON st2.stop_id = s2.stop_id WHERE st2.trip_id = t.trip_id AND NOT (st2.pickup_type = '1' AND (st2.arrival_time = '' OR st2.arrival_time IS NULL)) ORDER BY st2.stop_sequence DESC LIMIT 1)
-        ELSE t.trip_headsign END as trip_headsign
-        FROM trips t
-        JOIN stop_times st ON t.trip_id = st.trip_id
-        JOIN stops s ON st.stop_id = s.stop_id
-        WHERE t.route_id IN (${placeholders}) ${serviceFilter}
-        AND NOT (st.pickup_type = '1' AND (st.arrival_time = '' OR st.arrival_time IS NULL))
-        AND st.stop_sequence = (
-            SELECT MIN(stop_sequence) FROM stop_times WHERE trip_id = t.trip_id AND NOT (pickup_type = '1' AND (arrival_time = '' OR arrival_time IS NULL))
-        )
-    `;
+    const targets = await getDbTargetsForRoute(routeId);
     let dests = new Set();
     const canonStart = canonicalizeStopName(startStopName);
     
-    const runQuery = (db) => {
+    for (const { db, rIds } of targets) {
+        if (!db || !rIds.length) continue;
+        let placeholders = rIds.map(() => '?').join(',');
+        let query = `
+            SELECT DISTINCT s.name as start_name,
+            CASE WHEN t.trip_headsign = '' OR t.trip_headsign IS NULL THEN 
+                (SELECT s2.name FROM stop_times st2 JOIN stops s2 ON st2.stop_id = s2.stop_id WHERE st2.trip_id = t.trip_id AND NOT (st2.pickup_type = '1' AND (st2.arrival_time = '' OR st2.arrival_time IS NULL)) ORDER BY st2.stop_sequence DESC LIMIT 1)
+            ELSE t.trip_headsign END as trip_headsign
+            FROM trips t
+            JOIN stop_times st ON t.trip_id = st.trip_id
+            JOIN stops s ON st.stop_id = s.stop_id
+            WHERE t.route_id IN (${placeholders})
+            AND NOT (st.pickup_type = '1' AND (st.arrival_time = '' OR st.arrival_time IS NULL))
+            AND st.stop_sequence = (
+                SELECT MIN(stop_sequence) FROM stop_times WHERE trip_id = t.trip_id AND NOT (pickup_type = '1' AND (arrival_time = '' OR arrival_time IS NULL))
+            )
+        `;
         try {
             let stmt = db.prepare(query);
-            stmt.bind(bindValues);
+            stmt.bind(rIds);
             while(stmt.step()) {
                 let row = stmt.getAsObject();
                 let dbStart = row.start_name || "";
@@ -1640,10 +1726,8 @@ ipcMain.handle('gtfs-get-destinations-from-start', async (event, {routeId, start
                 }
             }
             stmt.free();
-        } catch(e) { console.error(e); }
-    };
-
-    if (idpkDb) runQuery(idpkDb);
+        } catch(e) { console.error('[gtfs-get-destinations-from-start]', e); }
+    }
     
     return Array.from(dests).sort();
 });
@@ -1655,43 +1739,43 @@ ipcMain.handle('gtfs-get-final-trips', async (event, {routeId, startStopName, he
         const data = loadJsonData(jsonId);
         const results = [];
         data.forEach(t => {
-            if (t.smer === headsign && t.zastavky.length > 0 && (t.zastavky[0].name === startStopName || shortenStopName(t.zastavky[0].name) === startStopName)) {
-                results.push({ tripId: `json_${jsonId}_${t.spoj}`, time: t.odjezd, formattedName: `${jsonId}/${t.spoj}`, spojNum: t.spoj, headsign: t.smer, tripNumber: `json_${jsonId}_${t.spoj}` });
+            if (t.smer === headsign && t.zastavky && t.zastavky.length > 0 && (t.zastavky[0].name === startStopName || shortenStopName(t.zastavky[0].name) === startStopName)) {
+                const tid = `json:::${jsonId}:::${t.spoj}`;
+                results.push({
+                    tripId: tid,
+                    time: t.odjezd,
+                    formattedName: `${jsonId}/${t.spoj}`,
+                    spojNum: t.spoj,
+                    headsign: t.smer,
+                    tripNumber: tid
+                });
             }
         });
         return results.sort((a, b) => a.time.localeCompare(b.time));
     }
 
-    await ensureGtfsCache();
+    const targets = await getDbTargetsForRoute(routeId);
     let customRoutes = getUnlockedCustomRoutes();
     let rIdStr = routeId.trim();
 
     let routeShortName = rIdStr;
-    let queryR = "SELECT route_short_name FROM routes WHERE route_id = $r";
-    if (idpkDb) {
+    for (const { db } of targets) {
+        if (!db) continue;
         try {
-            let stmt = idpkDb.prepare(queryR);
-            stmt.bind({$r: rIdStr});
-            if (stmt.step()) routeShortName = stmt.getAsObject().route_short_name;
+            let stmt = db.prepare("SELECT route_short_name FROM routes WHERE route_id = ? OR route_short_name = ?");
+            stmt.bind([rIdStr, rIdStr]);
+            if (stmt.step()) {
+                routeShortName = stmt.getAsObject().route_short_name;
+                stmt.free();
+                break;
+            }
             stmt.free();
-        } catch(e) { console.error(e); }
+        } catch(_) {}
     }
 
     let lineNumber = routeShortName;
     if (!customRoutes.has(rIdStr) && !customRoutes.has(routeShortName)) {
-        lineNumber = routeShortName.replace(/\D/g, '').slice(-3);
-    }
-
-    let rIds = getRouteIdsForShortName(routeId.trim(), idpkDb);
-    let placeholders = rIds.map(() => '?').join(',');
-    let activeServices = []; // getActiveServiceIds(idpkDb); // disabled to show all weekend/weekday trips
-    let serviceFilter = "";
-    let bindValues = [...rIds];
-    
-    if (activeServices.length > 0) {
-        let sPlaceholders = activeServices.map(() => '?').join(',');
-        serviceFilter = `AND t.service_id IN (${sPlaceholders})`;
-        bindValues = bindValues.concat(activeServices);
+        lineNumber = routeShortName.replace(/\D/g, '').slice(-3) || routeShortName;
     }
 
     // Today's date in YYYYMMDD format for calendar filtering
@@ -1708,8 +1792,9 @@ ipcMain.handle('gtfs-get-final-trips', async (event, {routeId, startStopName, he
     const canonStart = canonicalizeStopName(startStopName);
     const canonHead = canonicalizeStopName(headsign);
 
-    function processTrips(dbObj, bVals) {
-        if (!dbObj) return;
+    for (const { db, rIds } of targets) {
+        if (!db || !rIds.length) continue;
+        let placeholders = rIds.map(() => '?').join(',');
         try {
             let query = `
                 SELECT t.trip_id, t.spoj_cislo, t.service_id, st.arrival_time as time,
@@ -1736,14 +1821,14 @@ ipcMain.handle('gtfs-get-final-trips', async (event, {routeId, startStopName, he
                 JOIN stop_times st ON t.trip_id = st.trip_id
                 JOIN stops s ON st.stop_id = s.stop_id
                 LEFT JOIN calendar cal ON t.service_id = cal.service_id
-                WHERE t.route_id IN (${placeholders}) ${serviceFilter}
+                WHERE t.route_id IN (${placeholders})
                 AND NOT (st.pickup_type = '1' AND (st.arrival_time = '' OR st.arrival_time IS NULL))
                 AND st.stop_sequence = (
                     SELECT MIN(stop_sequence) FROM stop_times WHERE trip_id = t.trip_id AND NOT (pickup_type = '1' AND (arrival_time = '' OR arrival_time IS NULL))
                 )
             `;
-            let fullBVals = [todayStr, todayStr, todayStr, todayStr, ...bVals];
-            let stmt = dbObj.prepare(query);
+            let fullBVals = [todayStr, todayStr, todayStr, todayStr, ...rIds];
+            let stmt = db.prepare(query);
             stmt.bind(fullBVals);
             while(stmt.step()) {
                 let obj = stmt.getAsObject();
@@ -1793,9 +1878,7 @@ ipcMain.handle('gtfs-get-final-trips', async (event, {routeId, startStopName, he
             }
             stmt.free();
         } catch(e) { console.error('processTrips error:', e); }
-    };
-
-    if (idpkDb) processTrips(idpkDb, bindValues);
+    }
     
     console.log(`[GTFS] gtfs-get-final-trips: nalezeno ${finalResults.length} spojů pro dnešek (${todayStr})`);
     return finalResults.sort((a, b) => a.time.localeCompare(b.time));
