@@ -93,9 +93,11 @@ function isCustomOrComm(raw) {
 function cleanLineDisplay(val) {
     if (!val) return '';
     let s = String(val).trim();
-    s = s.replace(/^(user|comm|ai)_+/i, '');
+    if (s.toLowerCase() === 'user' || s.toLowerCase() === 'comm' || s.toLowerCase() === 'ai') return '';
+    s = s.replace(/^(user|comm|ai)[_-]*/i, '');
     s = s.replace(/_custom.*/i, '');
     s = s.replace(/_auto.*/i, '');
+    s = s.replace(/-BETA.*/i, '');
     if (s.includes('_')) {
         s = s.split('_')[0];
     }
@@ -108,10 +110,12 @@ function cleanLineDisplay(val) {
 function formatTripCodeForDisplay(lkCode) {
     if (!lkCode) return '';
     let s = String(lkCode).trim();
-    if (s.startsWith('json:::')) {
-        const parts = s.split(':::');
-        const rId = cleanLineDisplay(parts[1] || '');
-        const spoj = parts[2] || '';
+    if (s.startsWith('json:::') || s.startsWith('json_')) {
+        const sep = s.startsWith('json:::') ? ':::' : '_';
+        const parts = s.split(sep);
+        const spoj = parts[parts.length - 1];
+        const rPart = parts.slice(1, -1).join(sep);
+        const rId = cleanLineDisplay(rPart || parts[1] || '');
         return spoj ? `${rId}/${spoj}` : rId;
     }
     s = s.replace(/_auto-BETA/i, '').replace(/_auto/i, '').replace(/-BETA/i, '').replace(/_BETA/i, '');
@@ -2362,9 +2366,28 @@ window.autoStartRandomTrip = async function() {
         const isCustomRoute = isCustomOrComm(fileToLoad) || isCustomOrComm(inputValues.linkospoj);
         if (content.toUpperCase().includes("GTFS-DATA") || content.toUpperCase().includes("GTSF-DATA") || isCustomRoute) {
             let response = await ipcRenderer.invoke('process-hybrid-file', content);
-            if (response.error) throw new Error(response.error);
-            
-            if (response.isTemplate) {
+            if (response.error) {
+                if (isCustomRoute) {
+                    window.parseRouteData(content);
+                    responseObj = {
+                        lineNum: cleanLineDisplay(routeData.line),
+                        routeId: routeData.routeId,
+                        linkospojCode: routeData.linkospojCode,
+                        destination: routeData.destination,
+                        stops: routeData.stops
+                    };
+                } else {
+                    throw new Error(response.error);
+                }
+            } else if (response.isCustomDirect) {
+                responseObj = {
+                    lineNum: response.line,
+                    routeId: response.line,
+                    linkospojCode: response.linkospoj,
+                    destination: response.destination,
+                    stops: response.stops
+                };
+            } else if (response.isTemplate) {
                 let routeId = response.routeId; 
                 currentHybridTemplate = response; 
                 inputValues.idpk = response.lineNum;
@@ -2540,8 +2563,30 @@ window.submitAction = function() {
                             if(loadScreen) loadScreen.style.display = 'none';
                             
                             if (response.error) { 
-                                window.showErrorModal("CHYBA DATABÁZE", response.error);
+                                if (isCustomRoute) {
+                                    routeData.isMuted = false;
+                                    window.parseRouteData(content);
+                                    window.initStatsTracking();
+                                    window.switchToDriveScreen();
+                                    window.sendDataToPanel();
+                                } else {
+                                    window.showErrorModal("CHYBA LINKY", response.error);
+                                }
                             } 
+                            else if (response.isCustomDirect) {
+                                routeData.isMuted = false;
+                                routeData.line = response.line;
+                                routeData.routeId = response.line;
+                                routeData.linkospojCode = response.linkospoj;
+                                routeData.destination = response.destination;
+                                routeData.stops = response.stops;
+                                routeData.realStopIndex = 0;
+                                routeData.previewStopIndex = 0;
+                                drivePhase = 0;
+                                window.initStatsTracking();
+                                window.switchToDriveScreen();
+                                window.sendDataToPanel();
+                            }
                             else if (response.isTemplate) {
                                 currentHybridTemplate = response; 
                                 selectedIdpkRouteId = response.routeId; 

@@ -18,9 +18,11 @@ function getBasePath() {
 function cleanLineDisplay(val) {
     if (!val) return '';
     let s = String(val).trim();
-    s = s.replace(/^(user|comm|ai)_+/i, '');
+    if (s.toLowerCase() === 'user' || s.toLowerCase() === 'comm' || s.toLowerCase() === 'ai') return '';
+    s = s.replace(/^(user|comm|ai)[_-]*/i, '');
     s = s.replace(/_custom.*/i, '');
     s = s.replace(/_auto.*/i, '');
+    s = s.replace(/-BETA.*/i, '');
     if (s.includes('_')) {
         s = s.split('_')[0];
     }

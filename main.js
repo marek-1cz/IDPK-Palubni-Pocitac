@@ -522,9 +522,24 @@ ipcMain.handle('get-link-files', async () => {
 ipcMain.handle('read-route-file', async (event, filename) => {
     let cleanName = filename.split('|')[0].toLowerCase().replace('.txt', '').replace(/[\r\n]+/g, '').trim();
     let p = getUniversalPath('linky', `${cleanName}.txt`); if (p) return fs.readFileSync(p, 'utf-8');
+    let pCustom = getUniversalPath('linky', `${cleanName}_custom.txt`); if (pCustom) return fs.readFileSync(pCustom, 'utf-8');
     let pAuto = getUniversalPath('linky', `${cleanName}_auto.txt`); if (pAuto) return fs.readFileSync(pAuto, 'utf-8');
     let pOde = getUniversalPath('linky', `${cleanName}_ode.txt`); if (pOde) return fs.readFileSync(pOde, 'utf-8');
     let pBeta = getUniversalPath('linky', `${cleanName}_auto-beta.txt`); if (pBeta) return fs.readFileSync(pBeta, 'utf-8');
+
+    const dirsToSearch = [
+        path.join(PATH_USERDATA, 'linky'),
+        path.join(PATH_EXE, 'linky'),
+        path.join(PATH_DEV, 'linky')
+    ];
+    for (const d of dirsToSearch) {
+        if (!fs.existsSync(d)) continue;
+        const matched = fs.readdirSync(d).find(f => {
+            const low = f.toLowerCase();
+            return low === `${cleanName}.txt` || low.startsWith(`${cleanName}_`) || low.includes(`${cleanName}_custom`);
+        });
+        if (matched) return fs.readFileSync(path.join(d, matched), 'utf-8');
+    }
     return null;
 });
 
@@ -1030,21 +1045,47 @@ function getRouteIdsForShortName(routeId, db) {
     if (!db) return [routeId];
     try {
         let clean = String(routeId).trim();
-        let shortName = null;
-        let stmt1 = db.prepare("SELECT route_short_name FROM routes WHERE route_id = ? OR route_short_name = ?");
+        let rIds = new Set();
+        let shortNames = new Set();
+
+        let stmt1 = db.prepare("SELECT route_id, route_short_name FROM routes WHERE route_id = ? OR route_short_name = ?");
         stmt1.bind([clean, clean]);
-        if (stmt1.step()) shortName = stmt1.getAsObject().route_short_name;
-        stmt1.free();
-        
-        let targetName = shortName || clean;
-        let stmt2 = db.prepare("SELECT route_id FROM routes WHERE route_short_name = ? OR route_id = ?");
-        stmt2.bind([targetName, clean]);
-        let rIds = [];
-        while(stmt2.step()) {
-            rIds.push(stmt2.getAsObject().route_id);
+        while (stmt1.step()) {
+            let row = stmt1.getAsObject();
+            if (row.route_id) rIds.add(row.route_id);
+            if (row.route_short_name && String(row.route_short_name).trim().length > 0) {
+                shortNames.add(String(row.route_short_name).trim());
+            }
         }
-        stmt2.free();
-        return rIds.length > 0 ? rIds : [clean];
+        stmt1.free();
+
+        if (rIds.size === 0 && /^\d+$/.test(clean)) {
+            let stmt2 = db.prepare("SELECT route_id, route_short_name FROM routes WHERE route_short_name LIKE ? OR route_id LIKE ?");
+            stmt2.bind(['%' + clean, '%' + clean]);
+            while (stmt2.step()) {
+                let row = stmt2.getAsObject();
+                let sn = String(row.route_short_name || '').trim();
+                let rid = String(row.route_id || '').trim();
+                if (sn === clean || sn.endsWith(clean) || rid === clean || rid.endsWith(clean)) {
+                    if (row.route_id) rIds.add(row.route_id);
+                    if (sn.length > 0) shortNames.add(sn);
+                }
+            }
+            stmt2.free();
+        }
+
+        for (let sn of shortNames) {
+            let stmt3 = db.prepare("SELECT route_id FROM routes WHERE route_short_name = ?");
+            stmt3.bind([sn]);
+            while (stmt3.step()) {
+                let row = stmt3.getAsObject();
+                if (row.route_id) rIds.add(row.route_id);
+            }
+            stmt3.free();
+        }
+
+        if (!rIds.has(clean)) rIds.add(clean);
+        return Array.from(rIds);
     } catch(e) {
         return [routeId];
     }
@@ -1053,8 +1094,9 @@ function getRouteIdsForShortName(routeId, db) {
 async function getDbTargetsForRoute(routeId) {
     await ensureGtfsCache();
     await ensureCrCache();
-    const targets = [];
     const cleanId = String(routeId).trim();
+
+    // 1. Prioritize IDPK database: if route has trips in IDPK, strictly use IDPK only!
     if (idpkDb) {
         const rIds = getRouteIdsForShortName(cleanId, idpkDb);
         let has = false;
@@ -1064,8 +1106,12 @@ async function getDbTargetsForRoute(routeId) {
             if (stmt.step()) has = true;
             stmt.free();
         } catch(_) {}
-        if (has) targets.push({ db: idpkDb, rIds, isCr: false });
+        if (has) {
+            return [{ db: idpkDb, rIds, isCr: false }];
+        }
     }
+
+    // 2. Only if not in IDPK, query national CR database
     if (crDb) {
         const rIds = getRouteIdsForShortName(cleanId, crDb);
         let has = false;
@@ -1075,13 +1121,14 @@ async function getDbTargetsForRoute(routeId) {
             if (stmt.step()) has = true;
             stmt.free();
         } catch(_) {}
-        if (has) targets.push({ db: crDb, rIds, isCr: true });
+        if (has) {
+            return [{ db: crDb, rIds, isCr: true }];
+        }
     }
-    if (targets.length === 0) {
-        if (idpkDb) targets.push({ db: idpkDb, rIds: getRouteIdsForShortName(cleanId, idpkDb), isCr: false });
-        if (crDb) targets.push({ db: crDb, rIds: getRouteIdsForShortName(cleanId, crDb), isCr: true });
-    }
-    return targets;
+
+    if (idpkDb) return [{ db: idpkDb, rIds: getRouteIdsForShortName(cleanId, idpkDb), isCr: false }];
+    if (crDb) return [{ db: crDb, rIds: getRouteIdsForShortName(cleanId, crDb), isCr: true }];
+    return [];
 }
 
 async function findRouteId(shortName, exactRouteId = null) {
@@ -1139,7 +1186,7 @@ ipcMain.handle('process-hybrid-file', async (event, fileContent) => {
             else if (line.startsWith('Zastávky:')) { isStopsSection = true; } 
             else if (isStopsSection) { if (line.includes('|')) textFileStops.push(line); }
         }
-        if (!targetLinkospoj || targetLinkospoj.length < 3) return { error: "Chybný formát Linky" };
+        if (!targetLinkospoj || targetLinkospoj.length < 1) return { error: "Chybný formát Linky" };
 
         let rawRoutePart = targetLinkospoj.includes('/') ? targetLinkospoj.split('/')[0].trim() : targetLinkospoj.trim();
         let spojNum = targetLinkospoj.includes('/') ? targetLinkospoj.split('/')[1].trim().replace(/\D/g, '') : "";
@@ -1191,7 +1238,38 @@ ipcMain.handle('process-hybrid-file', async (event, fileContent) => {
             routeId = forcedRouteId;
         } else {
             routeId = await findRouteId(linkaNum, exactRouteId);
-            if (!routeId) return { error: `Linka ${exactRouteId} nenalezena v GTFS` };
+            if (!routeId) {
+                if (textFileStops.length > 0) {
+                    const parsedStops = textFileStops.map(line => {
+                        let parts = line.split('|');
+                        let soundPart = parts[0].trim();
+                        let audio = soundPart.includes('=') ? soundPart.split('=')[0].trim() : soundPart;
+                        let stopName = soundPart.includes('=') ? soundPart.split('=')[1].trim() : soundPart;
+                        let display = stopName;
+                        let zone = "1";
+                        let time = "";
+                        let type = "";
+                        for (let p of parts) {
+                            let pt = p.trim();
+                            if (pt.startsWith('Display:')) display = pt.replace('Display:', '').trim();
+                            else if (pt.startsWith('Tarifní zona:')) zone = pt.replace('Tarifní zona:', '').trim();
+                            else if (pt.startsWith('Čas:')) time = pt.replace('Čas:', '').trim();
+                            else if (pt.includes('ZZ') || pt.includes('KZ')) type = 'z';
+                        }
+                        return { audio, name: display || stopName, zone, time, type };
+                    });
+                    const lastDest = parsedStops.length > 0 ? parsedStops[parsedStops.length - 1].name : "";
+                    return {
+                        success: true,
+                        isCustomDirect: true,
+                        line: cleanLineDisplay(linkaNum),
+                        linkospoj: targetLinkospoj,
+                        destination: lastDest,
+                        stops: parsedStops
+                    };
+                }
+                return { error: `Linka ${exactRouteId} nenalezena v GTFS` };
+            }
         }
 
         if (!spojNum) return { isTemplate: true, lineNum: cleanLineDisplay(linkaNum), routeId: routeId, stopMap: parseTextFileStopsToMap(textFileStops) };
