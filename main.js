@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, protocol } = require('electron');
+const { app, BrowserWindow, ipcMain, protocol, dialog } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const readline = require('readline');
@@ -2475,6 +2475,58 @@ ipcMain.on('open-custom-routes-folder', () => {
     const crPath = path.join(process.env.APPDATA || os.homedir(), 'idpk-palubni-pocitac', 'userdata', 'data');
     if (!fs.existsSync(crPath)) fs.mkdirSync(crPath, { recursive: true });
     require('electron').shell.openPath(crPath);
+});
+
+ipcMain.handle('export-line-zip', async (event, line) => {
+    if (!line) return { success: false, error: 'Chybí data linky k exportu.' };
+    try {
+        const win = BrowserWindow.fromWebContents(event.sender);
+        const safeNum = String(line.num || 'custom').replace(/[^a-zA-Z0-9_-]/g, '');
+        const defaultName = `linka_${safeNum}_zaloha.zip`;
+        const { canceled, filePath } = await dialog.showSaveDialog(win, {
+            title: 'Exportovat linku jako ZIP archiv',
+            defaultPath: defaultName,
+            filters: [{ name: 'ZIP archiv (*.zip)', extensions: ['zip'] }]
+        });
+        if (canceled || !filePath) return { success: false, canceled: true };
+
+        return new Promise((resolve) => {
+            try {
+                const archiver = require('archiver');
+                const output = fs.createWriteStream(filePath);
+                const archive = archiver('zip', { zlib: { level: 9 } });
+
+                output.on('close', () => resolve({ success: true, path: filePath }));
+                archive.on('error', (err) => resolve({ success: false, error: err.message }));
+
+                archive.pipe(output);
+
+                // 1. Zapsat JSON soubor linky
+                const fileId = line.id || `custom_${safeNum}`;
+                archive.append(JSON.stringify(line, null, 2), { name: `${fileId}.json` });
+
+                // 2. Přibalit zvukové soubory z userdata/sounds
+                const soundsDir = path.join(PATH_USERDATA, 'sounds');
+                const includedSounds = new Set();
+                (line.stops || []).forEach(st => {
+                    const sndName = (st.snd && st.snd.name) ? st.snd.name : (st.audio_file || st.audio || null);
+                    if (sndName && !includedSounds.has(sndName)) {
+                        includedSounds.add(sndName);
+                        const soundPath = path.join(soundsDir, sndName);
+                        if (fs.existsSync(soundPath)) {
+                            archive.file(soundPath, { name: `sounds/${sndName}` });
+                        }
+                    }
+                });
+
+                archive.finalize();
+            } catch(e) {
+                resolve({ success: false, error: e.message });
+            }
+        });
+    } catch(err) {
+        return { success: false, error: err.message };
+    }
 });
 ipcMain.handle('gtfs-editor-get-all-stops', async () => {
     try {

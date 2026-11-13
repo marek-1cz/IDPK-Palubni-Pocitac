@@ -3772,6 +3772,7 @@ window.updateDriveUI = function() {
         } else { 
             if(btnRandomContinue) btnRandomContinue.innerHTML = "NÁHODNÁ LINKA (Z PC)"; 
         }
+        if (typeof window.updateAudioStatusIndicator === 'function') window.updateAudioStatusIndicator();
         window.syncDom(); 
         return; 
     } 
@@ -3841,6 +3842,7 @@ window.updateDriveUI = function() {
     } else { 
         if(box) box.style.display = 'none'; 
     } 
+    if (typeof window.updateAudioStatusIndicator === 'function') window.updateAudioStatusIndicator();
     window.syncDom();
 };
 
@@ -4179,6 +4181,7 @@ window.playAudioSequence = function(fileList) {
         audioQueue.push({ file: f }); 
     }); 
     isAnnouncementPlaying = true; 
+    if (typeof window.updateAudioStatusIndicator === 'function') window.updateAudioStatusIndicator();
     window.processAudioQueue(); 
 };
 
@@ -4194,6 +4197,7 @@ window.processAudioQueue = function() {
         setTimeout(() => { 
             isAnnouncementPlaying = false; 
             autoAnnounceCooldown = false; 
+            if (typeof window.updateAudioStatusIndicator === 'function') window.updateAudioStatusIndicator();
             if (isClassicAuto && appState === 'DRIVE' && !routeStartupWait) {
                 window.scheduleClassicAuto(); 
             }
@@ -4269,6 +4273,7 @@ window.playDirectAudio = function(relativePath, fromQueue = false) {
     audioPlayer.src = absolutePath; 
     
     audioPlayer.onended = () => { 
+        if (typeof window.updateAudioStatusIndicator === 'function') window.updateAudioStatusIndicator();
         if (fromQueue) { 
             isPlayingQueue = false; 
             window.processAudioQueue(); 
@@ -4292,6 +4297,7 @@ window.playDirectAudio = function(relativePath, fromQueue = false) {
             }, 3000).catch(()=>{});
         }
 
+        if (typeof window.updateAudioStatusIndicator === 'function') window.updateAudioStatusIndicator();
         if (fromQueue) { 
             isPlayingQueue = false; 
             window.processAudioQueue(); 
@@ -4315,11 +4321,65 @@ window.playDirectAudio = function(relativePath, fromQueue = false) {
             }, 3000).catch(()=>{});
         }
 
+        if (typeof window.updateAudioStatusIndicator === 'function') window.updateAudioStatusIndicator();
         if (fromQueue) { 
             isPlayingQueue = false; 
             window.processAudioQueue(); 
         } 
     }); 
+};
+
+window.updateAudioStatusIndicator = function() {
+    const el = document.getElementById('audio-status-indicator');
+    if (!el) return;
+
+    if (appState !== 'DRIVE' || window.isAtEndOfRoute()) {
+        el.style.display = 'none';
+        return;
+    }
+
+    el.style.display = 'inline-flex';
+
+    if (isAnnouncementPlaying) {
+        el.style.background = '#14532d';
+        el.style.color = '#86efac';
+        el.style.borderColor = '#22c55e';
+        el.style.boxShadow = '0 0 8px rgba(34,197,94,0.6)';
+        el.innerHTML = '<i class="fas fa-volume-up"></i> HRAJE';
+        return;
+    }
+
+    const stops = routeData.stops;
+    const targetIdx = (drivePhase === 0) ? routeData.realStopIndex : (routeData.realStopIndex + 1);
+    const targetStop = (stops && stops[targetIdx]) ? stops[targetIdx] : null;
+
+    let hasAudio = false;
+    if (targetStop) {
+        const audioVal = targetStop.audio || targetStop.audio_file || (targetStop.snd && targetStop.snd.name);
+        if (audioVal && String(audioVal).trim().length > 4 && String(audioVal).trim() !== '.wav') {
+            const rel = String(audioVal).startsWith('zvuky/') ? String(audioVal) : `zvuky/zastavky/${audioVal}`;
+            try {
+                const resolved = resolveAudioFilePath(rel);
+                if (resolved && fs.existsSync(resolved)) {
+                    hasAudio = true;
+                }
+            } catch(e) {}
+        }
+    }
+
+    if (hasAudio) {
+        el.style.background = '#1e293b';
+        el.style.color = '#38bdf8';
+        el.style.borderColor = 'rgba(56,189,248,0.4)';
+        el.style.boxShadow = 'none';
+        el.innerHTML = '<i class="fas fa-volume-down"></i> ZVUK OK';
+    } else {
+        el.style.background = '#7f1d1d';
+        el.style.color = '#fca5a5';
+        el.style.borderColor = '#ef4444';
+        el.style.boxShadow = '0 0 6px rgba(239,68,68,0.4)';
+        el.innerHTML = '<i class="fas fa-volume-mute"></i> BEZ ZVUKU';
+    }
 };
 
 // ============================================================
@@ -4759,17 +4819,23 @@ setTimeout(() => {
         });
     }
 
-    // Render all links on LINKOSPOJ/IDPK state enter
+    // Render all links on LINKOSPOJ/IDPK state enter and auto-focus search
     const origSyncDom = window.syncDom;
     window.syncDom = function() {
         if (origSyncDom) origSyncDom();
         if (appState === 'LINKOSPOJ') {
             const s = document.getElementById('search-linkospoj-input');
             if (s && !s.value) window.renderSmartLinkList('', 'LINKOSPOJ');
+            if (s && document.activeElement !== s) {
+                setTimeout(() => { try { s.focus(); } catch(e){} }, 50);
+            }
         } else if (appState === 'IDPK_LINE') {
             const s = document.getElementById('search-idpk-input');
             if (s && !s.value && databaseFiles && databaseFiles.length > 0) {
                 window.renderSmartLinkList('', 'IDPK');
+            }
+            if (s && document.activeElement !== s) {
+                setTimeout(() => { try { s.focus(); } catch(e){} }, 50);
             }
         }
     };

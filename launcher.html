@@ -917,6 +917,7 @@ button.chip.dl:hover{border-color:var(--blue);color:#fff}
             <div id="stop-tools" style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap">
               <button class="btn sm" id="stop-add"><svg class="ic"><use href="#i-plus"/></svg>Přidat zastávku</button>
               <button class="btn sm ghost" id="stop-bulk"><svg class="ic"><use href="#i-edit"/></svg>Hromadně vložit názvy</button>
+              <button class="btn sm ghost" id="stop-reverse" title="Obrátí pořadí zastávek v trase"><svg class="ic"><use href="#i-refresh"/></svg>Otočit trasu</button>
             </div>
             <div id="bulk-box" hidden style="margin-top:12px">
               <textarea class="inp" id="bulk-text" rows="4" placeholder="Jedna zastávka na řádek, nebo oddělené středníkem ;"></textarea>
@@ -928,7 +929,10 @@ button.chip.dl:hover{border-color:var(--blue);color:#fff}
             <div class="card-h"><svg class="ic"><use href="#i-clock"/></svg>Spoje<span style="margin-left:auto;color:var(--dim)" id="trip-count">0</span></div>
             <p class="flow-p" style="margin:0 0 12px">Spoj je jedna jízda: poskládáte zastávky za sebe (mohou se opakovat) a ke každé zadáte čas odjezdu. Spoje 1–99 jezdí Po–Pá, 100–199 o víkendech, 200+ jsou speciální.</p>
             <div class="tlist" id="trips"></div>
-            <button class="btn sm" id="tr-new" style="margin-top:12px"><svg class="ic"><use href="#i-plus"/></svg>Vytvořit spoj</button>
+            <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap">
+              <button class="btn sm" id="tr-new"><svg class="ic"><use href="#i-plus"/></svg>Vytvořit spoj</button>
+              <button class="btn sm ghost" id="tr-reverse" title="Vygeneruje zpáteční spoj s obráceným pořadím zastávek"><svg class="ic"><use href="#i-refresh"/></svg>Zpáteční spoj</button>
+            </div>
           </div>
 
           <div class="ed-foot" style="margin-top:16px">
@@ -1096,6 +1100,22 @@ button.chip.dl:hover{border-color:var(--blue);color:#fff}
     <h3 id="cf-title">Opravdu?</h3><p id="cf-desc"></p>
     <div class="confirm-in" id="cf-typebox" hidden><input class="inp" id="cf-type" placeholder="SMAZAT" autocomplete="off"></div>
     <div class="acts row2"><button class="btn" id="cf-no">Zrušit</button><button class="btn solid-danger" id="cf-yes">Potvrdit</button></div>
+  </div>
+</div>
+
+<!-- ===== Náhled komunitní linky ===== -->
+<div class="modal" id="comm-preview-modal" hidden>
+  <div class="mbox" style="width:580px; text-align:left;">
+    <div style="text-align:center"><div class="mico b"><svg class="ic"><use href="#i-map"/></svg></div>
+      <h3 id="cp-title" style="margin-top:8px;">Náhled linky</h3>
+      <p id="cp-route" style="color:var(--text);font-weight:600;margin-bottom:6px;"></p>
+      <div id="cp-badges" style="display:flex;gap:6px;flex-wrap:wrap;justify-content:center;margin-bottom:12px;"></div>
+    </div>
+    <div id="cp-stops-list" style="max-height:260px;overflow-y:auto;padding-right:4px;display:flex;flex-direction:column;gap:4px;"></div>
+    <div class="acts row2" style="margin-top:16px;">
+      <button class="btn" id="cp-close">Zavřít</button>
+      <button class="btn primary" id="cp-dl"><svg class="ic"><use href="#i-download"/></svg>Stáhnout linku</button>
+    </div>
   </div>
 </div>
 
@@ -1842,11 +1862,12 @@ const CONFIG = { DEMO: false, REDUCED_FX: false };
         '<div class="meta"><span class="badge ' + (l.source === 'comm' ? 'c' : 'b') + '">' + (SRC[l.source] || 'Komunita') + '</span><span class="badge ' + st[1] + '">' + st[0] + '</span>' + (l.scope === 'cr' ? '<span class="badge c">Data ČR</span>' : '') + '</div>' +
         '<div class="meta"><span>' + ic('map') + ' ' + l.stops.length + ' zastávek</span><span class="' + (full ? 'okt2' : 'warnt2') + '">' + ic('sound') + ' hlášení ' + a + '/' + l.stops.length + '</span>' + (l.trips && l.trips.length ? '<span>' + ic('clock') + ' ' + l.trips.length + ' spojů</span>' : '') + '</div>' +
         (l.status === 'rejected' ? '<div class="rej"><b>Zpráva od správce:</b> ' + esc(l.reject || '—') + '</div>' : '') +
-        '<div class="acts2">' + main + '<button class="btn danger ibx" data-a="del" data-id="' + l.id + '" title="Smazat">' + ic('trash') + '</button></div></div>';
+        '<div class="acts2">' + main + '<button class="btn ibx" data-a="export" data-id="' + l.id + '" title="Exportovat balíček (.zip)">' + ic('download') + '</button><button class="btn danger ibx" data-a="del" data-id="' + l.id + '" title="Smazat">' + ic('trash') + '</button></div></div>';
     }).join('') || '<div class="empty"><b>Zatím tu nic není</b>Vytvořte si první linku tlačítkem „Vytvořit vlastní linku“ nebo si stáhněte komunitní linku.</div>';
     $$('#mine-grid [data-a]').forEach((b) => (b.onclick = () => {
       const l = S.lines.find((x) => x.id === b.dataset.id), a = b.dataset.a;
       if (a === 'edit') openEdit(l); else if (a === 'pub') openPublish(l);
+      else if (a === 'export') emit('line-export', { id: l.id });
       else confirmBox({ title: 'Smazat linku ' + l.num + '?', desc: 'Linka bude odstraněna z vašeho počítače (a ze hry).', yes: 'Smazat linku' }, () => { S.lines = S.lines.filter((x) => x.id !== l.id); renderMine(); toast('info', 'Linka smazána'); emit('line-delete', { id: l.id }); });
     }));
   }
@@ -1867,13 +1888,62 @@ const CONFIG = { DEMO: false, REDUCED_FX: false };
     $('cm-grid').innerHTML = arr.map((c, i) => {
       const btn = { idle: '<button class="btn primary" data-id="' + c.id + '">' + ic('download') + 'Stáhnout</button>', installed: '<button class="btn" disabled>' + ic('check') + 'Staženo</button>', update: '<button class="btn" style="border-color:rgba(96,165,250,.5);color:#7dd3fc" data-id="' + c.id + '">' + ic('refresh') + 'Aktualizovat</button>', busy: '<div class="mini"><i style="width:' + (c.p || 0) + '%"></i></div>' }[c.state];
       const t = TYPES[c.type], vo = VOICES[c.voice];
+      const stopCnt = (c.stops && c.stops.length) ? c.stops.length : 0;
+      const pvBtn = '<button class="btn sm ghost" data-pv="' + c.id + '" style="margin-top:6px;width:100%">' + ic('map') + 'Náhled trasy' + (stopCnt ? ' (' + stopCnt + ' zastávek)' : '') + '</button>';
       return '<div class="cl' + (S._cmShown ? ' na' : '') + '" data-cid="' + c.id + '" style="animation-delay:' + i * 40 + 'ms"><div class="top"><span class="numchip">' + esc(c.num) + '</span><div class="tx"><b>' + esc(c.dest) + '</b><small>od ' + esc(c.author) + '</small></div></div>' +
         '<div class="meta"><span class="badge ' + t[1] + '">' + t[0] + '</span><span class="badge">' + ic('sound') + vo[0] + '</span>' + (c.scope === 'cr' ? '<span class="badge c">Data ČR</span>' : '') + (c.isNew ? '<span class="badge g">Nové</span>' : '') + '</div>' +
         '<div class="meta"><span>' + ic('download') + c.dl + '</span><span>' + ic('box') + esc(c.size) + '</span></div>' +
-        (c.tags.length ? '<div class="tags">' + c.tags.map((x) => '<span class="tag">' + esc(x) + '</span>').join('') + '</div>' : '') + btn + '</div>';
+        (c.tags.length ? '<div class="tags">' + c.tags.map((x) => '<span class="tag">' + esc(x) + '</span>').join('') + '</div>' : '') + btn + pvBtn + '</div>';
     }).join('') || '<div class="empty"><b>Nic nenalezeno</b>Zkuste změnit filtr nebo hledaný výraz.</div>';
     $$('#cm-grid button[data-id]').forEach((b) => (b.onclick = () => commGet(b.dataset.id)));
+    $$('#cm-grid button[data-pv]').forEach((b) => (b.onclick = () => commPreview(b.dataset.pv)));
     S._cmShown = true;
+  }
+  function commPreview(id) {
+    const c = S.comm.find((x) => x.id === id);
+    if (!c) return;
+    const stops = c.stops || [];
+    const fromName = stops.length ? (stops[0].name || stops[0].n || (Array.isArray(stops[0]) ? stops[0][0] : 'Začátek trasy')) : 'Začátek trasy';
+    const toName = c.dest || (stops.length ? (stops[stops.length - 1].name || stops[stops.length - 1].n || (Array.isArray(stops[stops.length - 1]) ? stops[stops.length - 1][0] : 'Konečná')) : 'Konečná');
+    const t = TYPES[c.type] || ['Reálná', 'b'];
+    const vo = VOICES[c.voice] || ['Syntetický hlas', 's'];
+    
+    $('cp-title').textContent = 'Linka ' + c.num + (c.name ? ' · ' + c.name : ' (od ' + c.author + ')');
+    $('cp-route').textContent = fromName + ' ➔ ' + toName;
+    
+    $('cp-badges').innerHTML = '<span class="badge ' + t[1] + '">' + t[0] + '</span>' +
+      '<span class="badge">' + ic('sound') + vo[0] + '</span>' +
+      '<span class="badge">' + ic('users') + 'Autor: ' + esc(c.author) + '</span>' +
+      '<span class="badge">' + ic('map') + (stops.length ? stops.length + ' zastávek' : 'Bez detailu') + '</span>';
+      
+    if (stops.length > 0) {
+      $('cp-stops-list').innerHTML = stops.map((s, idx) => {
+        const sName = esc(s.name || s.n || (Array.isArray(s) ? s[0] : String(s)));
+        const sZone = esc(String(s.zone || s.z || (Array.isArray(s) ? s[1] : '1')).replace(/^P/i, ''));
+        const isReq = Boolean(s.req || (Array.isArray(s) && s[2]));
+        const hasSnd = Boolean(s.snd || s.audio_file || s.audio_url || s.audio);
+        return '<div style="display:flex;align-items:center;justify-content:space-between;padding:6px 10px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);border-radius:8px;font-size:12.5px;">' +
+          '<div style="display:flex;align-items:center;gap:8px;">' +
+            '<span style="color:var(--muted);font-size:11px;width:18px;">' + (idx + 1) + '.</span>' +
+            '<b>' + sName + '</b>' +
+            (isReq ? '<span class="badge sm z" style="font-size:10px;padding:1px 5px;">Znamení</span>' : '') +
+          '</div>' +
+          '<div style="display:flex;align-items:center;gap:8px;">' +
+            '<span class="badge" style="font-size:11px;">Zóna ' + sZone + '</span>' +
+            (hasSnd ? '<span style="color:#4ade80" title="Má hlášení">' + ic('sound') + '</span>' : '<span style="color:var(--muted)" title="Bez zvuku">' + ic('x') + '</span>') +
+          '</div>' +
+        '</div>';
+      }).join('');
+    } else {
+      $('cp-stops-list').innerHTML = '<div class="tnone" style="margin-top:10px;">Podrobný seznam zastávek bude sestaven při stažení linky.</div>';
+    }
+    
+    $('cp-close').onclick = () => closeModal('comm-preview-modal');
+    $('cp-dl').disabled = (c.state === 'installed');
+    $('cp-dl').innerHTML = (c.state === 'installed') ? (ic('check') + 'Staženo') : (ic('download') + 'Stáhnout linku');
+    $('cp-dl').onclick = () => { closeModal('comm-preview-modal'); commGet(c.id); };
+    
+    openModal('comm-preview-modal');
   }
   function commGet(id) {
     const c = S.comm.find((x) => x.id === id);
@@ -2218,6 +2288,20 @@ const CONFIG = { DEMO: false, REDUCED_FX: false };
     E.stops = (E.stops || []).filter((s) => (s && (s.n || '').trim()) || (s && s.snd)); parts.forEach((n) => E.stops.push(mkStop(n, '1', 0)));
     $('bulk-text').value = ''; $('bulk-box').hidden = true; dirty(); renderEdit(); toast('ok', 'Vloženo', parts.length + ' zastávek přidáno.');
   };
+  if ($('stop-reverse')) {
+    $('stop-reverse').onclick = () => {
+      if (!E.stops || E.stops.length < 2) return toast('warn', 'Nelze otočit', 'Trasa potřebuje alespoň dvě zastávky.');
+      E.stops.reverse();
+      const last = E.stops[E.stops.length - 1];
+      if (last && (last.n || last.orig)) {
+        E.dest = last.n || last.orig;
+        if ($('e-dest')) $('e-dest').value = E.dest;
+      }
+      dirty();
+      renderEdit();
+      toast('info', 'Trasa otočena', 'Pořadí zastávek bylo obráceno (nová konečná: ' + (E.dest || '') + ').');
+    };
+  }
   $('ed-cancel').onclick = () => $('flow-back').click();
 
   /* ---------- spoje ---------- */
@@ -2225,6 +2309,41 @@ const CONFIG = { DEMO: false, REDUCED_FX: false };
     const trips = (E.trips || []).slice().sort((a, b) => a.no - b.no); $('trip-count').textContent = trips.length + ' spojů';
     $('trips').innerHTML = trips.map((t) => { const k = tripKind(t.no); return '<div class="tcard"><span class="numchip sm">' + t.no + '</span><span class="badge ' + k[1] + '">' + k[0] + '</span><div class="tx"><b>' + esc(nameOf(t.items[0].s)) + ' → ' + esc(nameOf(t.items[t.items.length - 1].s)) + '</b><small>' + t.items.length + ' zastávek · ' + (t.items[0].time || '—') + ' – ' + (t.items[t.items.length - 1].time || '—') + '</small></div><button class="ib" data-t="edit" data-id="' + t.id + '" title="Upravit">' + ic('edit') + '</button><button class="ib" data-t="del" data-id="' + t.id + '" title="Smazat">' + ic('trash') + '</button></div>'; }).join('') || '<div class="tnone">Zatím žádný spoj. Vytvořte první tlačítkem níže.</div>';
     $$('#trips [data-t]').forEach((b) => (b.onclick = () => { const t = E.trips.find((x) => x.id === b.dataset.id); if (b.dataset.t === 'edit') openTrip(t); else { E.trips = E.trips.filter((x) => x.id !== t.id); dirty(); renderTrips(); } }));
+  }
+  if ($('tr-reverse')) {
+    $('tr-reverse').onclick = () => {
+      const trips = E.trips || [];
+      if (trips.length === 0) return toast('warn', 'Žádný spoj k otočení', 'Nejdřív vytvořte alespoň jeden spoj, ze kterého se vygeneruje zpáteční.');
+      const baseTrip = trips[trips.length - 1];
+      if (!baseTrip.items || baseTrip.items.length < 2) return toast('warn', 'Neplatný spoj', 'Původní spoj nemá dostatek zastávek.');
+      
+      const usedNos = new Set(trips.map(t => t.no));
+      let newNo = baseTrip.no % 2 !== 0 ? (baseTrip.no + 1) : (baseTrip.no + 2);
+      while (usedNos.has(newNo)) newNo++;
+
+      const revItems = baseTrip.items.slice().reverse();
+      const lastOrigTime = baseTrip.items[baseTrip.items.length - 1].time || '07:00';
+      const [lh, lm] = lastOrigTime.split(':').map(Number);
+      let startMins = ((lh || 7) * 60 + (lm || 0) + 15) % (24 * 60);
+
+      const newItems = revItems.map((it, idx) => {
+        const curMins = (startMins + idx * 5) % (24 * 60);
+        const hh = String(Math.floor(curMins / 60)).padStart(2, '0');
+        const mm = String(curMins % 60).padStart(2, '0');
+        return { s: it.s, time: `${hh}:${mm}` };
+      });
+
+      const newTrip = {
+        id: uid(),
+        no: newNo,
+        items: newItems
+      };
+
+      E.trips = trips.concat(newTrip);
+      dirty();
+      renderTrips();
+      toast('ok', 'Zpáteční spoj vytvořen', `Byl přidán spoj ${newNo} v opačném směru (odjezd v ${newItems[0].time}).`);
+    };
   }
   const nameOf = (id) => { const s = (E.stops || []).find((x) => x && x.id === id); return s ? (s.n || '(bez názvu)') : '?'; };
   let T = null;
@@ -2298,7 +2417,16 @@ const CONFIG = { DEMO: false, REDUCED_FX: false };
       }
       T.items[i].time = v;
     }
-    const mins = T.items.map((x) => +x.time.slice(0, 2) * 60 + +x.time.slice(3)); if (mins.some((m, i) => i && m < mins[i - 1])) return toast('warn', 'Časy nejdou po sobě', 'Každá další zastávka musí být ve stejný nebo pozdější čas.');
+    const mins = T.items.map((x) => +x.time.slice(0, 2) * 60 + +x.time.slice(3));
+    for (let i = 1; i < mins.length; i++) {
+      if (mins[i] < mins[i - 1]) {
+        const prevN = nameOf(T.items[i - 1].s);
+        const curN = nameOf(T.items[i].s);
+        const badInp = document.querySelector(`#tm-seq input[data-i="${i}"]`);
+        if (badInp) { badInp.style.borderColor = '#ef4444'; badInp.focus(); }
+        return toast('warn', 'Časy nejdou po sobě', `Na zastávce č. ${i + 1} (${curN}, ${T.items[i].time}) je čas dřívější než na předchozí zastávce (${prevN}, ${T.items[i - 1].time}).`);
+      }
+    }
     if (!T.id) { T.id = uid(); E.trips = (E.trips || []).concat(T); } else E.trips = E.trips.map((x) => (x.id === T.id ? T : x));
     closeModal('trip-modal'); dirty(); renderTrips(); toast('ok', 'Spoj ' + no + ' uložen', tripKind(no)[0]);
   };
@@ -2330,9 +2458,28 @@ const CONFIG = { DEMO: false, REDUCED_FX: false };
   $('ed-save').onclick = () => {
     const stops = (E.stops || []).filter((s) => s && (s.n || '').trim());
     if (E.mode === 'manual' && stops.length < 2) return toast('warn', 'Málo zastávek', 'Linka potřebuje alespoň dvě pojmenované zastávky.');
+    const o = buildLine();
+    const missing = o.stops.length - annOf(o);
     const prev = E.id && S.lines.find((x) => x && x.id === E.id);
-    if (prev) { const o = buildLine(); commit(o, prev); const missing = o.stops.length - annOf(o); toast('ok', 'Linka ' + o.num + ' uložena', 'Je dostupná ve hře.' + (prev.status === 'published' || prev.status === 'pending' ? ' Po úpravě ji můžete znovu zveřejnit.' : '') + (missing ? ' Bez hlášení: ' + missing + ' zastávek.' : ''), 5500); return; }
-    openModal('save-modal');
+
+    const proceedSave = () => {
+      if (prev) {
+        commit(o, prev);
+        toast('ok', 'Linka ' + o.num + ' uložena', 'Je dostupná ve hře.' + (prev.status === 'published' || prev.status === 'pending' ? ' Po úpravě ji můžete znovu zveřejnit.' : '') + (missing ? ' Bez hlášení: ' + missing + ' zastávek.' : ''), 5500);
+        return;
+      }
+      openModal('save-modal');
+    };
+
+    if (missing > 0) {
+      confirmBox({
+        title: 'Chybí hlášení (' + missing + ' z ' + o.stops.length + ')',
+        desc: 'U ' + missing + ' zastávek není nahráno žádné zvukové hlášení. Chcete linku přesto uložit bez kompletního zvuku?',
+        yes: 'Uložit i bez zvuku'
+      }, proceedSave);
+    } else {
+      proceedSave();
+    }
   };
   $('sv-cancel').onclick = () => closeModal('save-modal');
   $('sv-own').onclick = () => { closeModal('save-modal'); const o = buildLine(); commit(o, null); const miss = o.stops.length - annOf(o); toast('ok', 'Uloženo jako vlastní linka', 'Při dalším spuštění ji najdete ve hře.' + (miss ? ' Bez hlášení: ' + miss + ' zastávek.' : ''), 5500); };
