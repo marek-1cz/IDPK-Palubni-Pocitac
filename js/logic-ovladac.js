@@ -90,6 +90,38 @@ function isCustomOrComm(raw) {
     return s.includes('_custom') || s.startsWith('comm_') || s.startsWith('user_') || s.includes('komunit') || s.includes('fiktiv');
 }
 
+function cleanLineDisplay(val) {
+    if (!val) return '';
+    let s = String(val).trim();
+    s = s.replace(/^(user|comm|ai)_+/i, '');
+    s = s.replace(/_custom.*/i, '');
+    s = s.replace(/_auto.*/i, '');
+    if (s.includes('_')) {
+        s = s.split('_')[0];
+    }
+    if (s.length >= 5 && !isNaN(parseInt(s, 10))) {
+        s = s.slice(-3).replace(/^0+/, '');
+    }
+    return s;
+}
+
+function formatTripCodeForDisplay(lkCode) {
+    if (!lkCode) return '';
+    let s = String(lkCode).trim();
+    if (s.startsWith('json:::')) {
+        const parts = s.split(':::');
+        const rId = cleanLineDisplay(parts[1] || '');
+        const spoj = parts[2] || '';
+        return spoj ? `${rId}/${spoj}` : rId;
+    }
+    s = s.replace(/_auto-BETA/i, '').replace(/_auto/i, '').replace(/-BETA/i, '').replace(/_BETA/i, '');
+    if (s.includes('/')) {
+        const [l, sp] = s.split('/');
+        return `${cleanLineDisplay(l)}/${sp}`;
+    }
+    return cleanLineDisplay(s);
+}
+
 const APP_BUILD_INFO = detectAppBuildInfo();
 const APP_VERSION = APP_BUILD_INFO.version; 
 const CURRENT_BUILD = APP_BUILD_INFO.build;
@@ -1914,7 +1946,7 @@ window.sendDataToPanel = function(showBig = false) {
     let isDriving = (typeof appState !== 'undefined' && appState === 'DRIVE');
     if (isDriving) {
         ipcRenderer.send('update-panel-data', { 
-            line: routeData.line, 
+            line: cleanLineDisplay(routeData.line), 
             destination: routeData.destination, 
             stop1: s1, 
             stop2: s2, 
@@ -1929,9 +1961,7 @@ window.sendDataToPanel = function(showBig = false) {
     }
     // --- Zápis do lokálního úložiště pro BUSE Panel ---
     try {
-        let displayLine = routeData.line || '';
-        if (displayLine.length > 3 && !isNaN(parseInt(displayLine))) displayLine = displayLine.slice(-3);
-        else displayLine = displayLine.replace(/^0+/, '').replace(/0+$/, '');
+        let displayLine = cleanLineDisplay(routeData.line);
 
         let buseDest = routeData.destination;
         let viaStops = [];
@@ -3663,8 +3693,8 @@ window.updateDriveUI = function() {
     const realIdx = routeData.realStopIndex; 
     const previewIdx = routeData.previewStopIndex; 
     
-    let rawCode = routeData.linkospojCode || "";
-    let lkCode = rawCode.toString().replace(/_auto-BETA/i, '').replace(/_auto/i, '').replace(/-BETA/i, '').replace(/_BETA/i, '');
+    let rawCode = routeData.linkospojCode || routeData.line || "";
+    let lkCode = formatTripCodeForDisplay(rawCode);
     
     let headerCode = window.getEl('drive-header-code'); 
     if(headerCode) headerCode.textContent = lkCode; 
@@ -4183,15 +4213,18 @@ function resolveAudioFilePath(relPath) {
     }
     candidateNames.push(baseWithoutExt + '.wav', baseWithoutExt + '.mp3');
 
+    const uData = (typeof PATH_USERDATA !== 'undefined' && PATH_USERDATA) ? PATH_USERDATA : (window.PATH_USERDATA || path.join(process.env.APPDATA || os.homedir(), 'idpk-palubni-pocitac', 'userdata'));
+    const uPath = (typeof userDataPath !== 'undefined' && userDataPath) ? userDataPath : (window.userDataPath || path.join(process.env.APPDATA || os.homedir(), 'idpk-palubni-pocitac'));
+
     const candidateFolders = [
-        path.join(PATH_USERDATA, 'zvuky', 'zastavky'),
-        path.join(PATH_USERDATA, 'zvuky'),
-        path.join(PATH_USERDATA, 'sounds'),
-        PATH_USERDATA,
-        path.join(userDataPath, 'zvuky', 'zastavky'),
-        path.join(userDataPath, 'zvuky'),
-        path.join(userDataPath, 'sounds'),
-        userDataPath,
+        path.join(uData, 'zvuky', 'zastavky'),
+        path.join(uData, 'zvuky'),
+        path.join(uData, 'sounds'),
+        uData,
+        path.join(uPath, 'zvuky', 'zastavky'),
+        path.join(uPath, 'zvuky'),
+        path.join(uPath, 'sounds'),
+        uPath,
         path.join(getBasePath(), 'zvuky', 'zastavky'),
         path.join(getBasePath(), 'zvuky'),
         getBasePath()

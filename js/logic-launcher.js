@@ -2690,7 +2690,13 @@ function syncRouteFileToLinky(line) {
         const filename = `${safeNum}_custom.txt`;
         const filePath = path.join(linkyDir, filename);
         
-        let txt = `GTFS-DATA\nLinka: ${line.id || line.num}\n`;
+        let targetLineKey = '';
+        if (line.source === 'gtfs' || line.license || line.gtfs_route_id) {
+            targetLineKey = line.license || line.gtfs_route_id || line.num;
+        } else {
+            targetLineKey = line.id || line.num;
+        }
+        let txt = `GTFS-DATA\nLinka: ${targetLineKey}\n`;
         const lastStop = line.dest || (line.stops && line.stops.length ? (line.stops[line.stops.length - 1].n || line.stops[line.stops.length - 1].name) : '');
         txt += `Směr: ${lastStop}\n`;
         txt += `Zastávky:\n`;

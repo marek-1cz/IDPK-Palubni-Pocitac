@@ -1992,6 +1992,7 @@ const CONFIG = { DEMO: false, REDUCED_FX: false };
           id: null,
           num: r.num || '',
           license: r.license || '',
+          gtfs_route_id: r.gtfs_route_id || (r.routeIds && r.routeIds[0]) || '',
           name: r.name || ('Linka ' + (r.num || '')),
           from: r.from || '',
           to: r.to || '',
@@ -2307,7 +2308,23 @@ const CONFIG = { DEMO: false, REDUCED_FX: false };
     const stops = (E.stops || []).filter((s) => s && (s.n || '').trim()); const prev = E.id && S.lines.find((x) => x && x.id === E.id);
     const fic = S.lines.filter((x) => x.source === 'manual').length + 1;
     const lastStopN = stops.length ? (stops[stops.length - 1].n || '') : '';
-    return { id: E.id || 'n' + Date.now(), num: String(E.num || '').trim() || (E.mode === 'gtfs' ? '?' : 'F' + fic), name: (E.name || '').trim() || 'Linka ' + (E.num || 'F' + fic), dest: (E.dest || '').trim() || lastStopN, source: E.source, scope: E.scope || null, type: E.type || 'fiktivni', voice: E.voice || 'synt', tags: E.tags || [], status: prev ? (prev.status === 'published' || prev.status === 'pending' ? 'local' : prev.status) : 'local', reject: prev && prev.reject, stops: stops.map((s) => ({ ...s, _open: undefined })), trips: E.trips || [] };
+    return {
+      id: E.id || 'n' + Date.now(),
+      num: String(E.num || '').trim() || (E.mode === 'gtfs' ? '?' : 'F' + fic),
+      license: E.license || '',
+      gtfs_route_id: E.gtfs_route_id || '',
+      name: (E.name || '').trim() || 'Linka ' + (E.num || 'F' + fic),
+      dest: (E.dest || '').trim() || lastStopN,
+      source: E.source,
+      scope: E.scope || null,
+      type: E.type || 'fiktivni',
+      voice: E.voice || 'synt',
+      tags: E.tags || [],
+      status: prev ? (prev.status === 'published' || prev.status === 'pending' ? 'local' : prev.status) : 'local',
+      reject: prev && prev.reject,
+      stops: stops.map((s) => ({ ...s, _open: undefined })),
+      trips: E.trips || []
+    };
   }
   function commit(o, prev) { if (prev) S.lines[S.lines.indexOf(prev)] = o; else S.lines.unshift(o); setStatus(false); emit('line-save', { line: o }); home(); selTab('mine'); renderMine(o.id); renderComm(); }
   $('ed-save').onclick = () => {

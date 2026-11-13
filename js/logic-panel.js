@@ -15,6 +15,21 @@ function getBasePath() {
     return path.join(__dirname, '..');
 }
 
+function cleanLineDisplay(val) {
+    if (!val) return '';
+    let s = String(val).trim();
+    s = s.replace(/^(user|comm|ai)_+/i, '');
+    s = s.replace(/_custom.*/i, '');
+    s = s.replace(/_auto.*/i, '');
+    if (s.includes('_')) {
+        s = s.split('_')[0];
+    }
+    if (s.length >= 5 && !isNaN(parseInt(s, 10))) {
+        s = s.slice(-3).replace(/^0+/, '');
+    }
+    return s;
+}
+
 let isIdle = true; 
 let bootFinished = false;
 let currentBgLayer = 1;
@@ -135,9 +150,7 @@ function changeBackground(relativePath) {
 
 function updateUI(data) {
     if (data.line) {
-        let displayLine = data.line;
-        if (displayLine.length > 3 && !isNaN(parseInt(displayLine))) displayLine = displayLine.slice(-3);
-        document.getElementById('line-num').textContent = displayLine;
+        document.getElementById('line-num').textContent = cleanLineDisplay(data.line);
     }
     if (data.destination) {
         const formatDestination = (text) => {

@@ -744,6 +744,21 @@ function resolveStopAudio(stopName, localStopMap = null) {
     return null;
 }
 
+function cleanLineDisplay(val) {
+    if (!val) return '';
+    let s = String(val).trim();
+    s = s.replace(/^(user|comm|ai)_+/i, '');
+    s = s.replace(/_custom.*/i, '');
+    s = s.replace(/_auto.*/i, '');
+    if (s.includes('_')) {
+        s = s.split('_')[0];
+    }
+    if (s.length >= 5 && !isNaN(parseInt(s, 10))) {
+        s = s.slice(-3).replace(/^0+/, '');
+    }
+    return s;
+}
+
 function parseTextFileStopsToMap(lines) { 
     let map = {}; 
     for(let line of lines) { 
@@ -1073,24 +1088,24 @@ async function findRouteId(shortName, exactRouteId = null) {
     let jsonId = getJsonRouteId(shortName) || (exactRouteId ? getJsonRouteId(exactRouteId) : null);
     if (jsonId) return jsonId;
 
-    let customRoutes = getUnlockedCustomRoutes();
-    
     await ensureGtfsCache();
     await ensureCrCache();
     let query = "SELECT route_id, route_short_name FROM routes";
     
     const checkRow = (rId, rShort) => {
-        if (exactRouteId && (rShort === exactRouteId || rId === exactRouteId)) return rId;
-        let num = parseInt(rShort);
-        if (!isNaN(num)) {
-            const inRange = (num >= 400621 && num <= 405611) || 
-                            (num >= 430432 && num <= 440649) || 
-                            (num >= 450411 && num <= 475211) || 
-                            (num >= 490722 && num <= 496711) ||
-                            customRoutes.has(rShort) || customRoutes.has(rId); 
-            if (inRange) { 
-                if (rShort === shortName || rShort.endsWith(shortName) || rId === exactRouteId || rId === shortName) return rId; 
-            }
+        const sClean = String(shortName || '').trim();
+        const eClean = String(exactRouteId || '').trim();
+        const rIdClean = String(rId || '').trim();
+        const rShortClean = String(rShort || '').trim();
+
+        if (eClean && (rShortClean === eClean || rIdClean === eClean)) return rId;
+        if (sClean && (rShortClean === sClean || rIdClean === sClean)) return rId;
+
+        if (sClean.length >= 3) {
+            if (rShortClean.endsWith(sClean) || rIdClean.endsWith(sClean)) return rId;
+        }
+        if (eClean.length >= 3) {
+            if (rShortClean.endsWith(eClean) || rIdClean.endsWith(eClean)) return rId;
         }
         return null;
     };
@@ -1151,14 +1166,27 @@ ipcMain.handle('process-hybrid-file', async (event, fileContent) => {
 
         let isJsonMatch = false;
         let jsonId = jsonMatchId || getJsonRouteId(linkaNum) || getJsonRouteId(exactRouteId);
-        if (jsonId) {
-            linkaNum = jsonId;
-            isJsonMatch = true;
-        }
-
         let routeId = null;
-        if (isJsonMatch) {
-            routeId = linkaNum;
+
+        if (jsonId) {
+            const rawJson = loadRawJsonRoute(jsonId);
+            if (rawJson && (rawJson.source === 'gtfs' || rawJson.license || rawJson.gtfs_route_id)) {
+                const cand = rawJson.license || rawJson.gtfs_route_id || rawJson.num || linkaNum;
+                const foundGId = await findRouteId(rawJson.num || linkaNum, cand);
+                if (foundGId) {
+                    routeId = foundGId;
+                    linkaNum = cleanLineDisplay(rawJson.num || linkaNum);
+                    isJsonMatch = false;
+                } else {
+                    linkaNum = jsonId;
+                    isJsonMatch = true;
+                    routeId = linkaNum;
+                }
+            } else {
+                linkaNum = jsonId;
+                isJsonMatch = true;
+                routeId = linkaNum;
+            }
         } else if (forcedRouteId) {
             routeId = forcedRouteId;
         } else {
@@ -1166,7 +1194,7 @@ ipcMain.handle('process-hybrid-file', async (event, fileContent) => {
             if (!routeId) return { error: `Linka ${exactRouteId} nenalezena v GTFS` };
         }
 
-        if (!spojNum) return { isTemplate: true, lineNum: linkaNum, routeId: routeId, stopMap: parseTextFileStopsToMap(textFileStops) };
+        if (!spojNum) return { isTemplate: true, lineNum: cleanLineDisplay(linkaNum), routeId: routeId, stopMap: parseTextFileStopsToMap(textFileStops) };
 
         let tripId = await findTripId(routeId, spojNum);
         if (!tripId) return { error: `Spoj ${spojNum} nenalezen` };
@@ -1736,18 +1764,21 @@ ipcMain.handle('gtfs-get-final-trips', async (event, {routeId, startStopName, he
     console.log('gtfs-get-final-trips called with:', routeId, startStopName, headsign);
     let jsonId = getJsonRouteId(routeId);
     if (jsonId) {
+        const rawJson = loadRawJsonRoute(jsonId);
         const data = loadJsonData(jsonId);
         const results = [];
+        const cleanNum = cleanLineDisplay(rawJson ? (rawJson.num || jsonId) : jsonId);
         data.forEach(t => {
             if (t.smer === headsign && t.zastavky && t.zastavky.length > 0 && (t.zastavky[0].name === startStopName || shortenStopName(t.zastavky[0].name) === startStopName)) {
                 const tid = `json:::${jsonId}:::${t.spoj}`;
+                const dispCode = `${cleanNum}/${t.spoj}`;
                 results.push({
                     tripId: tid,
                     time: t.odjezd,
-                    formattedName: `${jsonId}/${t.spoj}`,
+                    formattedName: dispCode,
                     spojNum: t.spoj,
                     headsign: t.smer,
-                    tripNumber: tid
+                    tripNumber: dispCode
                 });
             }
         });
@@ -2348,54 +2379,50 @@ ipcMain.handle('gtfs-editor-search', async (event, query) => {
                 }
 
                 for (let [dedupKey, group] of routesByKey) {
-                    let allStops = [];
-                    let seenStopNames = new Set();
-                    let fromName = '';
-                    let toName = '';
+                    let bestTripId = null;
+                    let maxStopCount = 0;
+                    let bestRouteId = group.routeIds[0];
 
-                    for (let rId of group.routeIds.slice(0, 4)) {
-                        let tStmt = dbInstance.prepare("SELECT t.trip_id, COUNT(st.stop_sequence) as cnt FROM trips t JOIN stop_times st ON t.trip_id = st.trip_id WHERE t.route_id = $r GROUP BY t.trip_id ORDER BY cnt DESC LIMIT 3");
-                        tStmt.bind({ $r: rId });
-                        let trips = [];
-                        while (tStmt.step()) {
-                            trips.push(tStmt.getAsObject());
-                        }
-                        tStmt.free();
+                    for (let rId of group.routeIds) {
+                        try {
+                            let tStmt = dbInstance.prepare("SELECT t.trip_id, COUNT(st.stop_sequence) as cnt FROM trips t JOIN stop_times st ON t.trip_id = st.trip_id WHERE t.route_id = $r GROUP BY t.trip_id ORDER BY cnt DESC LIMIT 1");
+                            tStmt.bind({ $r: rId });
+                            if (tStmt.step()) {
+                                let row = tStmt.getAsObject();
+                                if (row.cnt > maxStopCount) {
+                                    maxStopCount = row.cnt;
+                                    bestTripId = row.trip_id;
+                                    bestRouteId = rId;
+                                }
+                            }
+                            tStmt.free();
+                        } catch (_) {}
+                    }
 
-                        for (let t of trips) {
+                    let tripStops = [];
+                    if (bestTripId) {
+                        try {
                             let sStmt = dbInstance.prepare("SELECT s.name, COALESCE(s.zone_id, '') as zone_id, CASE WHEN st.pickup_type = '3' THEN 1 ELSE 0 END as req FROM stop_times st JOIN stops s ON st.stop_id = s.stop_id WHERE st.trip_id = $t ORDER BY st.stop_sequence ASC");
-                            sStmt.bind({ $t: t.trip_id });
-                            let tripStops = [];
+                            sStmt.bind({ $t: bestTripId });
                             while (sStmt.step()) {
                                 let row = sStmt.getAsObject();
                                 tripStops.push([cleanStr(row.name), cleanStr(row.zone_id), row.req ? 1 : 0]);
                             }
                             sStmt.free();
-
-                            if (tripStops.length > 0 && !fromName) {
-                                fromName = tripStops[0][0];
-                                toName = tripStops[tripStops.length - 1][0];
-                            }
-
-                            for (let st of tripStops) {
-                                let normStop = cleanStr(st[0]).toLowerCase();
-                                if (!seenStopNames.has(normStop)) {
-                                    seenStopNames.add(normStop);
-                                    allStops.push(st);
-                                }
-                            }
-                        }
+                        } catch (_) {}
                     }
 
-                    if (allStops.length > 0) {
+                    if (tripStops.length > 0) {
                         const isBuiltin = builtinLines.has(group.num.toLowerCase()) || (group.license && builtinLines.has(group.license.toLowerCase()));
                         results.push({
                             num: group.num,
                             license: group.license,
+                            gtfs_route_id: bestRouteId,
+                            routeIds: group.routeIds,
                             name: group.name,
-                            from: fromName || (allStops[0] ? allStops[0][0] : ''),
-                            to: toName || (allStops[allStops.length - 1] ? allStops[allStops.length - 1][0] : ''),
-                            stops: allStops,
+                            from: tripStops[0][0],
+                            to: tripStops[tripStops.length - 1][0],
+                            stops: tripStops,
                             scope: scopeName,
                             dir: 0,
                             alreadyExists: Boolean(isBuiltin)
