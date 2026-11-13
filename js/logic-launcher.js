@@ -2922,6 +2922,20 @@ async function initLCBridgeData() {
             }
         });
 
+        // Automatické párování zvuků zastávek z existujících linek
+        const matchFn = async (stops) => {
+            try {
+                return await ipcRenderer.invoke('auto-match-stops-audio', stops);
+            } catch(e) {
+                console.error('Chyba při párování zvuků:', e);
+                return [];
+            }
+        };
+        window.autoMatchStopsAudio = matchFn;
+        if (window.LC.setAutoMatchAudio) {
+            window.LC.setAutoMatchAudio(matchFn);
+        }
+
         // Kontrola a stahování dat celé ČR
         try {
             const hasCr = await ipcRenderer.invoke('gtfs-check-cr');

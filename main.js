@@ -1713,7 +1713,7 @@ async function getGtfsStopsForTrip(tripId) {
         }
     } catch (e) { log.error("Failed to load zones_override.json: " + e); }
     
-    const processRow = (row) => {
+    const processRow = (row, isCr = false) => {
         if (row.pickup_type === '1' && (!row.time || row.time.trim() === '')) return;
         let type = (row.pickup_type === '2' || row.pickup_type === '3') ? 'z' : 'n';
         let timeStr = row.time ? row.time.substring(0, 5) : "";
@@ -1728,19 +1728,23 @@ async function getGtfsStopsForTrip(tripId) {
         let zonesList = rawZone.split(",").map(z => z.trim().replace(/^P/i, "")).filter(z => z !== "");
         let finalZone = zonesList.join("<br>");
         let isPhoneDemand = (row.pickup_type == 2 || row.pickup_type == 3);
-        let resAudio = resolveStopAudio(stopName);
-        let finalAudio = resAudio ? resAudio.audio : "";
+        let finalAudio = "";
+        // Databáze ČR (bez zvuku) je VŽDY 100% bez zvuku, i kdyby v Plzni existovala shoda názvu
+        if (!isCr) {
+            let resAudio = resolveStopAudio(stopName);
+            finalAudio = resAudio ? resAudio.audio : "";
+        }
         results.push({ name: stopName, zone: finalZone, time: timeStr, type: type, seq: row.seq, isPhoneDemand: isPhoneDemand, audio: finalAudio });
     };
 
-    const runStopsQuery = (db) => {
+    const runStopsQuery = (db, isCr = false) => {
         if (!db) return false;
         let foundAny = false;
         try {
             let stmt = db.prepare(query);
             stmt.bind({$tripId: tripId.trim()});
             while(stmt.step()) {
-                processRow(stmt.getAsObject());
+                processRow(stmt.getAsObject(), isCr);
                 foundAny = true;
             }
             stmt.free();
@@ -1749,7 +1753,7 @@ async function getGtfsStopsForTrip(tripId) {
                 let stmt = db.prepare(fallbackQuery);
                 stmt.bind({$tripId: tripId.trim()});
                 while(stmt.step()) {
-                    processRow(stmt.getAsObject());
+                    processRow(stmt.getAsObject(), isCr);
                     foundAny = true;
                 }
                 stmt.free();
@@ -1760,9 +1764,10 @@ async function getGtfsStopsForTrip(tripId) {
         return foundAny;
     };
 
-    let hasStops = runStopsQuery(idpkDb);
+    let hasStops = runStopsQuery(idpkDb, false);
     if (!hasStops && crDb) {
-        runStopsQuery(crDb);
+        runStopsQuery(crDb, true);
+        results.isSilentRoute = true;
     }
     
     await interpolateMissingTimes(results);
@@ -2528,6 +2533,46 @@ ipcMain.handle('export-line-zip', async (event, line) => {
         return { success: false, error: err.message };
     }
 });
+ipcMain.handle('auto-match-stops-audio', async (event, stops) => {
+    if (!Array.isArray(stops)) return [];
+    const findAudioPath = (fileName) => {
+        if (!fileName) return null;
+        const dirs = [
+            ...getSearchDirectories(path.join('zvuky', 'zastavky')),
+            ...getSearchDirectories(path.join('zvuky', 'hlaseni')),
+            ...getSearchDirectories('zvuky')
+        ];
+        for (const d of dirs) {
+            const p = path.join(d, fileName);
+            if (fs.existsSync(p)) return p;
+            if (!fileName.toLowerCase().endsWith('.wav')) {
+                const pw = path.join(d, fileName + '.wav');
+                if (fs.existsSync(pw)) return pw;
+            }
+        }
+        return null;
+    };
+
+    return stops.map(s => {
+        const name = typeof s === 'string' ? s : (s.n || s.name || '');
+        const res = resolveStopAudio(name);
+        if (res && res.audio) {
+            const resolvedPath = findAudioPath(res.audio);
+            if (resolvedPath) {
+                return {
+                    name,
+                    matched: true,
+                    audio: path.basename(resolvedPath),
+                    source: res.source,
+                    filePath: resolvedPath,
+                    url: 'file:///' + resolvedPath.replace(/\\/g, '/')
+                };
+            }
+        }
+        return { name, matched: false, audio: null };
+    });
+});
+
 ipcMain.handle('gtfs-editor-get-all-stops', async () => {
     try {
         await ensureGtfsCache();

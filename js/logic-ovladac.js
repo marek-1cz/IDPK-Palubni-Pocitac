@@ -3364,8 +3364,12 @@ window.startIdpkRide = function(tripId, destination, tripNumber) {
             return; 
         } 
         
-        const hasAudio = stops.some(s => s.audio && s.audio.length > 4);
-        routeData.isMuted = !hasAudio; 
+        const isSilent = stops.isSilentRoute || (appState === 'IDPK_LINE') || !stops.some(s => s.audio && s.audio.length > 4);
+        routeData.isMuted = isSilent; 
+        routeData.isSilentRoute = isSilent;
+        if (isSilent) {
+            stops.forEach(s => { s.audio = ""; });
+        }
         routeData.line = inputValues.idpk; 
         routeData.routeId = selectedIdpkRouteId; 
         routeData.linkospojCode = tripNumber || (inputValues.idpk + " (GTFS)"); 
@@ -3527,6 +3531,7 @@ window.smartButtonAction = function() {
 
 // --- SYSTÉM ZVUKŮ A HLÁŠENÍ CHYB ---
 window.announceStop = function(idx) { 
+    if (routeData.isMuted || routeData.isSilentRoute) return;
     const stop = routeData.stops[idx]; 
     if(!stop) return; 
     
@@ -3561,6 +3566,7 @@ window.announceStop = function(idx) {
 };
 
 window.announceNextStop = function(idx) { 
+    if (routeData.isMuted || routeData.isSilentRoute) return;
     const stop = routeData.stops[idx]; 
     if(!stop) return; 
     
@@ -3594,7 +3600,7 @@ window.handleLeftButton = function() {
     window.playClick();
     if (window.isAtEndOfRoute()) { 
         window.manualContinueTrip(); 
-    } else if (!isAnnouncementPlaying && !routeData.isMuted) { 
+    } else if (!isAnnouncementPlaying && !routeData.isMuted && !routeData.isSilentRoute) { 
         if (drivePhase === 0) {
             window.announceStop(routeData.realStopIndex); 
         } else {
@@ -4341,12 +4347,11 @@ window.updateAudioStatusIndicator = function() {
     el.style.display = 'flex';
 
     if (isAnnouncementPlaying) {
-        // 1. Zvuk právě hraje: zelený repráček s vlnami + záře
-        el.style.background = 'rgba(20, 83, 45, 0.85)';
-        el.style.color = '#22c55e';
+        // 1. Zvuk právě hraje: zelený kruh + bílý repráček s vlnami + záře
+        el.style.background = '#15803d';
         el.style.borderColor = '#22c55e';
-        el.style.boxShadow = '0 0 10px rgba(34, 197, 94, 0.7)';
-        el.innerHTML = '<i class="fas fa-volume-up"></i>';
+        el.style.boxShadow = '0 0 12px rgba(34, 197, 94, 0.85)';
+        el.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" style="display:block;"><path d="M11 5L6 9H2v6h4l5 4V5z" fill="#ffffff"/><path d="M15.5 8.5a5 5 0 0 1 0 7" stroke="#ffffff" stroke-width="2.2" stroke-linecap="round"/><path d="M19 5a9.5 9.5 0 0 1 0 14" stroke="#ffffff" stroke-width="2.2" stroke-linecap="round"/></svg>';
         el.title = 'Hraje hlášení';
         return;
     }
@@ -4354,13 +4359,12 @@ window.updateAudioStatusIndicator = function() {
     const stops = routeData.stops || [];
     const isRouteEntirelySilent = stops.length > 0 && stops.every(s => !s.audio || s.audio === '.wav' || String(s.audio).trim().length <= 4);
 
-    if (isRouteEntirelySilent || routeData.isMuted) {
-        // 4. Linka bez zvuku naschvál: oranžový škrtnutý repráček
-        el.style.background = 'rgba(69, 26, 3, 0.85)';
-        el.style.color = '#f59e0b';
+    if (isRouteEntirelySilent || routeData.isMuted || routeData.isSilentRoute) {
+        // 4. Linka bez zvuku naschvál (např. Celá databáze bez zvuku): oranžový kruh + bílý přeškrtnutý repráček
+        el.style.background = '#b45309';
         el.style.borderColor = '#f59e0b';
-        el.style.boxShadow = '0 0 6px rgba(245, 158, 11, 0.5)';
-        el.innerHTML = '<i class="fas fa-volume-mute"></i>';
+        el.style.boxShadow = '0 0 10px rgba(245, 158, 11, 0.7)';
+        el.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" style="display:block;"><path d="M11 5L6 9H2v6h4l5 4V5z" fill="#ffffff"/><line x1="22" y1="2" x2="2" y2="22" stroke="#ffffff" stroke-width="2.5" stroke-linecap="round"/></svg>';
         el.title = 'Linka bez zvuku';
         return;
     }
@@ -4383,20 +4387,18 @@ window.updateAudioStatusIndicator = function() {
     }
 
     if (hasAudio) {
-        // 2. Zvuk je připraven (OK): repráček svítí modře bez čárek
-        el.style.background = 'rgba(15, 23, 42, 0.85)';
-        el.style.color = '#38bdf8';
-        el.style.borderColor = 'rgba(56, 189, 248, 0.6)';
-        el.style.boxShadow = '0 0 6px rgba(56, 189, 248, 0.3)';
-        el.innerHTML = '<i class="fas fa-volume-off"></i>';
+        // 2. Zvuk je připraven (OK): modrý kruh + čistý bílý repráček bez vln
+        el.style.background = '#0284c7';
+        el.style.borderColor = '#38bdf8';
+        el.style.boxShadow = '0 0 8px rgba(56, 189, 248, 0.6)';
+        el.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" style="display:block;"><path d="M11 5L6 9H2v6h4l5 4V5z" fill="#ffffff"/></svg>';
         el.title = 'Zvuk OK';
     } else {
-        // 3. Zvuk chybí: červený repráček s křížkem
-        el.style.background = 'rgba(127, 29, 29, 0.85)';
-        el.style.color = '#ef4444';
+        // 3. Zvuk chybí: červený kruh + bílý repráček s křížkem
+        el.style.background = '#b91c1c';
         el.style.borderColor = '#ef4444';
-        el.style.boxShadow = '0 0 8px rgba(239, 68, 68, 0.6)';
-        el.innerHTML = '<i class="fas fa-volume-mute"></i>';
+        el.style.boxShadow = '0 0 10px rgba(239, 68, 68, 0.85)';
+        el.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" style="display:block;"><path d="M11 5L6 9H2v6h4l5 4V5z" fill="#ffffff"/><line x1="21" y1="9" x2="15" y2="15" stroke="#ffffff" stroke-width="2.2" stroke-linecap="round"/><line x1="15" y1="9" x2="21" y2="15" stroke="#ffffff" stroke-width="2.2" stroke-linecap="round"/></svg>';
         el.title = 'Zvuk chybí';
     }
 };
