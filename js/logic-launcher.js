@@ -2986,8 +2986,9 @@ async function loadCommunityEditorLines(preloadedLocalLines) {
 
                 const isDeleted = Boolean(r.is_deleted_by_author || r.status === 'deleted_by_user');
                 // Pokud je linka smazaná z komunity:
-                // Noví hráči (kteří ji ještě nemají v PC) ji NESMÍ vidět
-                if (isDeleted && !isInstalled && !isLocal) {
+                // Smazané komunitní linky NESMÍ vidět jejich autor (aby neměl matoucí duplicitu),
+                // a NESMÍ je vidět ani hráči, kteří si je dříve nestáhli do PC (comm_*.json)
+                if (isDeleted && (!isInstalled || isOwnAuthor)) {
                     continue;
                 }
 
@@ -3001,6 +3002,15 @@ async function loadCommunityEditorLines(preloadedLocalLines) {
                     }
                 }
 
+                // Zpracování tagů a detekce 80%+ bez zvuku
+                let rawTags = Array.isArray(r.tags) ? [...r.tags] : (r.system_tag ? r.system_tag.split(',').map(s => s.trim()) : ['IDPK']);
+                const soundStops = (stops || []).filter(s => s && (s.snd || s.audio_url || s.audio_file)).length;
+                const isNoSound80 = stops.length > 0 && ((stops.length - soundStops) / stops.length) >= 0.8;
+                if (isNoSound80 && !rawTags.includes('bez zvuku')) {
+                    rawTags.push('bez zvuku');
+                }
+                const voice = (isNoSound80 || rawTags.includes('bez zvuku')) ? 'none' : (r.voice_type || 'synt');
+
                 commLines.push({
                     id: String(r.id),
                     num: String(r.route_number),
@@ -3013,9 +3023,9 @@ async function loadCommunityEditorLines(preloadedLocalLines) {
                     dl: r.download_count || 0,
                     size: r.file_size || '35 kB',
                     type: r.route_type === 'custom' ? 'fiktivni' : (r.route_type || 'realna'),
-                    voice: r.voice_type || 'synt',
+                    voice: voice,
                     scope: r.system_tag && r.system_tag.toUpperCase() !== 'IDPK' ? 'cr' : 'idpk',
-                    tags: r.system_tag ? [r.system_tag] : ['IDPK'],
+                    tags: rawTags,
                     isNew: Boolean(r.is_new),
                     is_deleted_by_author: isDeleted,
                     state: state,
@@ -3652,14 +3662,22 @@ document.addEventListener('lc:line-publish', async (e) => {
         const curName = (line.name || '').trim();
         const resolvedRouteName = (curName && !curName.startsWith('Linka ') && curName !== String(line.num)) ? curName : autoJr;
 
+        const sndCount = stops.filter(s => s && s.snd).length;
+        const isNoSound80 = stops.length > 0 && ((stops.length - sndCount) / stops.length) >= 0.8;
+        const finalTags = Array.isArray(tags) ? [...tags] : ['IDPK'];
+        if (isNoSound80 && !finalTags.includes('bez zvuku')) {
+            finalTags.push('bez zvuku');
+        }
+
         const formData = new FormData();
         formData.append('legal_confirmed', '1');
         formData.append('route_number', line.num);
         formData.append('route_name', resolvedRouteName);
         formData.append('version', line.version || 'V1');
         formData.append('route_type', type || 'gtfs');
-        formData.append('voice_type', voice || 'synt');
-        formData.append('system_tag', (tags && tags[0]) || 'IDPK');
+        formData.append('voice_type', isNoSound80 ? 'none' : (voice || 'synt'));
+        formData.append('system_tag', finalTags.join(', '));
+        formData.append('tags_json', JSON.stringify(finalTags));
         formData.append('description', desc || '');
         formData.append('author_id', cfg.discord_id || currentHWID);
         formData.append('author_name', cfg.discord_nick || 'Hráč');
@@ -3684,12 +3702,22 @@ document.addEventListener('lc:line-publish', async (e) => {
         });
         const respData = await res.json();
         if (respData.success) {
-            line.status = 'pending';
+            const isApproved = (respData.status === 'approved' || isNoSound80);
+            line.status = isApproved ? 'published' : 'pending';
+            line.tags = finalTags;
             const customDataPath = path.join(centralUserDataPath, 'data');
             fs.writeFileSync(path.join(customDataPath, `${line.id}.json`), JSON.stringify(line, null, 2), 'utf8');
             if (window.LC) {
                 window.LC.renderMine(line.id);
-                window.LC.toast('ok', 'Linka odeslána ke kontrole', 'Správci si poslechnou hlášení. O výsledku budete informováni přes Discord DM.');
+                if (isApproved) {
+                    window.LC.toast('ok', 'Linka bez zvuku zveřejněna', 'Linka byla automaticky schválena a zařazena do komunitních linek s uzamčeným štítkem „bez zvuku“.');
+                    loadCommunityEditorLines().then(comm => {
+                        window.LC.S.comm = comm;
+                        if (window.LC.renderComm) window.LC.renderComm();
+                    });
+                } else {
+                    window.LC.toast('ok', 'Linka odeslána ke kontrole', 'Správci si poslechnou hlášení. O výsledku budete informováni přes Discord DM.');
+                }
             }
         } else {
             if (window.LC) window.LC.toast('err', 'Chyba odeslání', respData.error || 'Server odmítl linku.');

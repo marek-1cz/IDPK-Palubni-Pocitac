@@ -842,7 +842,7 @@ button.chip.dl:hover{border-color:var(--blue);color:#fff}
           </div>
           <div class="toolbar" style="margin-top:-6px;gap:18px">
             <div class="chips" id="cm-chips"><button class="chip on" data-f="all">Vše</button><button class="chip" data-f="fiktivni">Fiktivní</button><button class="chip" data-f="polofiktivni">Polofiktivní</button><button class="chip" data-f="realna">Reálné</button><button class="chip" data-f="inst">Stažené</button></div>
-            <div class="chips" id="cm-voice"><button class="chip on" data-v="all">Všechny hlasy</button><button class="chip" data-v="synt">Syntéza</button><button class="chip" data-v="own">Vlastní hlas</button><button class="chip" data-v="real">Nahrávka z reality</button></div>
+            <div class="chips" id="cm-voice"><button class="chip on" data-v="all">Všechny hlasy</button><button class="chip" data-v="synt">Syntéza</button><button class="chip" data-v="own">Vlastní hlas</button><button class="chip" data-v="real">Nahrávka z reality</button><button class="chip" data-v="none">Bez zvuku</button></div>
           </div>
           <div class="comm-grid" id="cm-grid"></div>
         </div>
@@ -1816,7 +1816,7 @@ const CONFIG = { DEMO: false, REDUCED_FX: false };
      Události: lc:line-save, lc:line-delete, lc:line-publish, lc:line-decision, lc:sound-add, lc:community-download
      ===================================================================== */
   const TYPES = { fiktivni: ['Fiktivní', 'v'], polofiktivni: ['Polofiktivní', 'c'], realna: ['Reálná', 'g'] };
-  const VOICES = { synt: ['Syntéza', 'AI hlas'], own: ['Vlastní hlas', ''], real: ['Nahrávka', 'z reality'] };
+  const VOICES = { synt: ['Syntéza', 'AI hlas'], own: ['Vlastní hlas', ''], real: ['Nahrávka', 'z reality'], none: ['Bez zvuku', ''] };
   const STAT = { local: ['Lokální', ''], pending: ['Čeká na kontrolu', 'p'], published: ['Zveřejněno', 'g'], rejected: ['Zamítnuto', 'r'] };
   const SRC = { gtfs: 'GTFS', manual: 'Fiktivní', doc: 'Dokument', comm: 'Komunita' };
   const MAXS = 10; /* max délka hlášení v sekundách */
@@ -2282,7 +2282,7 @@ const CONFIG = { DEMO: false, REDUCED_FX: false };
   function renderComm() {
     const q = $('cm-search').value.trim().toLowerCase(), f = S.cmFilter, v = S.cmVoice;
     $('cnt-comm').textContent = S.comm.length;
-    const arr = S.comm.filter((c) => (!q || (c.num + ' ' + (c.name || '') + ' ' + (c.full_name || '') + ' ' + (c.from || '') + ' ' + c.dest + ' ' + c.author + ' ' + (c.tags || []).join(' ')).toLowerCase().includes(q)) && (f === 'all' || (f === 'inst' ? c.state === 'installed' : c.type === f)) && (v === 'all' || c.voice === v));
+    const arr = S.comm.filter((c) => (!q || (c.num + ' ' + (c.name || '') + ' ' + (c.full_name || '') + ' ' + (c.from || '') + ' ' + c.dest + ' ' + c.author + ' ' + (c.tags || []).join(' ')).toLowerCase().includes(q)) && (f === 'all' || (f === 'inst' ? c.state === 'installed' : c.type === f)) && (v === 'all' || c.voice === v || (v === 'none' && (c.voice === 'none' || (c.tags || []).includes('bez zvuku')))));
     arr.sort((a, b) => {
       const aNo = (a.tags || []).includes('bez zvuku') || a.voice === 'none' || (a.stops && a.stops.length && a.stops.every(s => !s.snd && !s.audio_url));
       const bNo = (b.tags || []).includes('bez zvuku') || b.voice === 'none' || (b.stops && b.stops.length && b.stops.every(s => !s.snd && !s.audio_url));
@@ -2333,7 +2333,8 @@ const CONFIG = { DEMO: false, REDUCED_FX: false };
         btn = '<div class="mini"><i style="width:' + (c.p || 0) + '%"></i></div>';
       }
 
-      const t = TYPES[c.type] || ['Reálná', 'b'], vo = VOICES[c.voice] || ['Syntetický', ''];
+      const isNoSnd = (c.tags && c.tags.includes('bez zvuku')) || c.voice === 'none';
+      const t = TYPES[c.type] || ['Reálná', 'b'], vo = isNoSnd ? VOICES.none : (VOICES[c.voice] || ['Syntetický', '']);
       const stopCnt = (c.stops && c.stops.length) ? c.stops.length : 0;
       const pvBtn = '<button class="btn sm ghost" data-pv="' + c.id + '" style="margin-top:6px;width:100%">' + ic('map') + 'Náhled trasy' + (stopCnt ? ' (' + stopCnt + ' zastávek)' : '') + '</button>';
 
@@ -3223,7 +3224,25 @@ const CONFIG = { DEMO: false, REDUCED_FX: false };
 
   /* ---------- zveřejnění ---------- */
   let P = null;
-  function renderTags() { $$('#pb-tagbox .t').forEach((x) => x.remove()); P.tags.forEach((t, i) => { const el = document.createElement('span'); el.className = 't'; el.innerHTML = esc(t) + '<button title="Odebrat">' + ic('x') + '</button>'; el.querySelector('button').onclick = () => { P.tags.splice(i, 1); renderTags(); }; $('pb-tagbox').insertBefore(el, $('pb-tag-in')); }); }
+  function renderTags() {
+    $$('#pb-tagbox .t').forEach((x) => x.remove());
+    P.tags.forEach((t, i) => {
+      const isLocked = (t.toLowerCase() === 'bez zvuku' && P.isNoSoundLocked);
+      const el = document.createElement('span');
+      el.className = 't' + (isLocked ? ' locked' : '');
+      if (isLocked) {
+        el.style.background = 'rgba(239,68,68,0.15)';
+        el.style.borderColor = 'rgba(239,68,68,0.4)';
+        el.style.color = '#fca5a5';
+        el.style.fontWeight = '700';
+      }
+      el.innerHTML = esc(t) + (isLocked ? ' <span title="Automaticky uzamčeno (80%+ zastávek bez zvuku)" style="font-size:11px;margin-left:3px;cursor:help;">🔒</span>' : '<button title="Odebrat">' + ic('x') + '</button>');
+      if (!isLocked) {
+        el.querySelector('button').onclick = () => { P.tags.splice(i, 1); renderTags(); };
+      }
+      $('pb-tagbox').insertBefore(el, $('pb-tag-in'));
+    });
+  }
   function openPublish(l) {
     const firstStop = (l.stops && l.stops.length) ? (l.stops[0].n || l.stops[0].name || (Array.isArray(l.stops[0]) ? l.stops[0][0] : '')) : '';
     const lastStop = (l.stops && l.stops.length) ? (l.stops[l.stops.length - 1].n || l.stops[l.stops.length - 1].name || (Array.isArray(l.stops[l.stops.length - 1]) ? l.stops[l.stops.length - 1][0] : '')) : (l.dest || '');
@@ -3231,36 +3250,121 @@ const CONFIG = { DEMO: false, REDUCED_FX: false };
     const curName = (l.name || '').trim();
     const defaultName = (curName && !curName.startsWith('Linka ') && curName !== String(l.num)) ? curName : autoJr;
 
-    P = { id: l.id, type: l.type || (l.source === 'gtfs' ? 'realna' : 'fiktivni'), voice: l.voice || 'synt', tags: (l.tags || []).slice() };
-    $('pb-num').value = l.num; $('pb-name').value = defaultName; $('pb-desc').value = ''; $('pb-ok').checked = false; $('pb-tag-in').value = ''; $('pb-user-name').textContent = $('hwid-display').textContent;
-    $$('#pb-type button').forEach((b) => b.classList.toggle('on', b.dataset.t === P.type)); $$('#pb-voice button').forEach((b) => b.classList.toggle('on', b.dataset.v === P.voice)); renderTags();
-    const miss = l.stops.length - annOf(l);
-    $('pb-warn').hidden = !miss;
-    if (annOf(l) === 0) {
-      $('pb-warn-t').textContent = 'Linka nemá nahraná žádná hlášení. Bude zveřejněna s automatickým štítkem „bez zvuku“.';
-    } else if (miss > 0) {
-      $('pb-warn-t').textContent = 'U ' + miss + ' zastávek chybí hlášení. Linka bude označena štítkem „bez zvuku“.';
+    const totalStops = (l.stops && l.stops.length) ? l.stops.length : 0;
+    const soundCount = annOf(l);
+    const noSoundCount = totalStops - soundCount;
+    const isNoSound80 = totalStops > 0 && (noSoundCount / totalStops) >= 0.8;
+
+    let pubTags = (l.tags || []).slice();
+    if (isNoSound80 && !pubTags.includes('bez zvuku')) {
+      pubTags.push('bez zvuku');
+    }
+
+    P = {
+      id: l.id,
+      type: l.type || (l.source === 'gtfs' ? 'realna' : 'fiktivni'),
+      voice: isNoSound80 ? 'none' : (l.voice || 'synt'),
+      tags: pubTags,
+      isNoSoundLocked: isNoSound80
+    };
+    $('pb-num').value = l.num;
+    $('pb-name').value = defaultName;
+    $('pb-desc').value = '';
+    $('pb-ok').checked = false;
+    $('pb-tag-in').value = '';
+    $('pb-user-name').textContent = $('hwid-display').textContent;
+    $$('#pb-type button').forEach((b) => b.classList.toggle('on', b.dataset.t === P.type));
+    $$('#pb-voice button').forEach((b) => {
+      b.classList.toggle('on', b.dataset.v === P.voice);
+      b.style.pointerEvents = isNoSound80 ? 'none' : '';
+      b.style.opacity = isNoSound80 ? '0.5' : '';
+    });
+    renderTags();
+
+    $('pb-warn').hidden = !isNoSound80 && !noSoundCount;
+    if (isNoSound80) {
+      $('pb-warn-t').textContent = 'Linka má u ' + noSoundCount + ' z ' + totalStops + ' zastávek chybějící hlášení (80%+). Štítek „bez zvuku“ je automaticky uzamčen 🔒 a linka bude publikována přímo do komunitních linek.';
+    } else if (noSoundCount > 0) {
+      $('pb-warn-t').textContent = 'U ' + noSoundCount + ' zastávek chybí hlášení. Linka bude označena štítkem „bez zvuku“.';
     }
     $('pb-submit').disabled = false;
     openModal('publish-modal');
   }
   $$('#pb-type button').forEach((b) => (b.onclick = () => { P.type = b.dataset.t; $$('#pb-type button').forEach((x) => x.classList.toggle('on', x === b)); }));
-  $$('#pb-voice button').forEach((b) => (b.onclick = () => { P.voice = b.dataset.v; $$('#pb-voice button').forEach((x) => x.classList.toggle('on', x === b)); }));
-  $('pb-tag-in').onkeydown = (e) => { if ((e.key === 'Enter' || e.key === ',') && $('pb-tag-in').value.trim()) { e.preventDefault(); const v = $('pb-tag-in').value.replace(/,/g, '').trim(); if (!P.tags.includes(v) && P.tags.length < 8) P.tags.push(v); $('pb-tag-in').value = ''; renderTags(); } };
+  $$('#pb-voice button').forEach((b) => (b.onclick = () => {
+    if (P && P.isNoSoundLocked) return;
+    P.voice = b.dataset.v;
+    $$('#pb-voice button').forEach((x) => x.classList.toggle('on', x === b));
+  }));
+  $('pb-tag-in').onkeydown = (e) => {
+    if ((e.key === 'Enter' || e.key === ',') && $('pb-tag-in').value.trim()) {
+      e.preventDefault();
+      const v = $('pb-tag-in').value.replace(/,/g, '').trim();
+      if (!P.tags.includes(v) && P.tags.length < 8) P.tags.push(v);
+      $('pb-tag-in').value = '';
+      renderTags();
+    }
+  };
   $('pb-cancel').onclick = () => closeModal('publish-modal');
   $('pb-submit').onclick = () => {
-    const v = $('pb-tag-in').value.trim(); if (v && !P.tags.includes(v)) { P.tags.push(v); $('pb-tag-in').value = ''; }
+    const v = $('pb-tag-in').value.trim();
+    if (v && !P.tags.includes(v)) { P.tags.push(v); $('pb-tag-in').value = ''; }
     if (!$('pb-num').value.trim() || !$('pb-name').value.trim()) return toast('warn', 'Vyplňte číslo a název linky');
     if (!$('pb-ok').checked) return toast('warn', 'Je potřeba souhlas se sdílením');
+
     const l = S.lines.find((x) => x.id === P.id);
-    const miss = l.stops.length - annOf(l);
-    if ((miss > 0 || annOf(l) === 0) && !P.tags.includes('bez zvuku')) {
+    const totalStops = (l.stops && l.stops.length) ? l.stops.length : 0;
+    const sndCnt = annOf(l);
+    const noSnd = totalStops - sndCnt;
+    const isNoSound80 = totalStops > 0 && (noSnd / totalStops) >= 0.8;
+    if (isNoSound80 && !P.tags.includes('bez zvuku')) {
       P.tags.push('bez zvuku');
+      P.voice = 'none';
     }
-    l.num = $('pb-num').value.trim(); l.name = $('pb-name').value.trim(); l.type = P.type; l.voice = P.voice; l.tags = P.tags.slice(); l.status = 'pending'; l.desc = $('pb-desc').value;
-    S.queue = S.queue.filter((q) => q.id !== l.id); S.queue.push({ id: l.id, num: l.num, name: l.name, author: $('hwid-display').textContent, type: l.type, voice: l.voice, tags: l.tags.slice(), desc: l.desc, scope: l.scope, stops: (l.stops || []).map((s) => ({ n: (s && s.n) || '', snd: (s && s.snd) || null })) });
-    closeModal('publish-modal'); renderMine(l.id); syncAdminTab(S.role); renderAdmin(); emit('line-publish', { line: l, type: l.type, voice: l.voice, tags: l.tags, desc: l.desc });
-    toast('info', 'Odesláno ke kontrole', 'Správci si poslechnou hlášení. O výsledku Vás informujeme přes ' + S.notifyVia + '.', 6500);
+
+    l.num = $('pb-num').value.trim();
+    l.name = $('pb-name').value.trim();
+    l.type = P.type;
+    l.voice = P.voice;
+    l.tags = P.tags.slice();
+    l.status = isNoSound80 ? 'published' : 'pending';
+    l.desc = $('pb-desc').value;
+
+    closeModal('publish-modal');
+    renderMine(l.id);
+
+    if (isNoSound80) {
+      const existingComm = S.comm.find(c => String(c.num) === String(l.num) && (c.version || 'V1') === (l.version || 'V1'));
+      if (!existingComm) {
+        S.comm.unshift({
+          id: String(l.id),
+          num: String(l.num),
+          name: l.name,
+          full_name: l.name,
+          dest: l.dest || '',
+          version: l.version || 'V1',
+          author: $('hwid-display').textContent || 'Hráč',
+          dl: 0,
+          size: '35 kB',
+          type: l.type,
+          voice: 'none',
+          scope: l.scope || 'idpk',
+          tags: l.tags.slice(),
+          isNew: true,
+          state: 'installed',
+          stops: l.stops || []
+        });
+      }
+      renderComm();
+      toast('ok', 'Linka bez zvuku zveřejněna', 'Linka byla ihned publikována do Komunitních linek s uzamčeným štítkem „bez zvuku“.');
+    } else {
+      S.queue = S.queue.filter((q) => q.id !== l.id);
+      S.queue.push({ id: l.id, num: l.num, name: l.name, author: $('hwid-display').textContent, type: l.type, voice: l.voice, tags: l.tags.slice(), desc: l.desc, scope: l.scope, stops: (l.stops || []).map((s) => ({ n: (s && s.n) || '', snd: (s && s.snd) || null })) });
+      syncAdminTab(S.role);
+      renderAdmin();
+      toast('info', 'Odesláno ke kontrole', 'Správci si poslechnou hlášení. O výsledku Vás informujeme přes ' + S.notifyVia + '.', 6500);
+    }
+    emit('line-publish', { line: l, type: l.type, voice: l.voice, tags: l.tags, desc: l.desc });
   };
 
   /* ---------- administrace (jen role admin) ---------- */
