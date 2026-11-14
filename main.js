@@ -460,8 +460,12 @@ ipcMain.on('fallback-to-launcher', () => {
     }
     createLauncher();
 });
+let _lastUdOpen = 0;
 ipcMain.on('open-userdata-folder', () => {
-    const udPath = path.join(process.env.APPDATA || os.homedir(), 'idpk-palubni-pocitac', 'userdata', 'linky');
+    const now = Date.now();
+    if (now - _lastUdOpen < 1000) return;
+    _lastUdOpen = now;
+    const udPath = path.join(process.env.APPDATA || os.homedir(), 'idpk-palubni-pocitac', 'userdata');
     if (!fs.existsSync(udPath)) fs.mkdirSync(udPath, { recursive: true });
     require('electron').shell.openPath(udPath);
 });
@@ -2505,8 +2509,12 @@ ipcMain.on('window-minimize', () => {
 ipcMain.on('window-close', () => {
     app.quit();
 });
+let _lastCrOpen = 0;
 ipcMain.on('open-custom-routes-folder', () => {
-    const crPath = path.join(process.env.APPDATA || os.homedir(), 'idpk-palubni-pocitac', 'userdata', 'data');
+    const now = Date.now();
+    if (now - _lastCrOpen < 1000) return;
+    _lastCrOpen = now;
+    const crPath = path.join(process.env.APPDATA || os.homedir(), 'idpk-palubni-pocitac', 'userdata', 'linky');
     if (!fs.existsSync(crPath)) fs.mkdirSync(crPath, { recursive: true });
     require('electron').shell.openPath(crPath);
 });

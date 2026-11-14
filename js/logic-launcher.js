@@ -744,23 +744,38 @@ async function checkAuthAndInit() {
     const setLauncherVerEl = document.getElementById('settings-launcher-version');
     if (setLauncherVerEl) setLauncherVerEl.innerText = `Verze Launcheru: v${LAUNCHER_VERSION}`;
 
-    try {
-        const isUpdating = await checkForLauncherUpdate();
-        if (isUpdating) return;
-    } catch(e) {
-        console.warn('[LauncherUpdate] Kontrola aktualizace selhala:', e);
-    }
-
-    currentHWID = await getHWID();
-    if (typeof hwidText !== 'undefined' && hwidText) hwidText.innerText = "HWID: " + currentHWID;
-    
     let config = loadConfig();
     if (config.auto_launch === undefined) {
         config.auto_launch = true;
     }
-    // Při novém spuštění aplikace se vždy zruší offline režim, dokud není znovu vyžádán
     config.offline_mode = false;
     saveConfig(config);
+
+    // Okamžité přednačtení z lokální mezipaměti pro nulové zpoždění zobrazení
+    try {
+        const cachedState = loadLauncherCache();
+        if (cachedState && Array.isArray(cachedState.versions) && cachedState.versions.length > 0) {
+            availableVersions = cachedState.versions;
+            if (cachedState.user_role) currentUserRole = cachedState.user_role;
+            if (typeof updateCustomSelectUI === 'function') updateCustomSelectUI(availableVersions);
+        }
+    } catch(_) {}
+
+    // Rychlá paralelní kontrola aktualizace launcheru
+    const updateCheckPromise = checkForLauncherUpdate().catch(e => {
+        console.warn('[LauncherUpdate] Kontrola aktualizace selhala:', e);
+        return false;
+    });
+
+    currentHWID = await getHWID();
+    if (typeof hwidText !== 'undefined' && hwidText) hwidText.innerText = "HWID: " + currentHWID;
+
+    // Pokud je nalezena povinná aktualizace launcheru, přerušíme start a spustíme update
+    const isUpdating = await Promise.race([
+        updateCheckPromise,
+        new Promise(r => setTimeout(() => r(false), 2500))
+    ]);
+    if (isUpdating) return;
 
     if (config.discord_id || config.email) {
         // Uživatel už je přihlášen, pustíme ho dál
@@ -770,6 +785,8 @@ async function checkAuthAndInit() {
             window.LC.showBoot(false);
             window.LC.show('game');
         }
+        const overlay = document.getElementById('initial-loading-overlay');
+        if (overlay) overlay.style.display = 'none';
     } else {
         // Není přihlášen, zobrazit auth
         const overlay = document.getElementById('initial-loading-overlay');
@@ -1238,7 +1255,6 @@ function showLockedScreen(msg) {
 }
 
 async function loadAvailableVersions() {
-    document.getElementById('initial-loading-overlay').style.display = 'none';
     let dbVersions = [];
     isOfflineMode = false;
     const offlineBadge = document.getElementById('offline-badge');
@@ -2258,24 +2274,19 @@ if (btnBuyCoffee) {
     });
 }
 
-// Otevřít složku s uživatelskými daty
-const btnOpenUserdata = document.getElementById('btn-open-userdata');
-if (btnOpenUserdata) {
-    btnOpenUserdata.addEventListener('click', () => {
-        ensureCentralUserDataFolders();
+// Otevírání složek uživatele (bezpečné, jedno otevření bez duplikátů)
+let lastFolderOpenTime = 0;
+function safeOpenFolder(dirPath) {
+    const now = Date.now();
+    if (now - lastFolderOpenTime < 1200) return;
+    lastFolderOpenTime = now;
+    try {
+        if (!fs.existsSync(dirPath)) fs.mkdirSync(dirPath, { recursive: true });
         const { shell } = require('electron');
-        shell.openPath(centralUserDataPath);
-    });
-}
-
-// Otevřít složku vlastních linek
-const btnOpenCustomRoutes = document.getElementById('btn-open-custom-routes');
-if (btnOpenCustomRoutes) {
-    btnOpenCustomRoutes.addEventListener('click', () => {
-        ensureCentralUserDataFolders();
-        const { shell } = require('electron');
-        shell.openPath(path.join(centralUserDataPath, 'linky'));
-    });
+        shell.openPath(dirPath);
+    } catch(err) {
+        console.warn('Chyba při otevírání složky:', err);
+    }
 }
 
 // Vyčistit staré verze
@@ -2771,7 +2782,7 @@ function syncRouteFileToLinky(line) {
     }
 }
 
-async function loadLocalEditorLines() {
+async function loadLocalEditorLines(syncDb = true) {
     try {
         const customDataPath = path.join(centralUserDataPath, 'data');
         const soundsDir = path.join(centralUserDataPath, 'sounds');
@@ -2826,12 +2837,19 @@ async function loadLocalEditorLines() {
                         }
                     }
 
-                    syncRouteFileToLinky(parsed);
+                    // Synchronizovat do linky jen pokud txt ještě neexistuje (nezdržovat start opakovaným zápisem)
+                    const safeNum = String(parsed.num).trim().replace(/[^a-zA-Z0-9_-]/g, '_');
+                    const txtCheck = path.join(centralUserDataPath, 'linky', `${safeNum}_custom.txt`);
+                    if (!fs.existsSync(txtCheck)) {
+                        syncRouteFileToLinky(parsed);
+                    }
                     lines.push(parsed);
                 }
             } catch (err) {}
         }
-        await syncLocalLinesWithDatabase(lines);
+        if (syncDb) {
+            await syncLocalLinesWithDatabase(lines);
+        }
         return lines;
     } catch (e) {
         return [];
@@ -2933,16 +2951,16 @@ async function syncLocalLinesWithDatabase(lines) {
     return lines;
 }
 
-async function loadCommunityEditorLines() {
+async function loadCommunityEditorLines(preloadedLocalLines) {
     try {
-        const res = await safeFetch(`${API_BASE}/api/community-routes`, {}, 6000);
+        const res = await safeFetch(`${API_BASE}/api/community-routes`, {}, 4000);
         if (res.ok) {
             const data = await res.json();
             const list = data.routes || [];
             const customDataPath = path.join(centralUserDataPath, 'data');
             const cfg = loadConfig();
             const currentNick = (cfg && (cfg.discord_nick || cfg.discord_id || '')) || '';
-            const localLines = await loadLocalEditorLines();
+            const localLines = preloadedLocalLines || await loadLocalEditorLines(false);
             const localNumMap = new Map();
             localLines.forEach(l => {
                 localNumMap.set(String(l.num), l);
@@ -3008,7 +3026,7 @@ async function loadCommunityEditorLines() {
 async function loadPendingAdminQueue() {
     if (mapRoleToLC(currentUserRole) !== 'admin') return [];
     try {
-        const res = await safeFetch(`${API_BASE}/api/community-routes/pending`, {}, 6000);
+        const res = await safeFetch(`${API_BASE}/api/community-routes/pending`, {}, 4000);
         if (res.ok) {
             const data = await res.json();
             const queue = (data.queue || []).map(q => {
@@ -3064,15 +3082,22 @@ async function initLCBridgeData() {
             });
         }
         
-        // Editor linky
-        const [myLines, commLines, pendingQueue] = await Promise.all([
-            loadLocalEditorLines(),
-            loadCommunityEditorLines(),
+        // 1. Rychlé načtení lokálních linek z disku (okamžité zobrazení v UI)
+        const myLines = await loadLocalEditorLines(false);
+        if (window.LC.setLines) window.LC.setLines(myLines);
+
+        // 2. Paralelní načtení komunitních linek a admin fronty s využitím již načtených lokálních linek
+        const [commLines, pendingQueue] = await Promise.all([
+            loadCommunityEditorLines(myLines),
             loadPendingAdminQueue()
         ]);
-        if (window.LC.setLines) window.LC.setLines(myLines);
         if (window.LC.setComm) window.LC.setComm(commLines);
         if (window.LC.setQueue) window.LC.setQueue(pendingQueue);
+
+        // 3. Na pozadí ověřit stavy se serverem bez zdržení startu aplikace
+        syncLocalLinesWithDatabase(myLines).then(() => {
+            if (window.LC && window.LC.renderMine) window.LC.renderMine();
+        }).catch(() => {});
 
         // GTFS vyhledávání
         window.LC.setGtfsSearch(async (q) => {
@@ -3516,8 +3541,9 @@ document.addEventListener('lc:line-delete', (e) => {
             const linkyDir = path.join(centralUserDataPath, 'linky');
             if (fs.existsSync(linkyDir)) {
                 const txtFiles = fs.readdirSync(linkyDir);
+                const safeNum = e.detail && e.detail.num ? String(e.detail.num).trim().replace(/[^a-zA-Z0-9_-]/g, '_') : null;
                 txtFiles.forEach(tf => {
-                    if (tf.includes(id)) {
+                    if (tf.includes(id) || (safeNum && tf === `${safeNum}_custom.txt`)) {
                         try { fs.unlinkSync(path.join(linkyDir, tf)); } catch(_) {}
                     }
                 });
@@ -3532,8 +3558,9 @@ document.addEventListener('lc:line-delete', (e) => {
             }
         }
 
-        // Pokud byla linka zveřejněná, nebo uživatel žádá stažení/smazání z komunity
-        if (e.detail && (e.detail.unpublish || e.detail.isPublished || e.detail.deleteAll)) {
+        // Pokud byla linka zveřejněná a autor ji maže/stahuje z komunity (nikoliv pouhá odinstalace stažené cizí linky)
+        const isInstalledOnly = Boolean(e.detail && e.detail.isInstalledOnly);
+        if (!isInstalledOnly && e.detail && (e.detail.unpublish || e.detail.isPublished || (e.detail.deleteAll && !String(id).startsWith('comm_')))) {
             const cfg = loadConfig();
             fetch(`${API_BASE}/api/community-routes/delete`, {
                 method: 'POST',
@@ -3776,11 +3803,13 @@ document.addEventListener('lc:community-download', async (e) => {
 });
 
 document.addEventListener('lc:open-userdata', () => {
-    ipcRenderer.send('open-userdata-folder');
+    ensureCentralUserDataFolders();
+    safeOpenFolder(centralUserDataPath);
 });
 
 document.addEventListener('lc:open-custom-routes', () => {
-    ipcRenderer.send('open-custom-routes-folder');
+    ensureCentralUserDataFolders();
+    safeOpenFolder(path.join(centralUserDataPath, 'linky'));
 });
 
 document.addEventListener('lc:open-url', (e) => {

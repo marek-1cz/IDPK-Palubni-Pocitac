@@ -1009,9 +1009,25 @@ button.chip.dl:hover{border-color:var(--blue);color:#fff}
             <div class="row amber"><div class="ri"><svg class="ic"><use href="#i-coffee"/></svg></div><div class="rt"><b>Podpořte projekt</b><small>Káva pro vývojáře ☕</small></div><button class="btn sm" id="btn-buy-coffee">Podpořit</button></div>
           </div>
           <div class="card">
-            <div class="card-h"><svg class="ic"><use href="#i-folder"/></svg>Složky</div>
-            <div class="row"><div class="ri"><svg class="ic"><use href="#i-folder"/></svg></div><div class="rt"><b>Uživatelská data</b><small>Nastavení, logy a uložené hry</small></div><button class="btn sm" id="btn-open-userdata">Otevřít</button></div>
-            <div class="row"><div class="ri"><svg class="ic"><use href="#i-map"/></svg></div><div class="rt"><b>Vlastní linky</b><small>Soubory .txt s trasami</small></div><button class="btn sm" id="btn-open-custom-routes">Otevřít</button></div>
+            <div class="card-h"><svg class="ic"><use href="#i-folder"/></svg>Složky aplikace</div>
+            <div class="row" style="padding:12px;border-radius:10px;background:rgba(255,255,255,0.02);margin-bottom:8px;">
+              <div class="ri"><svg class="ic"><use href="#i-folder"/></svg></div>
+              <div class="rt" style="flex:1;min-width:0;">
+                <b style="font-size:13.5px;">Uživatelská data</b>
+                <div style="font-size:11.5px;color:var(--dim);margin-top:2px;">Nastavení, logy a uložené konfigurace</div>
+                <div style="font-family:monospace;font-size:10.5px;color:#94a3b8;background:rgba(0,0,0,0.3);padding:3px 8px;border-radius:6px;margin-top:5px;display:inline-block;border:1px solid rgba(255,255,255,0.08);word-break:break-all;">%appdata%\idpk-palubni-pocitac\userdata</div>
+              </div>
+              <button class="btn sm" id="btn-open-userdata" style="font-weight:700;"><svg class="ic"><use href="#i-folder"/></svg> Otevřít složku</button>
+            </div>
+            <div class="row" style="padding:12px;border-radius:10px;background:rgba(255,255,255,0.02);">
+              <div class="ri"><svg class="ic"><use href="#i-map"/></svg></div>
+              <div class="rt" style="flex:1;min-width:0;">
+                <b style="font-size:13.5px;">Vlastní a komunitní linky</b>
+                <div style="font-size:11.5px;color:var(--dim);margin-top:2px;">Textové soubory tras (.txt) pro simulátor</div>
+                <div style="font-family:monospace;font-size:10.5px;color:#94a3b8;background:rgba(0,0,0,0.3);padding:3px 8px;border-radius:6px;margin-top:5px;display:inline-block;border:1px solid rgba(255,255,255,0.08);word-break:break-all;">%appdata%\idpk-palubni-pocitac\userdata\linky</div>
+              </div>
+              <button class="btn sm" id="btn-open-custom-routes" style="font-weight:700;"><svg class="ic"><use href="#i-folder"/></svg> Otevřít linky</button>
+            </div>
           </div>
         </div>
 
@@ -1730,8 +1746,23 @@ const CONFIG = { DEMO: false, REDUCED_FX: false };
   const LVID = { discord: 'login-discord-view', email: 'login-email-view', 'email-code': 'login-email-code-view', 'email-manual': 'login-email-code-manual-view', waiting: 'login-waiting-view', success: 'login-success-view' };
   function setLoginView(v) { LV.forEach((k) => ($(LVID[k]).hidden = k !== v)); $('login-error-message').hidden = true; }
   function showLoginError(t) { const e = $('login-error-message'); e.hidden = true; void e.offsetWidth; $('login-error-text').textContent = t; e.hidden = false; }
-  function showLogin(on) { $('login-overlay').hidden = !on; if (on) $('initial-loading-overlay').hidden = true; }
-  function showBoot(on) { $('initial-loading-overlay').hidden = !on; }
+  function showLogin(on) { $('login-overlay').hidden = !on; if (on) showBoot(false); }
+  function showBoot(on) {
+    const el = $('initial-loading-overlay');
+    if (!el) return;
+    if (on) {
+      el.hidden = false;
+      el.style.display = 'flex';
+      el.style.opacity = '1';
+    } else {
+      el.style.transition = 'opacity 0.25s ease';
+      el.style.opacity = '0';
+      setTimeout(() => {
+        el.hidden = true;
+        el.style.display = 'none';
+      }, 250);
+    }
+  }
   $('link-show-email-login').onclick = () => setLoginView('email');
   $('link-show-discord-login').onclick = () => setLoginView('discord');
   $('btn-start-auth').onclick = () => { const v = $('login-identifier-input').value.trim(); if (!v) return showLoginError('Zadejte své Discord uživatelské jméno.'); $('login-waiting-title').textContent = 'Čekání na ověření…'; setLoginView('waiting'); emit('login', { identifier: v }); };
@@ -2020,6 +2051,7 @@ const CONFIG = { DEMO: false, REDUCED_FX: false };
         }
       } else {
         main += '<button class="btn" disabled style="color:#38bdf8">' + ic('check') + 'Nainstalováno</button>';
+        main += '<button class="btn sm danger ghost" data-a="del" data-id="' + l.id + '" title="Odinstalovat komunitní linku z PC">' + ic('trash') + 'Odinstalovat</button>';
       }
 
       return '<div class="lcard' + (l.id === flashId ? ' flash' : '') + '" style="animation-delay:' + Math.min(i * 40, 300) + 'ms"><div class="top"><span class="numchip">' + esc(l.num) + '</span><div class="tx"><b>' + esc(l.name) + '</b><small>→ ' + esc(l.dest) + '</small></div></div>' +
@@ -2110,6 +2142,25 @@ const CONFIG = { DEMO: false, REDUCED_FX: false };
           emit('line-delete', { id: l.id, num: l.num, isPublished: l.status === 'published' });
         });
       } else if (a === 'del') {
+        if (l.source === 'comm' || String(l.id).startsWith('comm_')) {
+          confirmBox({
+            title: `Odinstalovat linku ${l.num} z PC?`,
+            desc: `Tato komunitní linka bude zcela smazána z vašeho počítače. Můžete si ji kdykoliv znovu stáhnout ze záložky Komunitní linky.`,
+            yes: 'Odinstalovat z PC'
+          }, () => {
+            const sameNumLines = S.lines.filter(x => String(x.num).trim() === String(l.num).trim());
+            const idsToDelete = sameNumLines.map(x => x.id);
+            S.lines = S.lines.filter((x) => !idsToDelete.includes(x.id));
+            delete S._mineActiveVer[String(l.num).trim()];
+            const cItem = (S.comm || []).find(c => String(c.num).trim() === String(l.num).trim() || c.id === l.commId);
+            if (cItem) cItem.state = 'idle';
+            renderMine();
+            renderComm();
+            toast('info', `Linka ${l.num} byla odinstalována z vašeho PC.`);
+            emit('line-delete', { id: l.id, commId: l.commId, num: l.num, isInstalledOnly: true });
+          });
+          return;
+        }
         const sameNumLines = S.lines.filter(x => String(x.num).trim() === String(l.num).trim());
         const hasMultiple = sameNumLines.length > 1;
         const verList = sameNumLines.map(x => x.version || 'V1').join(', ');
@@ -2259,9 +2310,15 @@ const CONFIG = { DEMO: false, REDUCED_FX: false };
       if (c.state === 'idle') {
         btn = '<button class="btn primary" data-id="' + c.id + '">' + ic('download') + 'Stáhnout' + (versions.length > 1 ? ' (' + (c.version || 'V1') + ')' : '') + '</button>';
       } else if (c.state === 'installed') {
-        btn = '<button class="btn" disabled>' + ic('check') + 'Staženo' + (versions.length > 1 ? ' (' + (c.version || 'V1') + ')' : '') + '</button>';
+        btn = '<div style="display:flex;gap:6px;width:100%;">' +
+          '<button class="btn" disabled style="flex:1;">' + ic('check') + 'Staženo' + (versions.length > 1 ? ' (' + (c.version || 'V1') + ')' : '') + '</button>' +
+          '<button class="btn danger ghost" data-del-comm="' + c.id + '" data-num="' + esc(c.num) + '" title="Smazat / odinstalovat staženou linku z PC" style="padding:0 12px;flex-shrink:0;">' + ic('trash') + '</button>' +
+        '</div>';
       } else if (c.state === 'update') {
-        btn = '<button class="btn primary" style="background:#2563eb;font-weight:700;" data-id="' + c.id + '">' + ic('refresh') + 'Aktualizovat na ' + (c.version || 'V2') + '</button>';
+        btn = '<div style="display:flex;gap:6px;width:100%;">' +
+          '<button class="btn primary" style="background:#2563eb;font-weight:700;flex:1;" data-id="' + c.id + '">' + ic('refresh') + 'Aktualizovat na ' + (c.version || 'V2') + '</button>' +
+          '<button class="btn danger ghost" data-del-comm="' + c.id + '" data-num="' + esc(c.num) + '" title="Smazat / odinstalovat staženou linku z PC" style="padding:0 12px;flex-shrink:0;">' + ic('trash') + '</button>' +
+        '</div>';
       } else if (c.state === 'busy') {
         btn = '<div class="mini"><i style="width:' + (c.p || 0) + '%"></i></div>';
       }
@@ -2321,14 +2378,26 @@ const CONFIG = { DEMO: false, REDUCED_FX: false };
     $$('#cm-grid button[data-del-comm]').forEach((b) => (b.onclick = () => {
       const cid = b.dataset.delComm;
       const num = b.dataset.num;
+      const targetComm = (S.comm || []).find(x => x.id === cid);
+      const isDeletedByAuthor = targetComm && targetComm.is_deleted_by_author;
       confirmBox({
         title: `Odinstalovat linku ${num} z PC?`,
-        desc: `Tato linka již byla autorem smazána z komunity. Odinstalováním ji zcela smažete ze svého počítače.`,
+        desc: isDeletedByAuthor
+          ? `Tato linka již byla autorem smazána z komunity. Odinstalováním ji zcela smažete ze svého počítače.`
+          : `Tato komunitní linka bude odinstalována a smazána z vašeho počítače. Z komunitní nabídky se nesmaže a můžete si ji kdykoliv znovu stáhnout.`,
         yes: 'Odinstalovat z PC'
       }, () => {
-        emit('line-delete', { id: 'comm_' + cid, commId: cid, num: num });
-        S.comm = S.comm.filter(x => x.id !== cid);
+        emit('line-delete', { id: 'comm_' + cid, commId: cid, num: num, isInstalledOnly: true });
+        if (isDeletedByAuthor) {
+          S.comm = S.comm.filter(x => x.id !== cid);
+        } else if (targetComm) {
+          targetComm.state = 'idle';
+        }
+        if (S.lines) {
+          S.lines = S.lines.filter(x => x.id !== 'comm_' + cid && x.commId !== cid && String(x.num).trim() !== String(num).trim());
+        }
         renderComm();
+        renderMine();
         toast('info', `Linka ${num} byla odinstalována z vašeho PC.`);
       });
     }));
