@@ -2848,39 +2848,61 @@ async function syncLocalLinesWithDatabase(lines) {
             }
         } catch(e) {}
 
-        if (!serverRoutes.length) {
-            try {
-                const pubRes = await safeFetch(`${API_BASE}/api/community-routes`, {}, 5000);
-                if (pubRes.ok) {
-                    const dataPub = await pubRes.json();
-                    if (dataPub.success && Array.isArray(dataPub.routes)) {
-                        serverRoutes = dataPub.routes;
+        // Fallback: také zkusit veřejný seznam schválených komunitních linek
+        try {
+            const pubRes = await safeFetch(`${API_BASE}/api/community-routes`, {}, 5000);
+            if (pubRes.ok) {
+                const dataPub = await pubRes.json();
+                if (dataPub.success && Array.isArray(dataPub.routes)) {
+                    for (const pr of dataPub.routes) {
+                        if (!serverRoutes.some(sr => String(sr.id) === String(pr.id))) {
+                            serverRoutes.push({ ...pr, status: pr.status || 'approved' });
+                        }
                     }
                 }
-            } catch(e) {}
-        }
+            }
+        } catch(e) {}
 
         if (serverRoutes.length > 0) {
             for (const line of lines) {
                 if (line.source === 'comm' || String(line.id).startsWith('comm_')) continue;
-                const match = serverRoutes.find(r => 
-                    String(r.route_number).trim() === String(line.num).trim() ||
-                    (r.route_name && line.name && r.route_name.trim().toLowerCase() === line.name.trim().toLowerCase())
+                
+                // Filtrujeme aktivní serverové záznamy
+                const activeServerRoutes = serverRoutes.filter(r => r.is_deleted_by_author !== 1 && r.status !== 'deleted_by_user');
+                
+                // 1. Zkusit shodu čísla linky A verze
+                let match = activeServerRoutes.find(r => 
+                    String(r.route_number).trim() === String(line.num).trim() &&
+                    String(r.version || 'V1').toUpperCase() === String(line.version || 'V1').toUpperCase()
                 );
+                // 2. Pokud není přesná shoda verze, zkusit shodu čísla linky
+                if (!match) {
+                    match = activeServerRoutes.find(r => 
+                        String(r.route_number).trim() === String(line.num).trim()
+                    );
+                }
+
                 if (match) {
                     let changed = false;
-                    if (match.status === 'approved' && line.status !== 'published') {
-                        line.status = 'published';
-                        changed = true;
-                    } else if (match.status === 'rejected' && line.status !== 'rejected') {
-                        line.status = 'rejected';
-                        line.reject = match.reject_reason || 'Linka byla zamítnuta administrátorem.';
-                        changed = true;
-                    } else if (match.status === 'pending' && line.status !== 'pending' && line.status !== 'published') {
-                        line.status = 'pending';
-                        changed = true;
+                    const sStatus = match.status || 'approved';
+                    if (sStatus === 'approved') {
+                        if (line.status !== 'published') {
+                            line.status = 'published';
+                            changed = true;
+                        }
+                    } else if (sStatus === 'rejected') {
+                        if (line.status !== 'rejected') {
+                            line.status = 'rejected';
+                            line.reject = match.reject_reason || 'Linka byla zamítnuta administrátorem.';
+                            changed = true;
+                        }
+                    } else if (sStatus === 'pending') {
+                        if (line.status !== 'pending' && line.status !== 'published') {
+                            line.status = 'pending';
+                            changed = true;
+                        }
                     }
-                    if (match.version && line.version !== match.version) {
+                    if (match.version && line.version !== match.version && !match.version.startsWith('V1') && (line.version === 'V1' || !line.version)) {
                         line.version = match.version;
                         changed = true;
                     }
@@ -3549,6 +3571,7 @@ document.addEventListener('lc:line-publish', async (e) => {
         formData.append('legal_confirmed', '1');
         formData.append('route_number', line.num);
         formData.append('route_name', line.name || `Linka ${line.num}`);
+        formData.append('version', line.version || 'V1');
         formData.append('route_type', type || 'gtfs');
         formData.append('voice_type', voice || 'synt');
         formData.append('system_tag', (tags && tags[0]) || 'IDPK');

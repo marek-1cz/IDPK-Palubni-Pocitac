@@ -1897,6 +1897,7 @@ const CONFIG = { DEMO: false, REDUCED_FX: false };
   }
   window.__syncAdmin = syncAdminTab;
 
+  S._mineActiveVer = S._mineActiveVer || {};
   function renderMine(flashId) {
     const q = $('ed-search').value.trim().toLowerCase(), f = S.mineFilter;
     $('cnt-mine').textContent = S.lines.length;
@@ -1906,27 +1907,84 @@ const CONFIG = { DEMO: false, REDUCED_FX: false };
       l.status === f ||
       (f === 'local' && (l.status === 'rejected' || l.status === 'local'))
     ));
-    $('mine-grid').innerHTML = arr.map((l, i) => {
+
+    // Seskupení do jednoho okénka podle čísla linky (žádné duplicity!)
+    const groups = {};
+    for (const l of arr) {
+      const numKey = String(l.num).trim();
+      if (!groups[numKey]) groups[numKey] = [];
+      groups[numKey].push(l);
+    }
+
+    const groupKeys = Object.keys(groups);
+    $('mine-grid').innerHTML = groupKeys.map((numKey, i) => {
+      const vers = groups[numKey];
+      // Seřadit verze podle čísla verze sestupně (V3, V2, V1)
+      vers.sort((a, b) => {
+        const vA = parseInt(String(a.version || 'V1').replace(/\D/g, ''), 10) || 1;
+        const vB = parseInt(String(b.version || 'V1').replace(/\D/g, ''), 10) || 1;
+        return vB - vA;
+      });
+
+      // Aktivní verze: buď zvolená uživatelem, nebo flashId, nebo nejnovější
+      let activeLine = vers.find(x => x.id === S._mineActiveVer[numKey]);
+      if (flashId && vers.some(x => x.id === flashId)) {
+        activeLine = vers.find(x => x.id === flashId);
+        S._mineActiveVer[numKey] = activeLine.id;
+      }
+      if (!activeLine) {
+        activeLine = vers[0];
+        S._mineActiveVer[numKey] = activeLine.id;
+      }
+
+      const l = activeLine;
       const st = STAT[l.status] || ['Neznámý', ''], a = annOf(l), full = a === l.stops.length;
       const vBadge = '<span class="badge" style="background:rgba(56,189,248,0.2);color:#38bdf8;font-weight:700;font-size:11px;margin-left:4px;">' + esc(l.version || 'V1') + '</span>';
+
+      // Přepínač verzí pokud jich je více
+      let verSwitchHtml = '';
+      if (vers.length > 1) {
+        verSwitchHtml = '<div class="ver-switcher" style="display:flex;gap:4px;align-items:center;flex-wrap:wrap;margin:4px 0 8px;">' +
+          '<span style="font-size:11px;color:var(--dim);font-weight:700;margin-right:2px;">Verze:</span>' +
+          vers.map(vLine => {
+            const isAct = vLine.id === l.id;
+            return '<span class="chip ' + (isAct ? 'on' : '') + '" data-mine-pick-ver="' + vLine.id + '" data-num="' + esc(numKey) + '" style="padding:2px 8px;font-size:11px;font-weight:700;cursor:pointer;border-radius:6px;' + (isAct ? 'background:#2563eb;color:#fff;border-color:transparent;' : 'background:rgba(255,255,255,0.06);color:var(--dim);border:1px solid rgba(255,255,255,0.1);') + '">' + esc(vLine.version || 'V1') + '</span>';
+          }).join('') +
+          '<button class="btn xs ghost danger" data-a="del-ver" data-id="' + l.id + '" title="Smazat pouze tuto zvolenou verzi (' + esc(l.version || 'V1') + ')" style="padding:1px 7px;font-size:10.5px;height:22px;margin-left:auto;border-radius:6px;">Smazat ' + esc(l.version || 'V1') + '</button>' +
+        '</div>';
+      }
+
       let main = '<button class="btn" data-a="edit" data-id="' + l.id + '">' + ic('edit') + (l.source === 'comm' ? 'Zobrazit' : 'Upravit') + '</button>';
       main += '<button class="btn sm ghost" data-a="pv" data-id="' + l.id + '" title="Náhled trasy a hlášení">' + ic('map') + 'Náhled</button>';
       if (l.source !== 'comm') {
         if (l.status === 'local' || l.status === 'rejected') main += '<button class="btn primary" data-a="pub" data-id="' + l.id + '">' + ic('users') + 'Zveřejnit</button>';
-        else if (l.status === 'pending') main += '<button class="btn" disabled>' + ic('clock') + 'Čeká na schválení</button>';
+        else if (l.status === 'pending') main += '<button class="btn" disabled style="opacity:0.9;">' + ic('clock') + 'Čeká na schválení</button>';
         else {
-          main += '<button class="btn" disabled style="color:#93c5fd">' + ic('check') + 'Zveřejněno</button>';
-          main += '<button class="btn sm ghost danger" data-a="unpub" data-id="' + l.id + '" title="Stáhnout linku z veřejné nabídky komunity">Stáhnout z komunity</button>';
+          main += '<button class="btn" disabled style="color:#93c5fd;font-weight:700;">' + ic('check') + 'Zveřejněno</button>';
+          main += '<button class="btn sm ghost danger" data-a="unpub" data-id="' + l.id + '" title="Stáhnout tuto verzi z veřejné nabídky komunity">Stáhnout z komunity</button>';
         }
       } else {
         main += '<button class="btn" disabled style="color:#38bdf8">' + ic('check') + 'Nainstalováno</button>';
       }
+
       return '<div class="lcard' + (l.id === flashId ? ' flash' : '') + '" style="animation-delay:' + Math.min(i * 40, 300) + 'ms"><div class="top"><span class="numchip">' + esc(l.num) + '</span><div class="tx"><b>' + esc(l.name) + '</b><small>→ ' + esc(l.dest) + '</small></div></div>' +
         '<div class="meta"><span class="badge ' + (l.source === 'comm' ? 'c' : 'b') + '">' + (SRC[l.source] || 'Komunita') + '</span><span class="badge ' + st[1] + '">' + st[0] + '</span>' + vBadge + (l.scope === 'cr' ? '<span class="badge c">Data ČR</span>' : '') + '</div>' +
+        verSwitchHtml +
         '<div class="meta"><span>' + ic('map') + ' ' + l.stops.length + ' zastávek</span><span class="' + (full ? 'okt2' : 'warnt2') + '">' + ic('sound') + ' hlášení ' + a + '/' + l.stops.length + '</span>' + (l.trips && l.trips.length ? '<span>' + ic('clock') + ' ' + l.trips.length + ' spojů</span>' : '') + '</div>' +
         (l.status === 'rejected' ? '<div class="rej"><b>Zpráva od správce:</b> ' + esc(l.reject || '—') + '</div>' : '') +
-        '<div class="acts2"><div class="acts2-main">' + main + '</div><div class="acts2-icons"><button class="btn ibx" data-a="export" data-id="' + l.id + '" title="Exportovat balíček (.zip)">' + ic('download') + '</button><button class="btn danger ibx" data-a="del" data-id="' + l.id + '" title="Smazat">' + ic('trash') + '</button></div></div></div>';
+        '<div class="acts2"><div class="acts2-main">' + main + '</div><div class="acts2-icons"><button class="btn ibx" data-a="export" data-id="' + l.id + '" title="Exportovat balíček (.zip)">' + ic('download') + '</button><button class="btn danger ibx" data-a="del" data-id="' + l.id + '" title="' + (vers.length > 1 ? 'Smazat linku a všechny její verze' : 'Smazat linku') + '">' + ic('trash') + '</button></div></div></div>';
     }).join('') || '<div class="empty"><b>Zatím tu nic není</b>Vytvořte si první linku tlačítkem „Vytvořit vlastní linku“ nebo si stáhněte komunitní linku.</div>';
+
+    // Obsluha přepínače verzí
+    $$('#mine-grid [data-mine-pick-ver]').forEach((el) => {
+      el.onclick = (e) => {
+        e.stopPropagation();
+        const vId = el.dataset.minePickVer;
+        const num = el.dataset.num;
+        S._mineActiveVer[num] = vId;
+        renderMine(vId);
+      };
+    });
 
     $$('#mine-grid [data-a]').forEach((b) => (b.onclick = () => {
       const l = S.lines.find((x) => x.id === b.dataset.id), a = b.dataset.a;
@@ -1940,8 +1998,8 @@ const CONFIG = { DEMO: false, REDUCED_FX: false };
           const nextV = `V${vNum + 1}`;
           confirmBox({
             title: `Upravit zveřejněnou linku ${l.num}?`,
-            desc: `Tato linka je již schválena a zveřejněna v komunitních linkách jako ${curV}. Přejete si vytvořit novou verzi (${nextV}) k úpravě a novému odeslání ke schválení do komunity, nebo ji upravit pouze lokálně pro sebe?`,
-            yes: `Vytvořit novou verzi (${nextV})`
+            desc: `Linka ${l.num} je již zveřejněna v komunitě jako ${curV}. Přejete si vytvořit novou verzi (${nextV}), která bude po úpravě znovu odeslána ke schválení administrátorem, nebo chcete linku pouze lokálně upravit pro sebe?`,
+            yes: `Vytvořit a upravit novou verzi (${nextV})`
           }, () => {
             const newId = `user_${l.num}_${Date.now()}`;
             const newLine = JSON.parse(JSON.stringify(l));
@@ -1952,8 +2010,9 @@ const CONFIG = { DEMO: false, REDUCED_FX: false };
             newLine.is_custom = true;
             newLine.parent_version = curV;
             S.lines.push(newLine);
+            S._mineActiveVer[String(l.num).trim()] = newId;
             emit('line-save', { line: newLine });
-            renderMine(newLine.id);
+            renderMine(newId);
             openEdit(newLine);
           });
         } else {
@@ -1963,8 +2022,8 @@ const CONFIG = { DEMO: false, REDUCED_FX: false };
         openPublish(l);
       } else if (a === 'unpub') {
         confirmBox({
-          title: `Stáhnout linku ${l.num} z komunity?`,
-          desc: `Linka (${l.version || 'V1'}) bude stažena z veřejné nabídky komunitních linek. Zůstane vám uložena v počítači jako lokální linka.`,
+          title: `Stáhnout linku ${l.num} (${l.version || 'V1'}) z komunity?`,
+          desc: `Linka bude stažena z veřejné nabídky komunitních linek v databázi. Zůstane vám uložena v počítači pro vlastní hraní.`,
           yes: 'Stáhnout z komunity'
         }, () => {
           l.status = 'local';
@@ -1975,26 +2034,41 @@ const CONFIG = { DEMO: false, REDUCED_FX: false };
         });
       } else if (a === 'export') {
         emit('line-export', { id: l.id });
+      } else if (a === 'del-ver') {
+        const curVer = l.version || 'V1';
+        confirmBox({
+          title: `Smazat pouze verzi ${curVer} linky ${l.num}?`,
+          desc: `Tato konkrétní verze (${curVer}) bude odstraněna z disku. Ostatní verze linky zůstanou zachovány.`,
+          yes: `Smazat verzi ${curVer}`
+        }, () => {
+          S.lines = S.lines.filter((x) => x.id !== l.id);
+          delete S._mineActiveVer[String(l.num).trim()];
+          renderMine();
+          toast('info', `Verze ${curVer} linky ${l.num} smazána`);
+          emit('line-delete', { id: l.id, num: l.num, isPublished: l.status === 'published' });
+        });
       } else if (a === 'del') {
         const sameNumLines = S.lines.filter(x => String(x.num).trim() === String(l.num).trim());
         const hasMultiple = sameNumLines.length > 1;
-        const curVer = l.version || 'V1';
+        const verList = sameNumLines.map(x => x.version || 'V1').join(', ');
         confirmBox({
-          title: hasMultiple ? `Smazat linku ${l.num} (${curVer})?` : `Smazat linku ${l.num}?`,
+          title: `Smazat linku ${l.num}?`,
           desc: hasMultiple
-            ? `Linka má více verzí (${sameNumLines.map(x => x.version || 'V1').join(', ')}). Smazáním bude odstraněna verze ${curVer}.`
-            : `Linka bude odstraněna z vašeho počítače (a ze hry).`,
-          yes: hasMultiple ? `Smazat pouze verzi ${curVer}` : 'Smazat linku'
+            ? `Tato akce smaže linku ${l.num} včetně všech jejích verzí (${verList}) z vašeho počítače a stáhne ji z komunitní nabídky.`
+            : `Linka ${l.num} bude odstraněna z vašeho počítače i ze simulátoru.`,
+          yes: hasMultiple ? 'Smazat všechny verze' : 'Smazat linku'
         }, () => {
-          S.lines = S.lines.filter((x) => x.id !== l.id);
+          const idsToDelete = sameNumLines.map(x => x.id);
+          S.lines = S.lines.filter((x) => !idsToDelete.includes(x.id));
+          delete S._mineActiveVer[String(l.num).trim()];
           renderMine();
-          toast('info', `Linka ${l.num} (${curVer}) smazána`);
-          emit('line-delete', { id: l.id, num: l.num, isPublished: l.status === 'published' });
+          toast('info', `Linka ${l.num} smazána`);
+          emit('line-delete', { id: l.id, num: l.num, deleteAll: true, isPublished: l.status === 'published' });
         });
       }
     }));
   }
-  $('ed-search').oninput = () => renderMine();
+  $ $('ed-search').oninput = () => renderMine();
   $$('#mine-chips .chip').forEach((b) => (b.onclick = () => { S.mineFilter = b.dataset.f; $$('#mine-chips .chip').forEach((x) => x.classList.toggle('on', x === b)); renderMine(); }));
 
   /* ---------- komunita ---------- */
