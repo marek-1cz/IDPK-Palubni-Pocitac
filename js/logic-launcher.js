@@ -310,17 +310,37 @@ const loginWaitingView = document.getElementById('login-waiting-view');
 const btnStartAuth = document.getElementById('btn-start-auth');
 const btnCancelAuth = document.getElementById('btn-cancel-auth');
 
+const loginMethodSeg = document.getElementById('login-method-seg');
+const discordSegBtn = loginMethodSeg ? loginMethodSeg.querySelector('button[data-v="discord"]') : null;
+const emailSegBtn = loginMethodSeg ? loginMethodSeg.querySelector('button[data-v="email"]') : null;
+const discordSuggestionsBox = document.getElementById('discord-suggestions-box');
+const discordSuggestionsList = document.getElementById('discord-suggestions-list');
+const loginTargetUser = document.getElementById('login-target-user');
+
 const loginEmailView = document.getElementById('login-email-view');
 const loginEmailCodeView = document.getElementById('login-email-code-view');
 const linkShowEmailLogin = document.getElementById('link-show-email-login');
 const linkShowDiscordLogin = document.getElementById('link-show-discord-login');
 const inputEmail = document.getElementById('login-email-input');
+const inputNick = document.getElementById('login-nick-input');
+const emailModeSeg = document.getElementById('email-mode');
+const emailHint = document.getElementById('email-hint');
 const btnStartEmailAuth = document.getElementById('btn-start-email-auth');
 const btnCancelEmailAuth = document.getElementById('btn-cancel-email-auth');
 const btnResendEmailAuth = document.getElementById('btn-resend-email-auth');
 
 const inputIdentifier = document.getElementById('login-identifier-input');
 const hwidText = document.getElementById('login-hwid-text');
+
+function escapeHtml(str) {
+    if (!str) return '';
+    return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+}
 
 
 
@@ -331,6 +351,13 @@ inputIdentifier.addEventListener('keydown', (e) => {
 inputEmail.addEventListener('keydown', (e) => {
     if (e.key === 'Enter') btnStartEmailAuth.click();
 });
+if (inputNick) {
+    inputNick.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+            if (inputEmail) inputEmail.focus();
+        }
+    });
+}
 
 let authPollInterval = null;
 let denialCount = parseInt(localStorage.getItem('authDenialCount') || '0', 10);
@@ -786,73 +813,170 @@ async function checkAuthAndInit() {
             window.LC.show('game');
         }
         const overlay = document.getElementById('initial-loading-overlay');
-        if (overlay) overlay.style.display = 'none';
+        if (overlay) {
+            overlay.hidden = true;
+            overlay.style.display = 'none';
+        }
     } else {
-        // Není přihlášen, zobrazit auth
-        const overlay = document.getElementById('initial-loading-overlay');
-        if (overlay) overlay.style.display = 'none';
-        if (typeof loginOverlay !== 'undefined' && loginOverlay) loginOverlay.style.display = 'flex';
+        // Není přihlášen, okamžitě zobrazit login overlay BEZ probliknutí rozhraní launcheru
+        if (typeof loginOverlay !== 'undefined' && loginOverlay) {
+            loginOverlay.hidden = false;
+            loginOverlay.removeAttribute('hidden');
+            loginOverlay.style.display = 'flex';
+        }
         showAuthView('discord');
-        if (typeof initLCBridgeData === 'function') await initLCBridgeData();
         if (window.LC) {
-            window.LC.showBoot(false);
             window.LC.showLogin(true);
             window.LC.setLoginView('discord');
             window.LC.setUser({ hwid: currentHWID });
         }
+        const overlay = document.getElementById('initial-loading-overlay');
+        if (overlay) {
+            overlay.hidden = true;
+            overlay.style.display = 'none';
+        }
+        if (typeof initLCBridgeData === 'function') await initLCBridgeData();
     }
 }
 
 function showAuthView(viewName) {
     hideLoginError();
-    loginDiscordView.style.display = 'none';
-    loginWaitingView.style.display = 'none';
-    loginEmailView.style.display = 'none';
-    loginEmailCodeView.style.display = 'none';
-    const vSucc = document.getElementById('login-success-view'); if (vSucc) vSucc.style.display = 'none';
-    const titleElT = document.querySelector('#login-overlay > div > div:first-child'); if (titleElT && viewName !== 'success') titleElT.style.display = 'block';
-    if (viewName === 'discord') loginDiscordView.style.display = 'flex';
-    if (viewName === 'waiting') loginWaitingView.style.display = 'flex';
-    if (viewName === 'email') loginEmailView.style.display = 'flex';
-    if (viewName === 'emailCode') loginEmailCodeView.style.display = 'flex';
-    if (viewName === 'success') {
-        const v = document.getElementById('login-success-view');
-        if (v) v.style.display = 'flex';
-        document.querySelector('#login-overlay > div > div:first-child').style.display = 'none'; // hide title PŘIHLÁŠENÍ DO SYSTÉMU
+    const views = [
+        loginDiscordView,
+        loginWaitingView,
+        loginEmailView,
+        loginEmailCodeView,
+        document.getElementById('login-email-code-manual-view'),
+        document.getElementById('login-success-view')
+    ];
+    views.forEach(v => {
+        if (v) {
+            v.hidden = true;
+            v.style.display = 'none';
+        }
+    });
+
+    // Segmentovaný přepínač (Discord DM vs E-mail)
+    if (loginMethodSeg) {
+        if (viewName === 'discord') {
+            loginMethodSeg.style.display = 'grid';
+            loginMethodSeg.dataset.v = 'discord';
+            if (discordSegBtn) discordSegBtn.setAttribute('aria-selected', 'true');
+            if (emailSegBtn) emailSegBtn.setAttribute('aria-selected', 'false');
+        } else if (viewName === 'email') {
+            loginMethodSeg.style.display = 'grid';
+            loginMethodSeg.dataset.v = 'email';
+            if (emailSegBtn) emailSegBtn.setAttribute('aria-selected', 'true');
+            if (discordSegBtn) discordSegBtn.setAttribute('aria-selected', 'false');
+        } else {
+            loginMethodSeg.style.display = 'none';
+        }
     }
-    if (viewName === 'emailCodeManual') {
-        const v = document.getElementById('login-email-code-manual-view');
-        if (v) v.style.display = 'flex';
+
+    let targetEl = null;
+    if (viewName === 'discord') targetEl = loginDiscordView;
+    else if (viewName === 'waiting') targetEl = loginWaitingView;
+    else if (viewName === 'email') targetEl = loginEmailView;
+    else if (viewName === 'emailCode') targetEl = loginEmailCodeView;
+    else if (viewName === 'emailCodeManual') targetEl = document.getElementById('login-email-code-manual-view');
+    else if (viewName === 'success') targetEl = document.getElementById('login-success-view');
+
+    if (targetEl) {
+        targetEl.hidden = false;
+        targetEl.removeAttribute('hidden');
+        targetEl.style.display = 'flex';
     }
-    
-    // Zajištění, že se nezasekne disabled stav (např. při reloadu stránky)
+
+    const titleElT = document.querySelector('#login-overlay .lg-top');
+    if (titleElT) {
+        titleElT.style.display = (viewName === 'success') ? 'none' : 'block';
+    }
+
+    // Zajištění stavů tlačítek a inputů
     let isLocked = (lockoutEndTime > Date.now());
     inputIdentifier.disabled = isLocked;
-    inputEmail.disabled = false; // email is separate
+    inputEmail.disabled = false;
+    if (inputNick) inputNick.disabled = false;
     btnStartAuth.disabled = isLocked;
     btnStartEmailAuth.disabled = false;
-    btnStartEmailAuth.innerText = 'Odeslat přihlašovací odkaz';
+    btnStartEmailAuth.innerText = (currentEmailMode === 'signup') ? 'Vytvořit účet a poslat kód' : 'Poslat přihlašovací odkaz';
 }
 
-linkShowEmailLogin.addEventListener('click', (e) => {
-    e.preventDefault();
-    showAuthView('email');
-});
+if (discordSegBtn) {
+    discordSegBtn.addEventListener('click', () => {
+        showAuthView('discord');
+    });
+}
+if (emailSegBtn) {
+    emailSegBtn.addEventListener('click', () => {
+        showAuthView('email');
+    });
+}
 
-linkShowDiscordLogin.addEventListener('click', (e) => {
-    e.preventDefault();
-    showAuthView('discord');
-});
+if (linkShowEmailLogin) {
+    linkShowEmailLogin.addEventListener('click', (e) => {
+        e.preventDefault();
+        showAuthView('email');
+    });
+}
+if (linkShowDiscordLogin) {
+    linkShowDiscordLogin.addEventListener('click', (e) => {
+        e.preventDefault();
+        showAuthView('discord');
+    });
+}
+
+// Přepínání módu v E-mail sekci (Přihlásit se vs Vytvořit účet)
+let currentEmailMode = 'login';
+if (emailModeSeg) {
+    emailModeSeg.querySelectorAll('button').forEach(btn => {
+        btn.addEventListener('click', () => {
+            emailModeSeg.querySelectorAll('button').forEach(b => b.classList.remove('on'));
+            btn.classList.add('on');
+            currentEmailMode = btn.dataset.m || 'login';
+            if (currentEmailMode === 'signup') {
+                if (inputNick) {
+                    inputNick.hidden = false;
+                    inputNick.removeAttribute('hidden');
+                    inputNick.style.display = 'block';
+                }
+                if (emailHint) emailHint.innerHTML = 'Zvolte si přezdívku a zadejte e-mail. Na e-mail vám přijde <b>ověřovací odkaz a kód</b> k registraci.';
+                if (btnStartEmailAuth) btnStartEmailAuth.innerText = 'Vytvořit účet a poslat kód';
+            } else {
+                if (inputNick) {
+                    inputNick.hidden = true;
+                    inputNick.style.display = 'none';
+                    inputNick.value = '';
+                }
+                if (emailHint) emailHint.innerHTML = 'Zadejte e-mail, se kterým jste se registrovali. Pošleme Vám <b>přihlašovací odkaz a kód</b>.';
+                if (btnStartEmailAuth) btnStartEmailAuth.innerText = 'Poslat přihlašovací odkaz';
+            }
+            hideLoginError();
+        });
+    });
+}
 
 btnStartEmailAuth.addEventListener('click', async () => {
-    const inputNick = document.getElementById('login-nick-input');
     const nick = inputNick ? inputNick.value.trim() : '';
     const email = inputEmail.value.trim();
-    if (!nick || nick.length < 2) {
-        showLoginError("Zadejte prosím svou přezdívku (alespoň 2 znaky)!");
-        return;
+    
+    if (currentEmailMode === 'signup') {
+        if (!nick || nick.length < 3) {
+            showLoginError("Přezdívka musí mít alespoň 3 znaky!");
+            return;
+        }
+        if (nick.length > 24) {
+            showLoginError("Přezdívka může mít maximálně 24 znaků!");
+            return;
+        }
+        const nickRegex = /^[a-zA-Z0-9_\-\.\ áčďéěíňóřšťúůýžÁČĎÉĚÍŇÓŘŠŤÚŮÝŽ]+$/;
+        if (!nickRegex.test(nick)) {
+            showLoginError("Přezdívka obsahuje nepovolené znaky. Použijte písmena, čísla, mezeru, tečku nebo pomlčku.");
+            return;
+        }
     }
-    if (!email || !email.includes('@')) {
+    
+    if (!email || !email.includes('@') || email.length < 5) {
         showLoginError("Zadejte platný e-mail!");
         return;
     }
@@ -860,20 +984,19 @@ btnStartEmailAuth.addEventListener('click', async () => {
     btnStartEmailAuth.disabled = true;
     btnStartEmailAuth.innerText = 'ODESÍLÁM...';
     
-    let emailAuthOldToken = null;
-    try {
-        const pollInitRes = await fetch(`${API_BASE}/api/launcher/email_poll`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email }) }); const pollInitData = await pollInitRes.json(); emailAuthOldToken = pollInitData.status === 'success' ? pollInitData.web_session_token : null;
-    } catch(e) {}
-    
     try {
         const res = await fetch(`${API_BASE}/api/auth/email/request`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ email: email, nick: nick, intent: 'app_login' })
+            body: JSON.stringify({
+                email: email,
+                nick: nick || '',
+                intent: currentEmailMode === 'signup' ? 'signup' : 'app_login'
+            })
         });
         
         const data = await res.json();
-        if (data.success || res.ok) {
+        if (data.status === 'success' || data.success || res.ok) {
             window.lastEmailSentAt = Date.now();
             if (window.emailAuthTimeoutTimer) clearTimeout(window.emailAuthTimeoutTimer);
             window.emailAuthTimeoutTimer = setTimeout(() => {
@@ -884,8 +1007,6 @@ btnStartEmailAuth.addEventListener('click', async () => {
             showAuthView('emailCode');
             
             const retryBtns = document.getElementById('email-retry-buttons');
-            const statusEl = document.getElementById('email-waiting-status');
-            
             if (retryBtns) {
                 retryBtns.style.display = 'none';
                 if (window.retryBtnsTimeout) clearTimeout(window.retryBtnsTimeout);
@@ -898,11 +1019,11 @@ btnStartEmailAuth.addEventListener('click', async () => {
             showLoginError(data.message || "Nepodařilo se odeslat odkaz na e-mail.");
         }
     } catch (e) {
-        showLoginError("Chyba spojení s API.");
+        showLoginError("Chyba spojení s API serverem.");
     }
     
     btnStartEmailAuth.disabled = false;
-    btnStartEmailAuth.innerText = 'Odeslat přihlašovací odkaz';
+    btnStartEmailAuth.innerText = (currentEmailMode === 'signup') ? 'Vytvořit účet a poslat kód' : 'Poslat přihlašovací odkaz';
 });
 
 function pollAuthEmail(email) {
@@ -930,10 +1051,12 @@ function pollAuthEmail(email) {
                 config.discord_nick = pollData.nick || pollData.email;
                 config.email = pollData.email;
                 saveConfig(config);
+                showAuthView('success');
                 setTimeout(() => {
                     loginOverlay.style.display = 'none';
+                    loginOverlay.hidden = true;
                     initLauncher(config);
-                }, 1500);
+                }, 5000);
             }
         } catch(_) {}
     }, 4000);
@@ -980,8 +1103,12 @@ if (btnVerifyEmailCodeManual) {
                 config.discord_nick = data.nick || data.email;
                 config.email = data.email;
                 saveConfig(config);
-                loginOverlay.style.display = 'none';
-                initLauncher(config);
+                showAuthView('success');
+                setTimeout(() => {
+                    loginOverlay.style.display = 'none';
+                    loginOverlay.hidden = true;
+                    initLauncher(config);
+                }, 5000);
             } else {
                 showLoginError("Neplatný kód nebo vypršela platnost.");
                 if (inputCode) inputCode.value = '';
@@ -1012,7 +1139,7 @@ if (btnCancelEmailManual) {
 
 btnCancelEmailAuth.addEventListener('click', () => {
     if (window.emailPollInterval) clearInterval(window.emailPollInterval);
-    showAuthView('discord');
+    showAuthView('email');
 });
 
 document.getElementById('btn-logout').addEventListener('click', () => {
@@ -1035,11 +1162,17 @@ btnCancelAuth.addEventListener('click', () => {
 
 btnStartAuth.addEventListener('click', async () => {
     const val = inputIdentifier.value.trim();
-    if (!val) { showLoginError("Zadejte ID nebo Nick!"); return; }
+    if (!val) { showLoginError("Zadejte Discord uživatelské jméno nebo ID!"); return; }
     
+    if (discordSuggestionsBox) {
+        discordSuggestionsBox.hidden = true;
+        if (discordSuggestionsList) discordSuggestionsList.innerHTML = '';
+    }
+
     inputIdentifier.disabled = true;
     let titleEl = document.getElementById('login-waiting-title');
     if (titleEl) titleEl.innerHTML = '<i class="fas fa-paper-plane" style="margin-right: 8px;"></i>Odesílám požadavek...';
+    if (loginTargetUser) loginTargetUser.textContent = val;
     showAuthView('waiting');
 
     try {
@@ -1060,19 +1193,39 @@ btnStartAuth.addEventListener('click', async () => {
         const fixedText = textData.replace(/"discord_id":\s*(\d+)/g, '"discord_id": "$1"');
         const data = JSON.parse(fixedText);
 
-        const isDevMode = false; // !__dirname.includes('app.asar');
-        
-        let titleEl = document.getElementById('login-waiting-title');
+        const isDevMode = false;
 
         if (data.status === 'waiting' || isDevMode) {
             if (titleEl) titleEl.innerHTML = '<i class="fas fa-hourglass-half" style="margin-right: 8px; color: #facc15;"></i>Čekám na Vaši reakci...';
+            if (loginTargetUser) loginTargetUser.textContent = data.nick || val;
             if (isDevMode && data.status !== 'waiting') {
                 data.discord_id = val;
             }
-            authPollInterval = setInterval(() => pollAuth(data.discord_id), 8000);
+            if (authPollInterval) clearInterval(authPollInterval);
+            authPollInterval = setInterval(() => pollAuth(data.discord_id), 6000);
+        } else if (data.status === 'suggestions') {
+            showAuthView('discord');
+            inputIdentifier.disabled = false;
+            if (discordSuggestionsBox && discordSuggestionsList) {
+                discordSuggestionsBox.hidden = false;
+                discordSuggestionsList.innerHTML = '';
+                (data.suggestions || []).forEach(s => {
+                    const chip = document.createElement('button');
+                    chip.type = 'button';
+                    chip.className = 'sug-chip';
+                    chip.innerHTML = `<svg class="ic" style="width:14px;height:14px"><use href="#i-user"/></svg> ${escapeHtml(s.nick || s.username)} <span style="opacity:0.65;font-size:11px">(@${escapeHtml(s.username)})</span>`;
+                    chip.addEventListener('click', () => {
+                        inputIdentifier.value = s.discord_id;
+                        discordSuggestionsBox.hidden = true;
+                        btnStartAuth.click();
+                    });
+                    discordSuggestionsList.appendChild(chip);
+                });
+            }
+            showLoginError(data.message || "Tento nick nebyl nalezen. Mysleli jste některého z těchto uživatelů?");
         } else {
             showAuthView('discord');
-            let errMsg = data.message ? data.message : "Toto ID neexistuje. Jestli problém přetrvává, jděte na náš Discord.";
+            let errMsg = data.message ? data.message : "Toto ID nebo uživatelské jméno neexistuje. Jestli problém přetrvává, jděte na náš Discord.";
             showLoginError(errMsg);
             inputIdentifier.disabled = false;
         }
@@ -1112,8 +1265,9 @@ async function pollAuth(discordId) {
             showAuthView('success');
             setTimeout(() => {
                 loginOverlay.style.display = 'none';
+                loginOverlay.hidden = true;
                 initLauncher(config);
-            }, 2000);
+            }, 5000);
         } else if (data.status === 'timeout') {
             clearInterval(authPollInterval);
             showAuthView('discord');

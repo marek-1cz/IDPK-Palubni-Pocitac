@@ -17,3 +17,4 @@ if %ERRORLEVEL% NEQ 0 (
     echo Nastala chyba pri spousteni launcheru.
     pause
 )
+
