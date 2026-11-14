@@ -67,7 +67,7 @@ svg.ic{width:1.15em;height:1.15em;fill:none;stroke:currentColor;stroke-width:2;s
 .menu-item:hover{background:var(--card2);color:#fff}
 .menu-item.active{color:#fff;background:rgba(59,130,246,.22)}
 .menu-item.active::before{content:"";position:absolute;left:-14px;top:9px;bottom:9px;width:4px;border-radius:0 4px 4px 0;background:var(--blue);}
-.menu-item .pill{margin-left:auto;font-size:10px;font-weight:800;padding:2px 7px;border-radius:999px;background:var(--green);color:#ffffff}
+.menu-item .pill{margin-left:auto;font-size:10px;font-weight:800;padding:2px 7px;border-radius:999px;background:#2563eb;color:#ffffff;box-shadow:0 0 10px rgba(37,99,235,0.5)}
 .menu-item:focus-visible,.btn:focus-visible,button:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
 .side-foot{margin-top:auto;padding:12px 8px 54px;border-top:1px solid var(--line);display:flex;flex-direction:column;gap:8px;color:var(--dim);font-size:11.5px}
 .side-foot a{color:var(--muted);text-decoration:none;display:flex;align-items:center;gap:8px;transition:.2s}
@@ -128,11 +128,13 @@ svg.ic{width:1.15em;height:1.15em;fill:none;stroke:currentColor;stroke-width:2;s
 .custom-select.open .chev{transform:rotate(180deg)}
 .vtag{font-size:10px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;padding:2px 8px;border-radius:999px}
 .vtag.stable{background:rgba(96,165,250,.15);color:#93c5fd}.vtag.rc{background:rgba(59,130,246,.18);color:#93c5fd}.vtag.beta{background:rgba(245,158,11,.16);color:#fcd34d}.vtag.old{background:rgba(148,163,184,.15);color:#cbd5e1}.vtag.dev{background:rgba(148,163,184,.18);color:#cbd5e1}
-.custom-options{position:absolute;left:0;right:0;top:calc(100% + 8px);z-index:30;background:#0f1729;border:1px solid var(--line2);border-radius:14px;padding:6px;transform-origin:top;animation:pop .22s var(--ease) both;max-height:260px;overflow:auto}
+.custom-options{position:relative;margin-top:8px;background:rgba(12,19,36,0.95);border:1px solid rgba(255,255,255,0.15);border-radius:14px;padding:8px;animation:pop .2s var(--ease) both;max-height:280px;overflow-y:auto;box-shadow:0 8px 24px rgba(0,0,0,0.5)}
 @keyframes pop{from{opacity:0;transform:scaleY(.92) translateY(-6px)}to{opacity:1;transform:none}}
-.opt{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:10px;cursor:pointer;transition:.15s}
-.opt:hover{background:rgba(255,255,255,.07)}
-.opt.sel{background:rgba(59,130,246,.15)}
+.custom-option, .opt{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 14px;border-radius:10px;cursor:pointer;transition:.15s;color:var(--text);border:1px solid transparent;margin-bottom:3px}
+.custom-option:hover, .opt:hover{background:rgba(255,255,255,.08);color:#60a5fa;border-color:rgba(255,255,255,.1)}
+.custom-option.selected, .opt.sel{background:rgba(37,99,235,.22);color:#93c5fd;border-color:rgba(59,130,246,.5);font-weight:700}
+.custom-option-title{font-weight:700;font-size:13.5px;display:flex;align-items:center;gap:8px}
+.custom-option-desc{font-size:11px;color:var(--dim);margin-top:2px}
 .opt .meta{margin-left:auto;color:var(--dim);font-size:12px;display:flex;align-items:center;gap:10px}
 .opt .inst{color:var(--green2);display:inline-flex;align-items:center;gap:4px}
 
@@ -336,8 +338,8 @@ button.chip{cursor:pointer;transition:.2s}button.chip:hover{color:#fff;border-co
 #initial-loading-overlay{z-index:650;flex-direction:column;gap:22px}
 .boot{position:relative;width:96px;height:96px}
 .boot .rg{position:absolute;inset:0;border-radius:50%;border:3px solid rgba(59,130,246,.18);border-top-color:var(--blue);animation:spin 1.1s linear infinite}
-.boot .rg2{inset:12px;border-top-color:var(--green);animation-duration:1.6s;animation-direction:reverse}
-.boot .mk{position:absolute;inset:20px;display:grid;place-items:center;background:transparent;border:none;box-shadow:none;overflow:visible;}
+.boot .rg2{inset:12px;border-top-color:var(--cyan);animation-duration:1.6s;animation-direction:reverse}
+.boot .mk{position:absolute;inset:16px;display:grid;place-items:center;background:transparent;border:none;box-shadow:none;overflow:visible;}
 .boot .mk img{width:100%;height:100%;object-fit:contain;display:block;filter:drop-shadow(0 0 14px rgba(56,189,248,.5));}
 .boot-t{position:relative;font-weight:800;letter-spacing:.3em;font-size:12px;color:var(--muted);text-transform:uppercase}
 .boot-t span{display:inline-block;animation:bt 1.2s ease-in-out infinite}
@@ -917,6 +919,39 @@ button.chip.dl:hover{border-color:var(--blue);color:#fff}
             </div>
           </div>
 
+          <!-- Všeobecná hlášení linky (Příští zastávka, Zastávka na znamení, Konečná zastávka) -->
+          <div class="card" id="e-sys-sounds" style="margin-top:16px">
+            <div class="card-h">
+              <svg class="ic"><use href="#i-sound"/></svg>
+              <span>Všeobecná hlášení linky (volitelné custom zvuky)</span>
+              <span class="badge" style="margin-left:auto;font-size:10.5px;">Custom hlášení</span>
+            </div>
+            <p style="color:var(--dim);font-size:12px;margin:0 0 12px 0;">Zde můžete pro tuto linku nastavit vlastní obecná hlášení palubního počítače. Pokud je nevyplníte, použije se výchozí hlášení systému.</p>
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px;" id="sys-sounds-grid">
+              <div class="sys-snd-box" style="padding:10px 12px;background:rgba(0,0,0,0.2);border:1px solid var(--line2);border-radius:12px;display:flex;flex-direction:column;gap:8px;">
+                <div style="display:flex;align-items:center;justify-content:space-between;">
+                  <b style="font-size:12.5px;">Příští zastávka</b>
+                  <span style="font-size:10.5px;color:var(--dim);">gong / znělka</span>
+                </div>
+                <div id="slot-sys-next" class="aslot"></div>
+              </div>
+              <div class="sys-snd-box" style="padding:10px 12px;background:rgba(0,0,0,0.2);border:1px solid var(--line2);border-radius:12px;display:flex;flex-direction:column;gap:8px;">
+                <div style="display:flex;align-items:center;justify-content:space-between;">
+                  <b style="font-size:12.5px;">Zastávka na znamení</b>
+                  <span style="font-size:10.5px;color:var(--dim);">upozornění na znamení</span>
+                </div>
+                <div id="slot-sys-req" class="aslot"></div>
+              </div>
+              <div class="sys-snd-box" style="padding:10px 12px;background:rgba(0,0,0,0.2);border:1px solid var(--line2);border-radius:12px;display:flex;flex-direction:column;gap:8px;">
+                <div style="display:flex;align-items:center;justify-content:space-between;">
+                  <b style="font-size:12.5px;">Konečná zastávka</b>
+                  <span style="font-size:10.5px;color:var(--dim);">výstup cestujících</span>
+                </div>
+                <div id="slot-sys-terminus" class="aslot"></div>
+              </div>
+            </div>
+          </div>
+
           <div class="card" style="margin-top:16px">
             <div class="card-h"><svg class="ic"><use href="#i-map"/></svg>Zastávky a hlášení<span style="margin-left:auto;color:var(--dim)" id="stop-count">0</span></div>
             <div class="aprog" id="aprog">
@@ -1269,6 +1304,23 @@ button.chip.dl:hover{border-color:var(--blue);color:#fff}
   </div>
 </div>
 
+<!-- ===== Historie verzí linky ===== -->
+<div class="modal" id="history-modal" hidden>
+  <div class="mbox" style="width:520px;max-width:94%;text-align:left;">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;border-bottom:1px solid var(--line2);padding-bottom:10px;">
+      <div>
+        <b style="font-size:16px;display:flex;align-items:center;gap:8px;"><svg class="ic" style="color:#38bdf8;"><use href="#i-clock"/></svg>Historie vydaných verzí</b>
+        <small style="color:var(--dim);display:block;margin-top:2px;" id="hm-sub">Přehled verzí linky</small>
+      </div>
+      <button class="x" id="hm-close"><svg class="ic"><use href="#i-x"/></svg></button>
+    </div>
+    <div id="hm-list" style="display:flex;flex-direction:column;gap:10px;max-height:340px;overflow-y:auto;padding-right:4px;"></div>
+    <div class="acts" style="margin-top:16px;">
+      <button class="btn" id="hm-btn-ok" style="width:100%;">Zavřít</button>
+    </div>
+  </div>
+</div>
+
 <!-- ===== Animace spuštění hry ===== -->
 <div class="launch-fx" id="launch-fx" hidden>
   <div class="fx-core">
@@ -1614,6 +1666,9 @@ const CONFIG = { DEMO: false, REDUCED_FX: false };
   $('btn-confirm-delete-versions').onclick = () => removeChecked('delete-versions-list', 'delete-versions-modal');
   $('btn-cleanup-delete-old').onclick = () => removeChecked('cleanup-old-versions-list', 'new-version-cleanup-modal');
   $('btn-cleanup-keep-all').onclick = () => closeModal('new-version-cleanup-modal');
+  if ($('cp-close')) $('cp-close').onclick = () => closeModal('comm-preview-modal');
+  if ($('hm-close')) $('hm-close').onclick = () => closeModal('history-modal');
+  if ($('hm-btn-ok')) $('hm-btn-ok').onclick = () => closeModal('history-modal');
   $$('.modal').forEach((m) => m.addEventListener('mousedown', (e) => { if (e.target === m && m.id !== 'launcher-update-modal') m.hidden = true; }));
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { $$('.modal').forEach((m) => { if (m.id !== 'launcher-update-modal') m.hidden = true; }); closeSelect(); } });
 
@@ -1942,26 +1997,26 @@ const CONFIG = { DEMO: false, REDUCED_FX: false };
       const vBadge = '<span class="badge" style="background:rgba(56,189,248,0.2);color:#38bdf8;font-weight:700;font-size:11px;margin-left:4px;">' + esc(l.version || 'V1') + '</span>';
 
       // Přepínač verzí pokud jich je více
-      let verSwitchHtml = '';
+      // Přepínač verzí pokud jich je více, plus tlačítko Historie verzí
+      let verSwitchHtml = '<div class="ver-switcher" style="display:flex;gap:4px;align-items:center;flex-wrap:wrap;margin:4px 0 8px;">';
       if (vers.length > 1) {
-        verSwitchHtml = '<div class="ver-switcher" style="display:flex;gap:4px;align-items:center;flex-wrap:wrap;margin:4px 0 8px;">' +
-          '<span style="font-size:11px;color:var(--dim);font-weight:700;margin-right:2px;">Verze:</span>' +
+        verSwitchHtml += '<span style="font-size:11px;color:var(--dim);font-weight:700;margin-right:2px;">Verze:</span>' +
           vers.map(vLine => {
             const isAct = vLine.id === l.id;
             return '<span class="chip ' + (isAct ? 'on' : '') + '" data-mine-pick-ver="' + vLine.id + '" data-num="' + esc(numKey) + '" style="padding:2px 8px;font-size:11px;font-weight:700;cursor:pointer;border-radius:6px;' + (isAct ? 'background:#2563eb;color:#fff;border-color:transparent;' : 'background:rgba(255,255,255,0.06);color:var(--dim);border:1px solid rgba(255,255,255,0.1);') + '">' + esc(vLine.version || 'V1') + '</span>';
           }).join('') +
-          '<button class="btn xs ghost danger" data-a="del-ver" data-id="' + l.id + '" title="Smazat pouze tuto zvolenou verzi (' + esc(l.version || 'V1') + ')" style="padding:1px 7px;font-size:10.5px;height:22px;margin-left:auto;border-radius:6px;">Smazat ' + esc(l.version || 'V1') + '</button>' +
-        '</div>';
+          '<button class="btn xs ghost danger" data-a="del-ver" data-id="' + l.id + '" title="Smazat pouze tuto zvolenou verzi (' + esc(l.version || 'V1') + ')" style="padding:1px 7px;font-size:10.5px;height:22px;border-radius:6px;">Smazat ' + esc(l.version || 'V1') + '</button>';
       }
+      verSwitchHtml += '<button class="btn xs ghost" data-a="history" data-num="' + esc(numKey) + '" title="Zobrazit historii vydání verzí této linky" style="padding:1px 8px;font-size:10.5px;height:22px;border-radius:6px;gap:4px;margin-left:auto;">' + ic('clock') + 'Historie verzí</button></div>';
 
       let main = '<button class="btn" data-a="edit" data-id="' + l.id + '">' + ic('edit') + (l.source === 'comm' ? 'Zobrazit' : 'Upravit') + '</button>';
       main += '<button class="btn sm ghost" data-a="pv" data-id="' + l.id + '" title="Náhled trasy a hlášení">' + ic('map') + 'Náhled</button>';
       if (l.source !== 'comm') {
         if (l.status === 'local' || l.status === 'rejected') main += '<button class="btn primary" data-a="pub" data-id="' + l.id + '">' + ic('users') + 'Zveřejnit</button>';
-        else if (l.status === 'pending') main += '<button class="btn" disabled style="opacity:0.9;padding:0 12px;white-space:nowrap;flex-shrink:0;">' + ic('clock') + 'Čeká na kontrolu</button>';
+        else if (l.status === 'pending') main += '<button class="btn" disabled style="opacity:0.95;padding:0 14px;background:rgba(250,204,21,0.12);border-color:rgba(250,204,21,0.35);color:#fde68a;font-weight:700;font-size:12px;white-space:nowrap;flex-shrink:0;">' + ic('clock') + 'Čeká na kontrolu</button>';
         else {
           main += '<button class="btn" disabled style="color:#93c5fd;font-weight:700;">' + ic('check') + 'Zveřejněno</button>';
-          main += '<button class="btn sm ghost danger" data-a="unpub" data-id="' + l.id + '" title="Stáhnout tuto verzi z veřejné nabídky komunity">Stáhnout z komunity</button>';
+          main += '<button class="btn sm ghost danger" data-a="unpub" data-id="' + l.id + '" title="Smazat tuto verzi z veřejné nabídky komunity">Smazat z komunity</button>';
         }
       } else {
         main += '<button class="btn" disabled style="color:#38bdf8">' + ic('check') + 'Nainstalováno</button>';
@@ -1987,7 +2042,12 @@ const CONFIG = { DEMO: false, REDUCED_FX: false };
     });
 
     $$('#mine-grid [data-a]').forEach((b) => (b.onclick = () => {
-      const l = S.lines.find((x) => x.id === b.dataset.id), a = b.dataset.a;
+      const a = b.dataset.a;
+      if (a === 'history') {
+        const num = b.dataset.num;
+        return openHistoryModal(num);
+      }
+      const l = S.lines.find((x) => x.id === b.dataset.id);
       if (!l) return;
       if (a === 'pv') {
         linePreview(l);
@@ -2021,16 +2081,18 @@ const CONFIG = { DEMO: false, REDUCED_FX: false };
       } else if (a === 'pub') {
         openPublish(l);
       } else if (a === 'unpub') {
+        const curVer = l.version || 'V1';
         confirmBox({
-          title: `Stáhnout linku ${l.num} (${l.version || 'V1'}) z komunity?`,
-          desc: `Linka bude stažena z veřejné nabídky komunitních linek v databázi. Zůstane vám uložena v počítači pro vlastní hraní.`,
-          yes: 'Stáhnout z komunity'
+          title: `Smazat linku ${l.num} (${curVer}) z komunity?`,
+          desc: `Linka bude smazána z veřejné nabídky komunity. Noví uživatelé ji již neuvidí. Hráči, kteří ji už mají staženou, si ji mohou ponechat nebo ji najdou v dolní sekci „Již smazané komunitní linky“, odkud ji mohou odinstalovat. Vám zůstane uložena lokálně.`,
+          yes: 'Smazat z komunity'
         }, () => {
           l.status = 'local';
-          emit('line-delete', { id: l.id, num: l.num, unpublish: true });
+          delete l.published;
+          emit('line-delete', { id: l.id, num: l.num, version: curVer, unpublish: true });
           emit('line-save', { line: l });
           renderMine(l.id);
-          toast('ok', 'Linka stažena z komunity', 'Linka je nyní pouze lokální.');
+          toast('ok', 'Linka smazána z komunity', 'Linka je nyní uložena pouze lokálně ve vašem účtu.');
         });
       } else if (a === 'export') {
         emit('line-export', { id: l.id });
@@ -2071,12 +2133,95 @@ const CONFIG = { DEMO: false, REDUCED_FX: false };
   $('ed-search').oninput = () => renderMine();
   $$('#mine-chips .chip').forEach((b) => (b.onclick = () => { S.mineFilter = b.dataset.f; $$('#mine-chips .chip').forEach((x) => x.classList.toggle('on', x === b)); renderMine(); }));
 
+  async function openHistoryModal(numKey) {
+    $('hm-sub').textContent = 'Linka ' + numKey;
+    const listEl = $('hm-list');
+    listEl.innerHTML = '<div style="color:var(--dim);text-align:center;padding:20px;">' + ic('clock') + ' Načítání historie verzí…</div>';
+    openModal('history-modal');
+
+    // Najít lokální verze
+    const localVers = S.lines.filter(x => String(x.num).trim() === String(numKey).trim());
+    
+    // Zkusit načíst historii ze serveru
+    let srvVers = [];
+    try {
+      const cfg = (typeof loadConfig === 'function') ? loadConfig() : {};
+      const authorId = cfg.discord_id || '';
+      const authorNick = cfg.discord_nick || '';
+      const res = await fetch(`${API_BASE}/api/community-routes/my?discord_id=${encodeURIComponent(authorId)}&author_name=${encodeURIComponent(authorNick)}`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success && Array.isArray(data.routes)) {
+          srvVers = data.routes.filter(r => String(r.route_number).trim() === String(numKey).trim());
+        }
+      }
+    } catch(e) {}
+
+    // Sloučit verze do unikátní mapy
+    const verMap = new Map();
+    localVers.forEach(lv => {
+      const v = lv.version || 'V1';
+      verMap.set(v, {
+        version: v,
+        name: lv.name || '',
+        date: lv.created_at || lv.updated_at || 'Lokální verze',
+        status: lv.status || 'local',
+        stopsCount: (lv.stops || []).length,
+        source: 'local'
+      });
+    });
+    srvVers.forEach(sv => {
+      const v = sv.version || 'V1';
+      const existing = verMap.get(v);
+      verMap.set(v, {
+        version: v,
+        name: sv.route_name || (existing && existing.name) || '',
+        date: sv.created_at || (existing && existing.date) || '—',
+        status: sv.is_deleted_by_author ? 'deleted' : (sv.status || 'published'),
+        stopsCount: sv.stops ? sv.stops.length : (existing ? existing.stopsCount : 0),
+        source: 'server'
+      });
+    });
+
+    const sortedVers = Array.from(verMap.values()).sort((a, b) => {
+      const vA = parseInt(String(a.version).replace(/\D/g, ''), 10) || 1;
+      const vB = parseInt(String(b.version).replace(/\D/g, ''), 10) || 1;
+      return vB - vA;
+    });
+
+    if (sortedVers.length === 0) {
+      listEl.innerHTML = '<div style="color:var(--muted);text-align:center;padding:24px;">Zatím nejsou zaznamenány žádné verze.</div>';
+      return;
+    }
+
+    listEl.innerHTML = sortedVers.map(v => {
+      let stBadge = '<span class="badge" style="background:rgba(59,130,246,0.16);color:#93c5fd;">Lokální</span>';
+      if (v.status === 'published' || v.status === 'approved') {
+        stBadge = '<span class="badge" style="background:rgba(16,185,129,0.18);color:#6ee7b7;border-color:rgba(16,185,129,0.4);"><svg class="ic" style="width:11px;height:11px;"><use href="#i-check"/></svg>Zveřejněno</span>';
+      } else if (v.status === 'pending') {
+        stBadge = '<span class="badge" style="background:rgba(250,204,21,0.15);color:#fde68a;border-color:rgba(250,204,21,0.35);"><svg class="ic" style="width:11px;height:11px;"><use href="#i-clock"/></svg>Čeká na kontrolu</span>';
+      } else if (v.status === 'deleted') {
+        stBadge = '<span class="badge" style="background:rgba(148,163,184,0.15);color:#94a3b8;"><svg class="ic" style="width:11px;height:11px;"><use href="#i-trash"/></svg>Smazáno z komunity</span>';
+      }
+      return '<div style="padding:12px 14px;background:rgba(0,0,0,0.25);border:1px solid var(--line2);border-radius:12px;display:flex;align-items:center;justify-content:space-between;gap:12px;">' +
+        '<div style="display:flex;align-items:center;gap:10px;">' +
+          '<span class="badge" style="background:rgba(56,189,248,0.2);color:#38bdf8;font-weight:800;font-size:12px;padding:3px 8px;">' + esc(v.version) + '</span>' +
+          '<div>' +
+            '<b style="font-size:13px;color:var(--text);">' + esc(v.name || ('Linka ' + numKey)) + '</b>' +
+            '<div style="font-size:11px;color:var(--dim);margin-top:2px;">Vydáno: <span style="color:#cbd5e1;">' + esc(v.date) + '</span>' + (v.stopsCount ? ' · ' + v.stopsCount + ' zastávek' : '') + '</div>' +
+          '</div>' +
+        '</div>' +
+        '<div>' + stBadge + '</div>' +
+      '</div>';
+    }).join('');
+  }
+
   /* ---------- komunita ---------- */
   S._cmActiveVer = S._cmActiveVer || {};
   function renderComm() {
     const q = $('cm-search').value.trim().toLowerCase(), f = S.cmFilter, v = S.cmVoice;
     $('cnt-comm').textContent = S.comm.length;
-    const arr = S.comm.filter((c) => (!q || (c.num + ' ' + c.dest + ' ' + c.author + ' ' + c.tags.join(' ')).toLowerCase().includes(q)) && (f === 'all' || (f === 'inst' ? c.state === 'installed' : c.type === f)) && (v === 'all' || c.voice === v));
+    const arr = S.comm.filter((c) => (!q || (c.num + ' ' + c.dest + ' ' + c.author + ' ' + (c.tags || []).join(' ')).toLowerCase().includes(q)) && (f === 'all' || (f === 'inst' ? c.state === 'installed' : c.type === f)) && (v === 'all' || c.voice === v));
     arr.sort((a, b) => {
       const aNo = (a.tags || []).includes('bez zvuku') || a.voice === 'none' || (a.stops && a.stops.length && a.stops.every(s => !s.snd && !s.audio_url));
       const bNo = (b.tags || []).includes('bez zvuku') || b.voice === 'none' || (b.stops && b.stops.length && b.stops.every(s => !s.snd && !s.audio_url));
@@ -2084,9 +2229,13 @@ const CONFIG = { DEMO: false, REDUCED_FX: false };
       return 0;
     });
 
+    // Rozdělení na aktivní a smazané autorem (které má hráč ještě v PC)
+    const activeArr = arr.filter(c => !c.is_deleted_by_author);
+    const deletedArr = arr.filter(c => c.is_deleted_by_author && c.state === 'installed');
+
     // Seskupení do jednoho okénka podle čísla linky (aby se linka neduplikovala)
     const groups = {};
-    for (const c of arr) {
+    for (const c of activeArr) {
       const numKey = String(c.num).trim();
       if (!groups[numKey]) groups[numKey] = [];
       groups[numKey].push(c);
@@ -2100,22 +2249,26 @@ const CONFIG = { DEMO: false, REDUCED_FX: false };
     }
 
     const groupKeys = Object.keys(groups);
-    $('cm-grid').innerHTML = groupKeys.map((numKey, i) => {
+    let activeHtml = groupKeys.map((numKey, i) => {
       const versions = groups[numKey];
       const activeId = S._cmActiveVer[numKey] || versions[0].id;
       const c = versions.find(x => x.id === activeId) || versions[0];
       const latestVer = versions[0];
 
-      const btn = {
-        idle: '<button class="btn primary" data-id="' + c.id + '">' + ic('download') + 'Stáhnout' + (versions.length > 1 ? ' (' + (c.version || 'V1') + ')' : '') + '</button>',
-        installed: '<button class="btn" disabled>' + ic('check') + 'Staženo' + (versions.length > 1 ? ' (' + (c.version || 'V1') + ')' : '') + '</button>',
-        update: '<button class="btn" style="border-color:rgba(96,165,250,.5);color:#7dd3fc" data-id="' + c.id + '">' + ic('refresh') + 'Aktualizovat</button>',
-        busy: '<div class="mini"><i style="width:' + (c.p || 0) + '%"></i></div>'
-      }[c.state];
+      let btn = '';
+      if (c.state === 'idle') {
+        btn = '<button class="btn primary" data-id="' + c.id + '">' + ic('download') + 'Stáhnout' + (versions.length > 1 ? ' (' + (c.version || 'V1') + ')' : '') + '</button>';
+      } else if (c.state === 'installed') {
+        btn = '<button class="btn" disabled>' + ic('check') + 'Staženo' + (versions.length > 1 ? ' (' + (c.version || 'V1') + ')' : '') + '</button>';
+      } else if (c.state === 'update') {
+        btn = '<button class="btn primary" style="background:#2563eb;font-weight:700;" data-id="' + c.id + '">' + ic('refresh') + 'Aktualizovat na ' + (c.version || 'V2') + '</button>';
+      } else if (c.state === 'busy') {
+        btn = '<div class="mini"><i style="width:' + (c.p || 0) + '%"></i></div>';
+      }
 
       const t = TYPES[c.type] || ['Reálná', 'b'], vo = VOICES[c.voice] || ['Syntetický', ''];
       const stopCnt = (c.stops && c.stops.length) ? c.stops.length : 0;
-      const pvBtn = '<button class="btn sm ghost" data-pv="' + c.id + '" style="margin-top:6px;width:100%">' + ic('map') + 'Náhled trasy ' + (c.version || 'V1') + (stopCnt ? ' (' + stopCnt + ' zastávek)' : '') + '</button>';
+      const pvBtn = '<button class="btn sm ghost" data-pv="' + c.id + '" style="margin-top:6px;width:100%">' + ic('map') + 'Náhled trasy' + (stopCnt ? ' (' + stopCnt + ' zastávek)' : '') + '</button>';
 
       let verSwitcher = '';
       if (versions.length > 1) {
@@ -2133,8 +2286,30 @@ const CONFIG = { DEMO: false, REDUCED_FX: false };
         verSwitcher +
         '<div class="meta"><span class="badge ' + t[1] + '">' + t[0] + '</span><span class="badge">' + ic('sound') + vo[0] + '</span>' + (c.scope === 'cr' ? '<span class="badge c">Data ČR</span>' : '') + (c.isNew ? '<span class="badge g">Nové</span>' : '') + '<span class="badge" style="background:rgba(56,189,248,0.2);color:#38bdf8;font-weight:700;">' + (c.version || 'V1') + '</span></div>' +
         '<div class="meta"><span>' + ic('download') + c.dl + '</span><span>' + ic('box') + esc(c.size) + '</span></div>' +
-        (c.tags.length ? '<div class="tags">' + c.tags.map((x) => '<span class="tag">' + esc(x) + '</span>').join('') + '</div>' : '') + btn + pvBtn + '</div>';
-    }).join('') || '<div class="empty"><b>Nic nenalezeno</b>Zkuste změnit filtr nebo hledaný výraz.</div>';
+        (c.tags && c.tags.length ? '<div class="tags">' + c.tags.map((x) => '<span class="tag">' + esc(x) + '</span>').join('') + '</div>' : '') + btn + pvBtn + '</div>';
+    }).join('');
+
+    // Již smazané komunitní linky (které hráč ještě má v PC)
+    let deletedHtml = '';
+    if (deletedArr.length > 0) {
+      deletedHtml = '<div style="grid-column:1/-1;margin-top:24px;padding-top:16px;border-top:1px dashed rgba(255,255,255,0.12);">' +
+        '<div style="display:flex;align-items:center;gap:8px;color:#94a3b8;font-size:13.5px;font-weight:800;margin-bottom:4px;">' +
+          '<svg class="ic" style="color:#64748b;"><use href="#i-trash"/></svg> Již smazané komunitní linky (máte je v PC)' +
+        '</div>' +
+        '<div style="font-size:11.5px;color:var(--dim);margin-bottom:14px;">Tyto linky autor smazal z veřejné nabídky komunity. Ve vašem počítači zůstávají plně funkční pro hraní, nebo je můžete z PC odinstalovat. Noví hráči je již neuvidí.</div>' +
+      '</div>' +
+      deletedArr.map((c) => {
+        const stopCnt = (c.stops && c.stops.length) ? c.stops.length : 0;
+        return '<div class="cl" style="opacity:0.85;border-color:rgba(255,255,255,0.08);background:rgba(255,255,255,0.02);">' +
+          '<div class="top"><span class="numchip" style="opacity:0.7;">' + esc(c.num) + '</span><div class="tx"><b>' + esc(c.dest) + '</b><small>od ' + esc(c.author) + ' · <span style="color:#f87171;">Smazáno z komunity</span></small></div></div>' +
+          '<div class="meta"><span class="badge" style="background:rgba(239,68,68,0.12);color:#fca5a5;">Smazaná linka</span><span class="badge">' + (c.version || 'V1') + '</span></div>' +
+          '<button class="btn sm danger ghost" data-del-comm="' + c.id + '" data-num="' + esc(c.num) + '" style="margin-top:10px;width:100%;font-weight:700;">' + ic('trash') + 'Odinstalovat z PC</button>' +
+          '<button class="btn sm ghost" data-pv="' + c.id + '" style="margin-top:6px;width:100%">' + ic('map') + 'Náhled trasy' + (stopCnt ? ' (' + stopCnt + ')' : '') + '</button>' +
+        '</div>';
+      }).join('');
+    }
+
+    $('cm-grid').innerHTML = (activeHtml + deletedHtml) || '<div class="empty"><b>Nic nenalezeno</b>Zkuste změnit filtr nebo hledaný výraz.</div>';
 
     $$('#cm-grid button[data-id]').forEach((b) => (b.onclick = () => commGet(b.dataset.id)));
     $$('#cm-grid button[data-pv]').forEach((b) => (b.onclick = () => commPreview(b.dataset.pv)));
@@ -2142,6 +2317,20 @@ const CONFIG = { DEMO: false, REDUCED_FX: false };
       e.stopPropagation();
       S._cmActiveVer[b.dataset.grp] = b.dataset.swId;
       renderComm();
+    }));
+    $$('#cm-grid button[data-del-comm]').forEach((b) => (b.onclick = () => {
+      const cid = b.dataset.delComm;
+      const num = b.dataset.num;
+      confirmBox({
+        title: `Odinstalovat linku ${num} z PC?`,
+        desc: `Tato linka již byla autorem smazána z komunity. Odinstalováním ji zcela smažete ze svého počítače.`,
+        yes: 'Odinstalovat z PC'
+      }, () => {
+        emit('line-delete', { id: 'comm_' + cid, commId: cid, num: num });
+        S.comm = S.comm.filter(x => x.id !== cid);
+        renderComm();
+        toast('info', `Linka ${num} byla odinstalována z vašeho PC.`);
+      });
     }));
     S._cmShown = true;
   }
@@ -2485,6 +2674,21 @@ const CONFIG = { DEMO: false, REDUCED_FX: false };
   let E = {}; let sndTarget = null;
   const sfi = document.createElement('input'); sfi.type = 'file'; sfi.accept = '.mp3,.wav,.ogg,.oga,.m4a,.aac,.flac,.opus,audio/*'; sfi.hidden = true; document.body.appendChild(sfi);
   sfi.onchange = async () => { const f = sfi.files[0]; sfi.value = ''; if (!f || !sndTarget) return; if (await attachSound(sndTarget, f)) { dirty(); renderEdit(); toast('ok', 'Hlášení přidáno', f.name + (sndTarget.snd.dur != null ? ' · ' + fmtDur(sndTarget.snd.dur) : '')); } };
+  let sysFiTarget = null;
+  const sysFi = document.createElement('input'); sysFi.type = 'file'; sysFi.accept = sfi.accept; sysFi.hidden = true; document.body.appendChild(sysFi);
+  sysFi.onchange = async () => {
+    const f = sysFi.files[0]; sysFi.value = '';
+    if (!f || !sysFiTarget) return;
+    if (!isAudio(f)) return toast('warn', 'Nepodporovaný formát', 'Použijte MP3, WAV nebo OGG.');
+    const i = await audioInfo(f);
+    E.general_sounds = E.general_sounds || {};
+    E.general_sounds[sysFiTarget] = E.general_sounds[sysFiTarget] || {};
+    E.general_sounds[sysFiTarget].snd = { name: f.name, dur: i.dur, url: i.url };
+    emit('sound-add', { file: f, stop: sysFiTarget, stopRef: E.general_sounds[sysFiTarget] });
+    dirty();
+    renderEdit();
+    toast('ok', 'Všeobecné hlášení nastaveno', f.name);
+  };
   const mfi = document.createElement('input'); mfi.type = 'file'; mfi.accept = sfi.accept; mfi.multiple = true; mfi.hidden = true; document.body.appendChild(mfi);
   mfi.onchange = async () => {
     const files = Array.from(mfi.files); mfi.value = ''; if (!files.length) return; let n = 0, used = new Set();
@@ -2569,6 +2773,10 @@ const CONFIG = { DEMO: false, REDUCED_FX: false };
         if (o && o.snd && o.snd.url) s.snd.url = o.snd.url;
       }
     });
+    E.general_sounds = (l && l.general_sounds) ? JSON.parse(JSON.stringify(l.general_sounds)) : { next: null, req: null, terminus: null };
+    if (!E.general_sounds.next && l && l.ann_next) E.general_sounds.next = { snd: l.ann_next };
+    if (!E.general_sounds.req && l && l.ann_req) E.general_sounds.req = { snd: l.ann_req };
+    if (!E.general_sounds.terminus && l && l.ann_term) E.general_sounds.terminus = { snd: l.ann_term };
     E.mode = (l && (l.source === 'gtfs' || l.source === 'comm')) ? 'gtfs' : 'manual';
     E.id = isNew ? null : (l ? l.id : null);
     E.existing = !isNew;
@@ -2652,7 +2860,56 @@ const CONFIG = { DEMO: false, REDUCED_FX: false };
       };
       box.appendChild(r);
     });
+
+    const sysSlots = [
+      { key: 'next', id: 'slot-sys-next' },
+      { key: 'req', id: 'slot-sys-req' },
+      { key: 'terminus', id: 'slot-sys-terminus' }
+    ];
+    sysSlots.forEach(({ key, id }) => {
+      const el = $(id);
+      if (!el) return;
+      const item = E.general_sounds && E.general_sounds[key];
+      if (item && item.snd) {
+        el.innerHTML = '<span class="aud' + (item.snd._p ? ' play' : '') + '">' +
+          '<button data-sys-play="' + key + '" title="' + (item.snd._p ? 'Zastavit' : 'Přehrát') + '">' + ic(item.snd._p ? 'min' : 'play') + '</button>' +
+          '<em title="' + esc(item.snd.name || '') + '">' + esc(item.snd.name || '') + '</em>' +
+          '<small>' + fmtDur(item.snd.dur) + '</small>' +
+          '<button data-sys-del="' + key + '" title="Odebrat zvuk">' + ic('x') + '</button>' +
+          '</span>';
+      } else {
+        el.innerHTML = '<button class="aup" data-sys-up="' + key + '">' + ic('upload') + 'Nahrát zvuk</button>';
+      }
+    });
+
     updateProg(); renderTrips();
+  }
+  if ($('e-sys-sounds')) {
+    $('e-sys-sounds').onclick = (e) => {
+      const up = e.target.closest('[data-sys-up]');
+      if (up) {
+        sysFiTarget = up.dataset.sysUp;
+        return sysFi.click();
+      }
+      const del = e.target.closest('[data-sys-del]');
+      if (del) {
+        const k = del.dataset.sysDel;
+        if (E.general_sounds && E.general_sounds[k]) {
+          E.general_sounds[k] = null;
+          dirty();
+          renderEdit();
+          toast('info', 'Hlášení odebráno');
+        }
+        return;
+      }
+      const pl = e.target.closest('[data-sys-play]');
+      if (pl) {
+        const k = pl.dataset.sysPlay;
+        const item = E.general_sounds && E.general_sounds[k];
+        if (item && item.snd) playSnd(item.snd, renderEdit);
+        return;
+      }
+    };
   }
   [['e-num', 'num'], ['e-name', 'name'], ['e-dest', 'dest']].forEach(([id, k]) => ($(id).oninput = () => { E[k] = $(id).value; dirty(); }));
   $('stop-add').onclick = () => { E.stops.push(mkStop('', '1', 0)); dirty(); renderEdit(); const i = $$('#stops .stp input[data-k=n]'); i[i.length - 1].focus(); };
@@ -2823,6 +3080,10 @@ const CONFIG = { DEMO: false, REDUCED_FX: false };
       type: E.type || 'fiktivni',
       voice: E.voice || 'synt',
       tags: E.tags || [],
+      general_sounds: E.general_sounds || {},
+      ann_next: (E.general_sounds && E.general_sounds.next && E.general_sounds.next.snd) || null,
+      ann_req: (E.general_sounds && E.general_sounds.req && E.general_sounds.req.snd) || null,
+      ann_term: (E.general_sounds && E.general_sounds.terminus && E.general_sounds.terminus.snd) || null,
       status: prev ? (prev.status === 'published' || prev.status === 'pending' ? 'local' : prev.status) : 'local',
       reject: prev && prev.reject,
       stops: stops.map((s) => ({ ...s, _open: undefined })),

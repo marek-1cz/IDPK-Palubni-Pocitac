@@ -2514,7 +2514,7 @@ function updateCustomSelectUI(versions) {
         
         const tDiv = document.createElement('div');
         tDiv.className = 'custom-option-title';
-        tDiv.innerText = txt;
+        tDiv.innerHTML = `<svg class="ic" style="width:13px;height:13px;margin-right:8px;"><use href="#i-box"/></svg><span>${txt}</span>`;
         div.appendChild(tDiv);
         
         if (desc) {
@@ -2736,6 +2736,16 @@ function syncRouteFileToLinky(line) {
         let txt = `GTFS-DATA\nLinka: ${targetLineKey}\n`;
         const lastStop = line.dest || (line.stops && line.stops.length ? (line.stops[line.stops.length - 1].n || line.stops[line.stops.length - 1].name) : '');
         txt += `Směr: ${lastStop}\n`;
+
+        const genSnd = line.general_sounds || {};
+        const nextSnd = (genSnd.next && genSnd.next.snd && genSnd.next.snd.name) || (line.ann_next && line.ann_next.name) || '';
+        const reqSnd = (genSnd.req && genSnd.req.snd && genSnd.req.snd.name) || (line.ann_req && line.ann_req.name) || '';
+        const termSnd = (genSnd.terminus && genSnd.terminus.snd && genSnd.terminus.snd.name) || (line.ann_term && line.ann_term.name) || '';
+
+        if (nextSnd) txt += `Zvuk_Pristi_Zastavka: ${nextSnd}\n`;
+        if (reqSnd) txt += `Zvuk_Zastavka_Na_Znameni: ${reqSnd}\n`;
+        if (termSnd) txt += `Zvuk_Konecna_Zastavka: ${termSnd}\n`;
+
         txt += `Zastávky:\n`;
         
         const stops = Array.isArray(line.stops) ? line.stops : [];
@@ -2933,20 +2943,42 @@ async function loadCommunityEditorLines() {
             const cfg = loadConfig();
             const currentNick = (cfg && (cfg.discord_nick || cfg.discord_id || '')) || '';
             const localLines = await loadLocalEditorLines();
-            const localNums = new Set(localLines.map(l => String(l.num)));
+            const localNumMap = new Map();
+            localLines.forEach(l => {
+                localNumMap.set(String(l.num), l);
+            });
 
-            const commLines = list.map(r => {
+            const commLines = [];
+            for (const r of list) {
                 let stops = [];
                 try {
                     stops = typeof r.stops_json === 'string' ? JSON.parse(r.stops_json) : (r.stops || []);
                 } catch(e) {}
                 const dest = (stops && stops.length) ? (stops[stops.length - 1].name || stops[stops.length - 1].n || r.route_name) : r.route_name;
                 const isInstalled = fs.existsSync(path.join(customDataPath, `comm_${r.id}.json`));
+                const localLine = localNumMap.get(String(r.route_number));
                 const isOwnAuthor = Boolean(currentNick && r.author_name && (r.author_name.toLowerCase().includes(currentNick.toLowerCase()) || currentNick.toLowerCase().includes(r.author_name.toLowerCase())));
-                const isLocal = localNums.has(String(r.route_number));
+                const isLocal = Boolean(localLine);
                 const isAlreadyPresent = isInstalled || isOwnAuthor || isLocal;
 
-                return {
+                const isDeleted = Boolean(r.is_deleted_by_author || r.status === 'deleted_by_user');
+                // Pokud je linka smazaná z komunity:
+                // Noví hráči (kteří ji ještě nemají v PC) ji NESMÍ vidět
+                if (isDeleted && !isInstalled && !isLocal) {
+                    continue;
+                }
+
+                // Detekce novější verze (update):
+                let state = isAlreadyPresent ? 'installed' : 'idle';
+                if (localLine && !isDeleted) {
+                    const localVer = parseInt(String(localLine.version || '1').replace(/\D/g, ''), 10) || 1;
+                    const srvVer = parseInt(String(r.version || '1').replace(/\D/g, ''), 10) || 1;
+                    if (srvVer > localVer) {
+                        state = 'update';
+                    }
+                }
+
+                commLines.push({
                     id: String(r.id),
                     num: String(r.route_number),
                     version: r.version || 'V1',
@@ -2959,11 +2991,12 @@ async function loadCommunityEditorLines() {
                     scope: r.system_tag && r.system_tag.toUpperCase() !== 'IDPK' ? 'cr' : 'idpk',
                     tags: r.system_tag ? [r.system_tag] : ['IDPK'],
                     isNew: Boolean(r.is_new),
-                    state: isAlreadyPresent ? 'installed' : 'idle',
+                    is_deleted_by_author: isDeleted,
+                    state: state,
                     packageUrl: r.audio_package_url,
                     stops: stops
-                };
-            });
+                });
+            }
             return commLines;
         }
     } catch (e) {
@@ -3455,57 +3488,67 @@ document.addEventListener('lc:line-delete', (e) => {
     const id = e.detail && e.detail.id;
     if (!id) return;
     try {
-        const customDataPath = path.join(centralUserDataPath, 'data');
-        const candidates = [
-            path.join(customDataPath, `${id}.json`),
-            path.join(customDataPath, `user_${id}.json`),
-            path.join(customDataPath, `comm_${id}.json`)
-        ];
+        const isUnpub = Boolean(e.detail && e.detail.unpublish);
         
-        const lineSounds = new Set();
-        candidates.forEach(fp => {
-            if (fs.existsSync(fp)) {
-                try {
-                    const parsed = JSON.parse(fs.readFileSync(fp, 'utf-8'));
-                    (parsed.stops || []).forEach(st => {
-                        const snd = st.audio || st.audio_file || (st.snd && st.snd.name);
-                        if (snd) lineSounds.add(path.basename(String(snd)).toLowerCase());
-                    });
-                } catch(_) {}
-                try { fs.unlinkSync(fp); } catch(_) {}
-            }
-        });
-
-        const linkyDir = path.join(centralUserDataPath, 'linky');
-        if (fs.existsSync(linkyDir)) {
-            const txtFiles = fs.readdirSync(linkyDir);
-            txtFiles.forEach(tf => {
-                if (tf.includes(id)) {
-                    try { fs.unlinkSync(path.join(linkyDir, tf)); } catch(_) {}
+        // Pokud jde pouze o smazání z veřejné komunity (unpublish), NEMAZAT lokální soubor z PC
+        if (!isUnpub) {
+            const customDataPath = path.join(centralUserDataPath, 'data');
+            const candidates = [
+                path.join(customDataPath, `${id}.json`),
+                path.join(customDataPath, `user_${id}.json`),
+                path.join(customDataPath, `comm_${id}.json`)
+            ];
+            
+            const lineSounds = new Set();
+            candidates.forEach(fp => {
+                if (fs.existsSync(fp)) {
+                    try {
+                        const parsed = JSON.parse(fs.readFileSync(fp, 'utf-8'));
+                        (parsed.stops || []).forEach(st => {
+                            const snd = st.audio || st.audio_file || (st.snd && st.snd.name);
+                            if (snd) lineSounds.add(path.basename(String(snd)).toLowerCase());
+                        });
+                    } catch(_) {}
+                    try { fs.unlinkSync(fp); } catch(_) {}
                 }
             });
+
+            const linkyDir = path.join(centralUserDataPath, 'linky');
+            if (fs.existsSync(linkyDir)) {
+                const txtFiles = fs.readdirSync(linkyDir);
+                txtFiles.forEach(tf => {
+                    if (tf.includes(id)) {
+                        try { fs.unlinkSync(path.join(linkyDir, tf)); } catch(_) {}
+                    }
+                });
+            }
+
+            if (lineSounds.size > 0) {
+                setTimeout(() => {
+                    try {
+                        document.dispatchEvent(new CustomEvent('lc:storage-clean-orphans'));
+                    } catch(_) {}
+                }, 300);
+            }
         }
 
-        if (lineSounds.size > 0) {
-            setTimeout(() => {
-                try {
-                    document.dispatchEvent(new CustomEvent('lc:storage-clean-orphans'));
-                } catch(_) {}
-            }, 300);
-        }
-
-        // Pokud byla linka zveřejněná, nebo uživatel žádá stažení z komunity
+        // Pokud byla linka zveřejněná, nebo uživatel žádá stažení/smazání z komunity
         if (e.detail && (e.detail.unpublish || e.detail.isPublished || e.detail.deleteAll)) {
             const cfg = loadConfig();
             fetch(`${API_BASE}/api/community-routes/delete`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    route_id: e.detail.commId || (String(id).startsWith('comm_') ? id.replace('comm_', '') : id),
-                    route_number: e.detail.deleteAll ? (e.detail.num || '') : undefined,
+                    route_id: e.detail.commId || (String(id).startsWith('comm_') ? id.replace('comm_', '') : undefined),
+                    route_number: e.detail.num || (e.detail.deleteAll ? (e.detail.num || '') : undefined),
+                    version: e.detail.version || undefined,
                     discord_id: cfg.discord_id || currentHWID,
                     author_name: cfg.discord_nick || 'Hráč'
                 })
+            }).then(() => {
+                if (typeof syncLocalLinesWithDatabase === 'function') {
+                    setTimeout(() => syncLocalLinesWithDatabase(), 500);
+                }
             }).catch(()=>{});
         }
     } catch(err) {
@@ -3714,7 +3757,8 @@ document.addEventListener('lc:community-download', async (e) => {
         voice: commItem.voice || 'synt',
         tags: Array.isArray(commItem.tags) ? [...commItem.tags] : [],
         status: 'published',
-        stops: commItem.stops || []
+        stops: commItem.stops || [],
+        general_sounds: commItem.general_sounds || {}
     };
     if (!lineData.tags.includes('Komunita')) lineData.tags.unshift('Komunita');
     fs.writeFileSync(path.join(customDataPath, `comm_${id}.json`), JSON.stringify(lineData, null, 2), 'utf8');
