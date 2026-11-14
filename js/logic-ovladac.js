@@ -4239,7 +4239,7 @@ window.processAudioQueue = function() {
 const OFFICIAL_BUILTIN_LINES = new Set([
     '336', '424', '464', '621', '651', '711', '722', '723', '731', '734', '735',
     '736', '737', '738', '739', '749', '750', '752', '753', '754',
-    '755', '757', '759', '760', '769', '911', 'robo'
+    '755', '757', '759', '760', '769', '911'
 ]);
 
 function isOfficialBuiltinRoute(lineName) {

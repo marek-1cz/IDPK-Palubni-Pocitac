@@ -2484,13 +2484,17 @@ if (btnCleanCache) {
     customTrigger.addEventListener('click', (e) => {
         e.stopPropagation();
         if (!customSelect.classList.contains('disabled')) {
-            customSelect.classList.toggle('open');
+            const isOpen = customSelect.classList.toggle('open');
+            const customOptions = document.getElementById('custom-options-container');
+            if (customOptions) customOptions.hidden = !isOpen;
         }
     });
 
     document.addEventListener('click', (e) => {
         if (!customSelect.contains(e.target)) {
             customSelect.classList.remove('open');
+            const customOptions = document.getElementById('custom-options-container');
+            if (customOptions) customOptions.hidden = true;
         }
     });
 })();
@@ -2552,6 +2556,7 @@ function updateCustomSelectUI(versions) {
             versionSelect.value = v.db_version;
             customText.innerText = v.db_version;
             customSelect.classList.remove('open');
+            if (customOptions) customOptions.hidden = true;
             
             const badge = document.getElementById('hero-version-badge');
             if (badge) {
