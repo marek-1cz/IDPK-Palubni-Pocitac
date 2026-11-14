@@ -4370,12 +4370,16 @@ window.updateAudioStatusIndicator = function() {
 
     el.style.display = 'flex';
 
+    el.style.display = 'flex';
+    el.style.alignItems = 'center';
+    el.style.justifyContent = 'center';
+
     if (isAnnouncementPlaying) {
         // 1. Zvuk právě hraje: zelený kruh + bílý repráček s vlnami + záře
         el.style.background = '#15803d';
         el.style.borderColor = '#22c55e';
-        el.style.boxShadow = '0 0 12px rgba(34, 197, 94, 0.85)';
-        el.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" style="display:block;margin:auto;"><path d="M11 5L6 9H2v6h4l5 4V5z" fill="#ffffff"/><path d="M15.5 8.5a5 5 0 0 1 0 7" stroke="#ffffff" stroke-width="2.2" stroke-linecap="round"/><path d="M19 5a9.5 9.5 0 0 1 0 14" stroke="#ffffff" stroke-width="2.2" stroke-linecap="round"/></svg>';
+        el.style.boxShadow = '0 0 12px rgba(34, 197, 94, 0.9)';
+        el.innerHTML = '<i class="fas fa-volume-up" style="color:#ffffff !important;font-size:13px;line-height:1;margin:auto;display:inline-block;"></i>';
         el.title = 'Hraje hlášení';
         return;
     }
@@ -4384,11 +4388,11 @@ window.updateAudioStatusIndicator = function() {
     const isRouteEntirelySilent = stops.length > 0 && stops.every(s => !s.audio || s.audio === '.wav' || String(s.audio).trim().length <= 4);
 
     if (isRouteEntirelySilent || routeData.isMuted || routeData.isSilentRoute) {
-        // 4. Linka bez zvuku naschvál (např. Celá databáze bez zvuku): oranžový kruh + bílý přeškrtnutý repráček
+        // 4. Linka bez zvuku naschvál: oranžový kruh + bílý přeškrtnutý repráček
         el.style.background = '#b45309';
         el.style.borderColor = '#f59e0b';
         el.style.boxShadow = '0 0 10px rgba(245, 158, 11, 0.7)';
-        el.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" style="display:block;margin:auto;"><path d="M13 6L8 10H4v4h4l5 4V6z" fill="#ffffff"/><line x1="19" y1="5" x2="5" y2="19" stroke="#ffffff" stroke-width="2.5" stroke-linecap="round"/></svg>';
+        el.innerHTML = '<i class="fas fa-volume-mute" style="color:#ffffff !important;font-size:13px;line-height:1;margin:auto;display:inline-block;"></i>';
         el.title = 'Linka bez zvuku';
         return;
     }
@@ -4411,18 +4415,18 @@ window.updateAudioStatusIndicator = function() {
     }
 
     if (hasAudio) {
-        // 2. Zvuk je připraven (OK): modrý kruh + čistý bílý repráček bez vln
+        // 2. Zvuk je připraven (OK): modrý kruh + čistý bílý repráček
         el.style.background = '#0284c7';
         el.style.borderColor = '#38bdf8';
         el.style.boxShadow = '0 0 8px rgba(56, 189, 248, 0.6)';
-        el.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" style="display:block;margin:auto;"><path d="M14 6L9 10H5v4h4l5 4V6z" fill="#ffffff"/></svg>';
+        el.innerHTML = '<i class="fas fa-volume-down" style="color:#ffffff !important;font-size:13px;line-height:1;margin:auto;display:inline-block;"></i>';
         el.title = 'Zvuk OK';
     } else {
-        // 3. Zvuk chybí: červený kruh + bílý repráček s křížkem
+        // 3. Zvuk chybí: červený kruh + bílý křížek
         el.style.background = '#b91c1c';
         el.style.borderColor = '#ef4444';
         el.style.boxShadow = '0 0 10px rgba(239, 68, 68, 0.85)';
-        el.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" style="display:block;margin:auto;"><path d="M11 5L6 9H2v6h4l5 4V5z" fill="#ffffff"/><line x1="21" y1="9" x2="15" y2="15" stroke="#ffffff" stroke-width="2.2" stroke-linecap="round"/><line x1="15" y1="9" x2="21" y2="15" stroke="#ffffff" stroke-width="2.2" stroke-linecap="round"/></svg>';
+        el.innerHTML = '<i class="fas fa-times" style="color:#ffffff !important;font-size:14px;line-height:1;margin:auto;display:inline-block;"></i>';
         el.title = 'Zvuk chybí';
     }
 };

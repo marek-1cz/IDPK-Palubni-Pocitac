@@ -2821,10 +2821,84 @@ async function loadLocalEditorLines() {
                 }
             } catch (err) {}
         }
+        await syncLocalLinesWithDatabase(lines);
         return lines;
     } catch (e) {
         return [];
     }
+}
+
+async function syncLocalLinesWithDatabase(lines) {
+    if (!Array.isArray(lines) || lines.length === 0) return lines;
+    try {
+        const customDataPath = path.join(centralUserDataPath, 'data');
+        const cfg = loadConfig();
+        const authorId = cfg.discord_id || '';
+        const authorNick = cfg.discord_nick || '';
+
+        let serverRoutes = [];
+        try {
+            const myUrl = `${API_BASE}/api/community-routes/my?discord_id=${encodeURIComponent(authorId)}&author_name=${encodeURIComponent(authorNick)}`;
+            const res = await safeFetch(myUrl, {}, 5000);
+            if (res.ok) {
+                const data = await res.json();
+                if (data.success && Array.isArray(data.routes)) {
+                    serverRoutes = data.routes;
+                }
+            }
+        } catch(e) {}
+
+        if (!serverRoutes.length) {
+            try {
+                const pubRes = await safeFetch(`${API_BASE}/api/community-routes`, {}, 5000);
+                if (pubRes.ok) {
+                    const dataPub = await pubRes.json();
+                    if (dataPub.success && Array.isArray(dataPub.routes)) {
+                        serverRoutes = dataPub.routes;
+                    }
+                }
+            } catch(e) {}
+        }
+
+        if (serverRoutes.length > 0) {
+            for (const line of lines) {
+                if (line.source === 'comm' || String(line.id).startsWith('comm_')) continue;
+                const match = serverRoutes.find(r => 
+                    String(r.route_number).trim() === String(line.num).trim() ||
+                    (r.route_name && line.name && r.route_name.trim().toLowerCase() === line.name.trim().toLowerCase())
+                );
+                if (match) {
+                    let changed = false;
+                    if (match.status === 'approved' && line.status !== 'published') {
+                        line.status = 'published';
+                        changed = true;
+                    } else if (match.status === 'rejected' && line.status !== 'rejected') {
+                        line.status = 'rejected';
+                        line.reject = match.reject_reason || 'Linka byla zamítnuta administrátorem.';
+                        changed = true;
+                    } else if (match.status === 'pending' && line.status !== 'pending' && line.status !== 'published') {
+                        line.status = 'pending';
+                        changed = true;
+                    }
+                    if (match.version && line.version !== match.version) {
+                        line.version = match.version;
+                        changed = true;
+                    }
+                    if (changed) {
+                        try {
+                            const fp = path.join(customDataPath, `${line.id}.json`);
+                            if (fs.existsSync(fp)) {
+                                fs.writeFileSync(fp, JSON.stringify(line, null, 2), 'utf8');
+                            }
+                        } catch(e) {}
+                    }
+                }
+            }
+        }
+    } catch(err) {
+        console.warn('Chyba při synchronizaci linek s databází:', err);
+    }
+    return lines;
 }
 
 async function loadCommunityEditorLines() {
@@ -2853,6 +2927,7 @@ async function loadCommunityEditorLines() {
                 return {
                     id: String(r.id),
                     num: String(r.route_number),
+                    version: r.version || 'V1',
                     dest: dest,
                     author: r.author_name || 'Komunita',
                     dl: r.download_count || 0,
@@ -3396,6 +3471,21 @@ document.addEventListener('lc:line-delete', (e) => {
                 } catch(_) {}
             }, 300);
         }
+
+        // Pokud byla linka zveřejněná, nebo uživatel žádá stažení z komunity
+        if (e.detail && (e.detail.unpublish || e.detail.isPublished || e.detail.deleteAll)) {
+            const cfg = loadConfig();
+            fetch(`${API_BASE}/api/community-routes/delete`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    route_id: e.detail.commId || (String(id).startsWith('comm_') ? id.replace('comm_', '') : id),
+                    route_number: e.detail.deleteAll ? (e.detail.num || '') : undefined,
+                    discord_id: cfg.discord_id || currentHWID,
+                    author_name: cfg.discord_nick || 'Hráč'
+                })
+            }).catch(()=>{});
+        }
     } catch(err) {
         console.warn('Chyba při mazání souboru linky:', err);
     }
@@ -3571,10 +3661,28 @@ document.addEventListener('lc:community-download', async (e) => {
     }
     
     // Uložit linku do dat
+    // Smazání starších stažených verzí stejné linky (čistá instalace bez duplicit)
+    try {
+        const existingFiles = fs.readdirSync(customDataPath).filter(f => f.startsWith('comm_') && f.endsWith('.json') && f !== `comm_${id}.json`);
+        for (const ef of existingFiles) {
+            try {
+                const cPath = path.join(customDataPath, ef);
+                const cData = JSON.parse(fs.readFileSync(cPath, 'utf8'));
+                if (String(cData.num).trim() === String(commItem.num).trim()) {
+                    fs.unlinkSync(cPath);
+                    if (window.LC && window.LC.S && window.LC.S.lines) {
+                        window.LC.S.lines = window.LC.S.lines.filter(x => x.id !== cData.id);
+                    }
+                }
+            } catch(_) {}
+        }
+    } catch(_) {}
+
     const lineData = {
         id: `comm_${id}`,
         commId: id,
         num: commItem.num,
+        version: commItem.version || 'V1',
         name: `Linka ${commItem.num} (od ${commItem.author})`,
         dest: commItem.dest,
         source: 'comm',
