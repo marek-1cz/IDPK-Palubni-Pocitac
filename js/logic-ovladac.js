@@ -2496,6 +2496,9 @@ window.autoStartRandomTrip = async function() {
         routeData.isMuted = false; 
         routeData.isSilentRoute = false;
         window.isSilentDatabaseActive = false;
+        routeData.isCustom = isCustomRoute || isCustomOrComm(fileToLoad) || isCustomOrComm(inputValues.linkospoj);
+        routeData.isComm = routeData.isCustom;
+        routeData.loadedFile = fileToLoad;
         routeData.line = responseObj.lineNum; 
         routeData.routeId = responseObj.routeId; 
         routeData.linkospojCode = responseObj.linkospojCode;
@@ -4233,17 +4236,46 @@ window.processAudioQueue = function() {
     window.playDirectAudio(item.file, true); 
 };
 
+const OFFICIAL_BUILTIN_LINES = new Set([
+    '336', '424', '464', '621', '651', '711', '722', '723', '731', '734', '735',
+    '736', '737', '738', '739', '749', '750', '752', '753', '754',
+    '755', '757', '759', '760', '769', '911', 'robo'
+]);
+
 function isOfficialBuiltinRoute(lineName) {
     if (!lineName) return false;
     const l = String(lineName).trim().toLowerCase();
-    if (l.includes('_custom') || l.includes('comm_') || l.includes('fiktiv') || l.includes('ai_') || l.includes('komunit') || l.includes('user_') || l.startsWith('c') || l.startsWith('f')) {
+
+    // 1. Kontrola atributů routeData (pokud je aktivní)
+    if (typeof routeData !== 'undefined' && routeData) {
+        if (routeData.isCustom || routeData.isComm || routeData.isFictional || 
+            routeData.source === 'gtfs' || routeData.source === 'ai' || routeData.source === 'manual' || 
+            routeData.source === 'comm' || routeData.isSilentRoute) {
+            return false;
+        }
+        const rdLine = String(routeData.line || '').toLowerCase();
+        if (rdLine.includes('_custom') || rdLine.includes('comm_') || rdLine.includes('user_') || 
+            rdLine.includes('fiktiv') || rdLine.includes('komunit')) {
+            return false;
+        }
+        if (routeData.loadedFile && typeof isCustomOrComm === 'function' && isCustomOrComm(routeData.loadedFile)) {
+            return false;
+        }
+    }
+
+    // 2. Kontrola názvu linky
+    if (l.includes('_custom') || l.includes('comm_') || l.includes('fiktiv') || 
+        l.includes('ai_') || l.includes('komunit') || l.includes('user_') || 
+        l.startsWith('c') || l.startsWith('f')) {
         return false;
     }
-    if (typeof routeData !== 'undefined' && routeData) {
-        if (routeData.isCustom || routeData.isComm || routeData.isFictional || routeData.source === 'gtfs' || routeData.source === 'ai' || routeData.source === 'manual') return false;
-        const rdLine = String(routeData.line || '').toLowerCase();
-        if (rdLine.includes('_custom') || rdLine.includes('comm_') || rdLine.includes('user_') || rdLine.includes('fiktiv')) return false;
+
+    // 3. Pouze oficiální linky z pevného katalogu vestavěných linek hry
+    const cleanNum = l.replace(/[^a-z0-9]/g, '');
+    if (!OFFICIAL_BUILTIN_LINES.has(cleanNum)) {
+        return false;
     }
+
     return true;
 }
 
