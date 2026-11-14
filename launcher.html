@@ -2059,7 +2059,12 @@ const CONFIG = { DEMO: false, REDUCED_FX: false };
         main += '<button class="btn sm danger ghost" data-a="del" data-id="' + l.id + '" title="Odinstalovat komunitní linku z PC">' + ic('trash') + 'Odinstalovat</button>';
       }
 
-      return '<div class="lcard' + (l.id === flashId ? ' flash' : '') + '" style="animation-delay:' + Math.min(i * 40, 300) + 'ms"><div class="top"><span class="numchip">' + esc(l.num) + '</span><div class="tx"><b>' + esc(l.name) + '</b><small>→ ' + esc(l.dest) + '</small></div></div>' +
+      const fStop = (l.stops && l.stops.length) ? (l.stops[0].n || l.stops[0].name || (Array.isArray(l.stops[0]) ? l.stops[0][0] : '')) : '';
+      const lStop = (l.stops && l.stops.length) ? (l.stops[l.stops.length - 1].n || l.stops[l.stops.length - 1].name || (Array.isArray(l.stops[l.stops.length - 1]) ? l.stops[l.stops.length - 1][0] : '')) : (l.dest || '');
+      const autoJr = (fStop && lStop && fStop !== lStop) ? `${fStop} – ${lStop}` : (l.name || l.dest || ('Linka ' + l.num));
+      const displayName = (l.name && !l.name.startsWith('Linka ') && l.name !== String(l.num)) ? l.name : autoJr;
+
+      return '<div class="lcard' + (l.id === flashId ? ' flash' : '') + '" style="animation-delay:' + Math.min(i * 40, 300) + 'ms"><div class="top"><span class="numchip">' + esc(l.num) + '</span><div class="tx"><b title="' + esc(displayName) + '">' + esc(displayName) + '</b><small>→ ' + esc(l.dest || lStop) + '</small></div></div>' +
         '<div class="meta"><span class="badge ' + (l.source === 'comm' ? 'c' : 'b') + '">' + (SRC[l.source] || 'Komunita') + '</span><span class="badge ' + st[1] + '">' + st[0] + '</span>' + vBadge + (l.scope === 'cr' ? '<span class="badge c">Data ČR</span>' : '') + '</div>' +
         verSwitchHtml +
         '<div class="meta"><span>' + ic('map') + ' ' + l.stops.length + ' zastávek</span><span class="' + (full ? 'okt2' : 'warnt2') + '">' + ic('sound') + ' hlášení ' + a + '/' + l.stops.length + '</span>' + (l.trips && l.trips.length ? '<span>' + ic('clock') + ' ' + l.trips.length + ' spojů</span>' : '') + '</div>' +
@@ -2277,7 +2282,7 @@ const CONFIG = { DEMO: false, REDUCED_FX: false };
   function renderComm() {
     const q = $('cm-search').value.trim().toLowerCase(), f = S.cmFilter, v = S.cmVoice;
     $('cnt-comm').textContent = S.comm.length;
-    const arr = S.comm.filter((c) => (!q || (c.num + ' ' + c.dest + ' ' + c.author + ' ' + (c.tags || []).join(' ')).toLowerCase().includes(q)) && (f === 'all' || (f === 'inst' ? c.state === 'installed' : c.type === f)) && (v === 'all' || c.voice === v));
+    const arr = S.comm.filter((c) => (!q || (c.num + ' ' + (c.name || '') + ' ' + (c.full_name || '') + ' ' + (c.from || '') + ' ' + c.dest + ' ' + c.author + ' ' + (c.tags || []).join(' ')).toLowerCase().includes(q)) && (f === 'all' || (f === 'inst' ? c.state === 'installed' : c.type === f)) && (v === 'all' || c.voice === v));
     arr.sort((a, b) => {
       const aNo = (a.tags || []).includes('bez zvuku') || a.voice === 'none' || (a.stops && a.stops.length && a.stops.every(s => !s.snd && !s.audio_url));
       const bNo = (b.tags || []).includes('bez zvuku') || b.voice === 'none' || (b.stops && b.stops.length && b.stops.every(s => !s.snd && !s.audio_url));
@@ -2343,8 +2348,10 @@ const CONFIG = { DEMO: false, REDUCED_FX: false };
           }).join('') + '</div>';
       }
 
+      const fullTitle = (c.name && !c.name.startsWith('Linka ') && c.name !== String(c.num)) ? c.name : (c.full_name || ((c.from && c.dest && c.from !== c.dest) ? (c.from + ' – ' + c.dest) : c.dest));
+
       return '<div class="cl' + (S._cmShown ? ' na' : '') + '" data-cid="' + c.id + '" style="animation-delay:' + i * 40 + 'ms">' +
-        '<div class="top"><span class="numchip">' + esc(c.num) + '</span><div class="tx"><b>' + esc(c.dest) + '</b><small>od ' + esc(c.author) + '</small></div></div>' +
+        '<div class="top"><span class="numchip">' + esc(c.num) + '</span><div class="tx"><b title="' + esc(fullTitle) + '">' + esc(fullTitle) + '</b><small>od ' + esc(c.author) + '</small></div></div>' +
         verSwitcher +
         '<div class="meta"><span class="badge ' + t[1] + '">' + t[0] + '</span><span class="badge">' + ic('sound') + vo[0] + '</span>' + (c.scope === 'cr' ? '<span class="badge c">Data ČR</span>' : '') + (c.isNew ? '<span class="badge g">Nové</span>' : '') + '<span class="badge" style="background:rgba(56,189,248,0.2);color:#38bdf8;font-weight:700;">' + (c.version || 'V1') + '</span></div>' +
         '<div class="meta"><span>' + ic('download') + c.dl + '</span><span>' + ic('box') + esc(c.size) + '</span></div>' +
@@ -2362,8 +2369,9 @@ const CONFIG = { DEMO: false, REDUCED_FX: false };
       '</div>' +
       deletedArr.map((c) => {
         const stopCnt = (c.stops && c.stops.length) ? c.stops.length : 0;
+        const delFullTitle = (c.name && !c.name.startsWith('Linka ') && c.name !== String(c.num)) ? c.name : (c.full_name || ((c.from && c.dest && c.from !== c.dest) ? (c.from + ' – ' + c.dest) : c.dest));
         return '<div class="cl" style="opacity:0.85;border-color:rgba(255,255,255,0.08);background:rgba(255,255,255,0.02);">' +
-          '<div class="top"><span class="numchip" style="opacity:0.7;">' + esc(c.num) + '</span><div class="tx"><b>' + esc(c.dest) + '</b><small>od ' + esc(c.author) + ' · <span style="color:#f87171;">Smazáno z komunity</span></small></div></div>' +
+          '<div class="top"><span class="numchip" style="opacity:0.7;">' + esc(c.num) + '</span><div class="tx"><b title="' + esc(delFullTitle) + '">' + esc(delFullTitle) + '</b><small>od ' + esc(c.author) + ' · <span style="color:#f87171;">Smazáno z komunity</span></small></div></div>' +
           '<div class="meta"><span class="badge" style="background:rgba(239,68,68,0.12);color:#fca5a5;">Smazaná linka</span><span class="badge">' + (c.version || 'V1') + '</span></div>' +
           '<button class="btn sm danger ghost" data-del-comm="' + c.id + '" data-num="' + esc(c.num) + '" style="margin-top:10px;width:100%;font-weight:700;">' + ic('trash') + 'Odinstalovat z PC</button>' +
           '<button class="btn sm ghost" data-pv="' + c.id + '" style="margin-top:6px;width:100%">' + ic('map') + 'Náhled trasy' + (stopCnt ? ' (' + stopCnt + ')' : '') + '</button>' +
@@ -2522,7 +2530,8 @@ const CONFIG = { DEMO: false, REDUCED_FX: false };
     for (let p = 0; p <= 100; p += 5) { c.p = p; if (box) { box.querySelector('b').textContent = p + ' %'; box.querySelector('i').style.width = p + '%'; } await wait(70); }
     if (box) { box.className = 'cdl ok'; box.innerHTML = ic('check') + '<span>Staženo</span>'; }
     c.state = 'installed';
-    if (!S.lines.find((l) => l.commId === id)) S.lines.unshift({ id: 'n' + Date.now(), commId: id, num: c.num, name: 'Linka ' + c.num + ' (od ' + c.author + ')', dest: c.dest, source: 'comm', scope: c.scope, type: c.type, voice: c.voice, tags: c.tags.slice(), status: 'local', stops: withSnd([['Začátek trasy', '1', 0], ['Mezizastávka', '2', 0], [c.dest, '3', 0]], true), trips: [] });
+    const commFullTitle = (c.name && !c.name.startsWith('Linka ') && c.name !== String(c.num)) ? c.name : (c.full_name || ((c.from && c.dest && c.from !== c.dest) ? (c.from + ' – ' + c.dest) : c.dest));
+    if (!S.lines.find((l) => l.commId === id)) S.lines.unshift({ id: 'n' + Date.now(), commId: id, num: c.num, name: commFullTitle || ('Linka ' + c.num), dest: c.dest, source: 'comm', scope: c.scope, type: c.type, voice: c.voice, tags: c.tags.slice(), status: 'local', stops: withSnd([['Začátek trasy', '1', 0], ['Mezizastávka', '2', 0], [c.dest, '3', 0]], true), trips: [] });
     $('cnt-comm').textContent = S.comm.length; renderMine(); toast('ok', 'Linka ' + c.num + ' stažena', 'Najdete ji v Moje linky a je dostupná ve hře.');
   }
   $('cm-search').oninput = renderComm;
@@ -2639,16 +2648,20 @@ const CONFIG = { DEMO: false, REDUCED_FX: false };
     $$('#g-results [data-i]').forEach((b) => (b.onclick = () => {
       const r = gRes[+b.dataset.i];
       if (!r) return;
+      const fromStop = r.from || (r.stops && r.stops[0] ? (r.stops[0].name || r.stops[0].n || (Array.isArray(r.stops[0]) ? r.stops[0][0] : r.stops[0])) : '');
+      const toStop = r.to || (r.stops && r.stops.length ? (r.stops[r.stops.length - 1].name || r.stops[r.stops.length - 1].n || (Array.isArray(r.stops[r.stops.length - 1]) ? r.stops[r.stops.length - 1][0] : r.stops[r.stops.length - 1])) : '');
+      const autoJrName = (fromStop && toStop && fromStop !== toStop) ? `${fromStop} – ${toStop}` : (r.name || ('Linka ' + (r.num || '')));
+      const routeName = (r.name && !r.name.startsWith('Linka ') && r.name !== String(r.num)) ? r.name : autoJrName;
       const doPick = () => {
         openEdit({
           id: null,
           num: r.num || '',
           license: r.license || '',
           gtfs_route_id: r.gtfs_route_id || (r.routeIds && r.routeIds[0]) || '',
-          name: r.name || ('Linka ' + (r.num || '')),
-          from: r.from || '',
-          to: r.to || '',
-          dest: r.to || '',
+          name: routeName,
+          from: r.from || fromStop || '',
+          to: r.to || toStop || '',
+          dest: r.to || toStop || '',
           source: 'gtfs',
           scope: r.scope || 'idpk',
           stops: mkStops(r.stops || []),
@@ -2855,6 +2868,13 @@ const CONFIG = { DEMO: false, REDUCED_FX: false };
     E.id = isNew ? null : (l ? l.id : null);
     E.existing = !isNew;
     E.dirty = false;
+
+    const firstStopN = E.stops.length ? (E.stops[0].n || E.stops[0].name || '') : '';
+    const lastStopN = E.stops.length ? (E.stops[E.stops.length - 1].n || E.stops[E.stops.length - 1].name || '') : '';
+    const autoJrName = (firstStopN && lastStopN && firstStopN !== lastStopN) ? `${firstStopN} – ${lastStopN}` : (E.name || ('Linka ' + (E.num || '')));
+    if (!E.name || E.name.startsWith('Linka ') || E.name === String(E.num)) {
+      E.name = autoJrName;
+    }
     flowShow('edit');
     renderEdit();
     setStatus(false);
@@ -3141,13 +3161,19 @@ const CONFIG = { DEMO: false, REDUCED_FX: false };
   function buildLine() {
     const stops = (E.stops || []).filter((s) => s && (s.n || '').trim()); const prev = E.id && S.lines.find((x) => x && x.id === E.id);
     const fic = S.lines.filter((x) => x.source === 'manual').length + 1;
+    const firstStopN = stops.length ? (stops[0].n || '') : '';
     const lastStopN = stops.length ? (stops[stops.length - 1].n || '') : '';
+    const autoJrName = (firstStopN && lastStopN && firstStopN !== lastStopN) ? `${firstStopN} – ${lastStopN}` : ('Linka ' + (E.num || 'F' + fic));
+    let resolvedName = (E.name || '').trim();
+    if (!resolvedName || resolvedName.startsWith('Linka ') || resolvedName === String(E.num)) {
+      resolvedName = autoJrName;
+    }
     return {
       id: E.id || 'n' + Date.now(),
       num: String(E.num || '').trim() || (E.mode === 'gtfs' ? '?' : 'F' + fic),
       license: E.license || '',
       gtfs_route_id: E.gtfs_route_id || '',
-      name: (E.name || '').trim() || 'Linka ' + (E.num || 'F' + fic),
+      name: resolvedName,
       dest: (E.dest || '').trim() || lastStopN,
       source: E.source,
       scope: E.scope || null,
@@ -3199,8 +3225,14 @@ const CONFIG = { DEMO: false, REDUCED_FX: false };
   let P = null;
   function renderTags() { $$('#pb-tagbox .t').forEach((x) => x.remove()); P.tags.forEach((t, i) => { const el = document.createElement('span'); el.className = 't'; el.innerHTML = esc(t) + '<button title="Odebrat">' + ic('x') + '</button>'; el.querySelector('button').onclick = () => { P.tags.splice(i, 1); renderTags(); }; $('pb-tagbox').insertBefore(el, $('pb-tag-in')); }); }
   function openPublish(l) {
+    const firstStop = (l.stops && l.stops.length) ? (l.stops[0].n || l.stops[0].name || (Array.isArray(l.stops[0]) ? l.stops[0][0] : '')) : '';
+    const lastStop = (l.stops && l.stops.length) ? (l.stops[l.stops.length - 1].n || l.stops[l.stops.length - 1].name || (Array.isArray(l.stops[l.stops.length - 1]) ? l.stops[l.stops.length - 1][0] : '')) : (l.dest || '');
+    const autoJr = (firstStop && lastStop && firstStop !== lastStop) ? `${firstStop} – ${lastStop}` : (l.name || ('Linka ' + l.num));
+    const curName = (l.name || '').trim();
+    const defaultName = (curName && !curName.startsWith('Linka ') && curName !== String(l.num)) ? curName : autoJr;
+
     P = { id: l.id, type: l.type || (l.source === 'gtfs' ? 'realna' : 'fiktivni'), voice: l.voice || 'synt', tags: (l.tags || []).slice() };
-    $('pb-num').value = l.num; $('pb-name').value = l.name; $('pb-desc').value = ''; $('pb-ok').checked = false; $('pb-tag-in').value = ''; $('pb-user-name').textContent = $('hwid-display').textContent;
+    $('pb-num').value = l.num; $('pb-name').value = defaultName; $('pb-desc').value = ''; $('pb-ok').checked = false; $('pb-tag-in').value = ''; $('pb-user-name').textContent = $('hwid-display').textContent;
     $$('#pb-type button').forEach((b) => b.classList.toggle('on', b.dataset.t === P.type)); $$('#pb-voice button').forEach((b) => b.classList.toggle('on', b.dataset.v === P.voice)); renderTags();
     const miss = l.stops.length - annOf(l);
     $('pb-warn').hidden = !miss;

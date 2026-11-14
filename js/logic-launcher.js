@@ -2972,7 +2972,12 @@ async function loadCommunityEditorLines(preloadedLocalLines) {
                 try {
                     stops = typeof r.stops_json === 'string' ? JSON.parse(r.stops_json) : (r.stops || []);
                 } catch(e) {}
-                const dest = (stops && stops.length) ? (stops[stops.length - 1].name || stops[stops.length - 1].n || r.route_name) : r.route_name;
+                const firstStop = (stops && stops.length) ? (stops[0].name || stops[0].n || (Array.isArray(stops[0]) ? stops[0][0] : '')) : '';
+                const lastStop = (stops && stops.length) ? (stops[stops.length - 1].name || stops[stops.length - 1].n || (Array.isArray(stops[stops.length - 1]) ? stops[stops.length - 1][0] : '')) : '';
+                const autoJrName = (firstStop && lastStop && firstStop !== lastStop) ? `${firstStop} – ${lastStop}` : (r.route_name || lastStop || `Linka ${r.route_number}`);
+                const curName = (r.route_name || '').trim();
+                const routeName = (curName && !curName.startsWith('Linka ') && curName !== String(r.route_number)) ? curName : autoJrName;
+                const dest = lastStop || r.route_name || 'Konečná';
                 const isInstalled = fs.existsSync(path.join(customDataPath, `comm_${r.id}.json`));
                 const localLine = localNumMap.get(String(r.route_number));
                 const isOwnAuthor = Boolean(currentNick && r.author_name && (r.author_name.toLowerCase().includes(currentNick.toLowerCase()) || currentNick.toLowerCase().includes(r.author_name.toLowerCase())));
@@ -2999,8 +3004,11 @@ async function loadCommunityEditorLines(preloadedLocalLines) {
                 commLines.push({
                     id: String(r.id),
                     num: String(r.route_number),
-                    version: r.version || 'V1',
+                    name: routeName,
+                    full_name: autoJrName,
+                    from: firstStop,
                     dest: dest,
+                    version: r.version || 'V1',
                     author: r.author_name || 'Komunita',
                     dl: r.download_count || 0,
                     size: r.file_size || '35 kB',
@@ -3637,10 +3645,17 @@ document.addEventListener('lc:line-publish', async (e) => {
     const { line, type, voice, tags, desc } = e.detail;
     let cfg = loadConfig();
     try {
+        const stops = line.stops || [];
+        const firstStop = (stops.length) ? (stops[0].n || stops[0].name || (Array.isArray(stops[0]) ? stops[0][0] : '')) : '';
+        const lastStop = (stops.length) ? (stops[stops.length - 1].n || stops[stops.length - 1].name || (Array.isArray(stops[stops.length - 1]) ? stops[stops.length - 1][0] : '')) : '';
+        const autoJr = (firstStop && lastStop && firstStop !== lastStop) ? `${firstStop} – ${lastStop}` : `Linka ${line.num}`;
+        const curName = (line.name || '').trim();
+        const resolvedRouteName = (curName && !curName.startsWith('Linka ') && curName !== String(line.num)) ? curName : autoJr;
+
         const formData = new FormData();
         formData.append('legal_confirmed', '1');
         formData.append('route_number', line.num);
-        formData.append('route_name', line.name || `Linka ${line.num}`);
+        formData.append('route_name', resolvedRouteName);
         formData.append('version', line.version || 'V1');
         formData.append('route_type', type || 'gtfs');
         formData.append('voice_type', voice || 'synt');
@@ -3771,12 +3786,17 @@ document.addEventListener('lc:community-download', async (e) => {
         }
     } catch(_) {}
 
+    const firstStop = (commItem.stops && commItem.stops.length) ? (commItem.stops[0].name || commItem.stops[0].n || (Array.isArray(commItem.stops[0]) ? commItem.stops[0][0] : '')) : (commItem.from || '');
+    const lastStop = (commItem.stops && commItem.stops.length) ? (commItem.stops[commItem.stops.length - 1].name || commItem.stops[commItem.stops.length - 1].n || (Array.isArray(commItem.stops[commItem.stops.length - 1]) ? commItem.stops[commItem.stops.length - 1][0] : '')) : (commItem.dest || '');
+    const autoJrName = (firstStop && lastStop && firstStop !== lastStop) ? `${firstStop} – ${lastStop}` : (commItem.dest || `Linka ${commItem.num}`);
+    const fullTitle = (commItem.name && !commItem.name.startsWith('Linka ') && commItem.name !== String(commItem.num)) ? commItem.name : (commItem.full_name || autoJrName);
+
     const lineData = {
         id: `comm_${id}`,
         commId: id,
         num: commItem.num,
         version: commItem.version || 'V1',
-        name: `Linka ${commItem.num} (od ${commItem.author})`,
+        name: fullTitle,
         dest: commItem.dest,
         source: 'comm',
         scope: commItem.scope || 'idpk',
