@@ -1174,17 +1174,21 @@ button.chip.dl:hover{border-color:var(--blue);color:#fff}
 
     <div class="lg-view" id="login-email-code-view" hidden>
       <div class="sendbox"><div class="env"><svg class="ic"><use href="#i-mail"/></svg></div><h3>Zkontrolujte e-mail</h3>
-        <p class="hint" id="email-waiting-status">Čekáme na potvrzení odkazu v e-mailu…</p></div>
-      <div id="email-retry-buttons" style="display:flex;flex-direction:column;gap:10px" hidden>
-        <button class="btn" id="btn-resend-email-auth"><svg class="ic"><use href="#i-refresh"/></svg>Poslat znovu</button>
+        <p class="hint" id="email-waiting-status">Klikněte na odkaz v e-mailu, nebo zadejte <b>5místný kód</b>:</p>
       </div>
-      <button class="btn ghost" id="btn-manual-code-input">Mám kód z e-mailu</button>
-      <button class="link" id="btn-cancel-email-auth">Zrušit</button>
+      <div style="display:flex;flex-direction:column;gap:10px;width:100%;align-items:center;">
+        <input class="inp codein" id="login-email-code-input" maxlength="5" placeholder="•••••" inputmode="text" autocomplete="off" style="letter-spacing:6px;font-size:24px;text-align:center;font-weight:800;text-transform:uppercase;height:50px;width:100%;max-width:240px;">
+        <button class="btn green big" id="btn-verify-email-code" style="width:100%;">Ověřit kód</button>
+      </div>
+      <div id="email-retry-buttons" style="display:flex;flex-direction:column;gap:10px;width:100%;margin-top:6px;" hidden>
+        <button class="btn ghost" id="btn-resend-email-auth"><svg class="ic"><use href="#i-refresh"/></svg>Poslat znovu</button>
+      </div>
+      <button class="link" id="btn-cancel-email-auth" style="margin-top:4px;">Zrušit</button>
     </div>
 
     <div class="lg-view" id="login-email-code-manual-view" hidden>
       <p class="hint">Opište <b>5místný kód</b> z e-mailu.</p>
-      <input class="inp codein" id="login-email-code-manual-input" maxlength="6" placeholder="•••••" inputmode="text" autocomplete="off">
+      <input class="inp codein" id="login-email-code-manual-input" maxlength="5" placeholder="•••••" inputmode="text" autocomplete="off">
       <button class="btn green big" id="btn-verify-email-code-manual">Ověřit kód</button>
       <button class="link" id="btn-cancel-email-manual">← Zpět</button>
     </div>
@@ -1930,6 +1934,18 @@ const CONFIG = { DEMO: false, REDUCED_FX: false };
         seg.hidden = true;
       }
     }
+    setTimeout(() => {
+      if (v === 'email-code') {
+        const inp = $('login-email-code-input') || $('login-email-code-manual-input');
+        if (inp) { inp.value = ''; inp.focus(); }
+      } else if (v === 'email') {
+        const inp = $('login-email-input');
+        if (inp) inp.focus();
+      } else if (v === 'discord') {
+        const inp = $('login-identifier-input');
+        if (inp) inp.focus();
+      }
+    }, 50);
   }
   $$('#login-method-seg button').forEach((b) => {
     b.onclick = () => {
@@ -1980,22 +1996,37 @@ const CONFIG = { DEMO: false, REDUCED_FX: false };
     setLoginView('email-code'); $('email-retry-buttons').hidden = true; setTimeout(() => ($('email-retry-buttons').hidden = false), 6000);
     emit('login-email', { mode: emailMode, nick: emailMode === 'signup' ? n : null, email: m });
   };
-  $('btn-manual-code-input').onclick = () => setLoginView('email-manual');
-  $('btn-cancel-email-manual').onclick = () => setLoginView('email-code');
-  $('btn-cancel-email-auth').onclick = () => setLoginView('email');
-  $('btn-cancel-auth').onclick = () => setLoginView('discord');
-  $('btn-resend-email-auth').onclick = () => { toast('info', 'E-mail odeslán znovu', 'Zkontrolujte i složku Spam.'); $('email-retry-buttons').hidden = true; };
+  if ($('btn-manual-code-input')) $('btn-manual-code-input').onclick = () => setLoginView('email-manual');
+  if ($('btn-cancel-email-manual')) $('btn-cancel-email-manual').onclick = () => setLoginView('email-code');
+  if ($('btn-cancel-email-auth')) $('btn-cancel-email-auth').onclick = () => setLoginView('email');
+  if ($('btn-cancel-auth')) $('btn-cancel-auth').onclick = () => setLoginView('discord');
+  if ($('btn-resend-email-auth')) $('btn-resend-email-auth').onclick = () => { toast('info', 'E-mail odeslán znovu', 'Zkontrolujte i složku Spam.'); $('email-retry-buttons').hidden = true; };
+  
   const handleVerifyManualCode = () => {
-    const c = (($('login-email-code-manual-input') && $('login-email-code-manual-input').value) || '').trim().toUpperCase();
+    const inp = $('login-email-code-input') || $('login-email-code-manual-input');
+    const c = (inp && inp.value ? inp.value : '').trim().toUpperCase();
     if (c.length !== 5) return showLoginError('Kód musí mít 5 znaků.');
-    emit('verify-code', { code: c });
+    const btnVer = $('btn-verify-email-code') || $('btn-verify-email-code-manual');
+    if (btnVer) { btnVer.disabled = true; btnVer.textContent = 'Ověřuji…'; }
+    emit('verify-code', { code: c, email: ($('login-email-input') ? $('login-email-input').value.trim() : '') });
   };
-  $('btn-verify-email-code-manual').onclick = handleVerifyManualCode;
-  if ($('login-email-code-manual-input')) {
-    $('login-email-code-manual-input').addEventListener('keydown', (e) => {
+  
+  if ($('btn-verify-email-code')) $('btn-verify-email-code').onclick = handleVerifyManualCode;
+  if ($('btn-verify-email-code-manual')) $('btn-verify-email-code-manual').onclick = handleVerifyManualCode;
+
+  ['login-email-code-input', 'login-email-code-manual-input'].forEach(id => {
+    const el = $(id);
+    if (!el) return;
+    el.addEventListener('input', () => {
+      el.value = el.value.toUpperCase();
+      if (el.value.trim().length === 5) {
+        setTimeout(() => handleVerifyManualCode(), 150);
+      }
+    });
+    el.addEventListener('keydown', (e) => {
       if (e.key === 'Enter') handleVerifyManualCode();
     });
-  }
+  });
   async function loginOk() { setLoginView('success'); await wait(1600); showLogin(false); toast('ok', 'Vítejte zpět!', 'Přihlášení proběhlo úspěšně.'); }
 
   /* =====================================================================
@@ -2235,7 +2266,8 @@ const CONFIG = { DEMO: false, REDUCED_FX: false };
       }
 
       const l = activeLine;
-      const st = STAT[l.status] || ['Neznámý', ''], a = annOf(l), full = a === l.stops.length;
+      const stopsCount = (l.stops && Array.isArray(l.stops)) ? l.stops.length : 0;
+      const st = STAT[l.status] || ['Neznámý', ''], a = annOf(l), full = (stopsCount > 0 && a === stopsCount);
       const vBadge = '<span class="badge" style="background:rgba(56,189,248,0.2);color:#38bdf8;font-weight:700;font-size:11px;margin-left:4px;">' + esc(l.version || 'V1') + '</span>';
 
       // Přepínač verzí pokud jich je více
@@ -2273,7 +2305,7 @@ const CONFIG = { DEMO: false, REDUCED_FX: false };
       return '<div class="lcard' + (l.id === flashId ? ' flash' : '') + '" style="animation-delay:' + Math.min(i * 40, 300) + 'ms"><div class="top"><span class="numchip">' + esc(l.num) + '</span><div class="tx"><b title="' + esc(displayName) + '">' + esc(displayName) + '</b><small>→ ' + esc(l.dest || lStop) + '</small></div></div>' +
         '<div class="meta"><span class="badge ' + (l.source === 'comm' ? 'c' : 'b') + '">' + (SRC[l.source] || 'Komunita') + '</span><span class="badge ' + st[1] + '">' + st[0] + '</span>' + vBadge + (l.scope === 'cr' ? '<span class="badge c">Data ČR</span>' : '') + '</div>' +
         verSwitchHtml +
-        '<div class="meta"><span>' + ic('map') + ' ' + l.stops.length + ' zastávek</span><span class="' + (full ? 'okt2' : 'warnt2') + '">' + ic('sound') + ' hlášení ' + a + '/' + l.stops.length + '</span>' + (l.trips && l.trips.length ? '<span>' + ic('clock') + ' ' + l.trips.length + ' spojů</span>' : '') + '</div>' +
+        '<div class="meta"><span>' + ic('map') + ' ' + stopsCount + ' zastávek</span><span class="' + (full ? 'okt2' : 'warnt2') + '">' + ic('sound') + ' hlášení ' + a + '/' + stopsCount + '</span>' + (l.trips && l.trips.length ? '<span>' + ic('clock') + ' ' + l.trips.length + ' spojů</span>' : '') + '</div>' +
         (l.status === 'rejected' ? '<div class="rej"><b>Zpráva od správce:</b> ' + esc(l.reject || '—') + '</div>' : '') +
         '<div class="acts2"><div class="acts2-main">' + main + '</div><div class="acts2-icons"><button class="btn ibx" data-a="export" data-id="' + l.id + '" title="Exportovat balíček (.zip)">' + ic('download') + '</button><button class="btn danger ibx" data-a="del" data-id="' + l.id + '" title="' + (vers.length > 1 ? 'Smazat linku a všechny její verze' : 'Smazat linku') + '">' + ic('trash') + '</button></div></div></div>';
     }).join('') || '<div class="empty"><b>Zatím tu nic není</b>Vytvořte si první linku tlačítkem „Vytvořit vlastní linku“ nebo si stáhněte komunitní linku.</div>';
@@ -3579,10 +3611,12 @@ const CONFIG = { DEMO: false, REDUCED_FX: false };
     if (!S.queue || !Array.isArray(S.queue)) S.queue = [];
     if ($('cnt-admin')) $('cnt-admin').textContent = S.queue.length;
     $('adm-list').innerHTML = S.queue.map((q) => {
-      const t = TYPES[q.type], vo = VOICES[q.voice];
+      const t = TYPES[q.type] || ['Reálná', 'b'], vo = VOICES[q.voice] || ['Syntetický', ''];
+      const qStopsCount = (q.stops && Array.isArray(q.stops)) ? q.stops.length : 0;
+      const qTags = Array.isArray(q.tags) ? q.tags : [];
       return '<div class="acard" data-id="' + q.id + '"><div class="top"><span class="numchip">' + esc(q.num) + '</span><div class="tx"><b>' + esc(q.name) + '</b><small>od ' + esc(q.author) + ' · účet ověřen ✓</small></div></div>' +
-        '<div class="meta"><span class="badge ' + t[1] + '">' + t[0] + '</span><span class="badge">' + ic('sound') + vo[0] + '</span>' + (q.scope === 'cr' ? '<span class="badge c">Data ČR</span>' : '') + '<span>' + ic('map') + ' ' + q.stops.length + ' zastávek</span></div>' +
-        (q.tags.length ? '<div class="tags">' + q.tags.map((x) => '<span class="tag">' + esc(x) + '</span>').join('') + '</div>' : '') + (q.desc ? '<div class="adesc">' + esc(q.desc) + '</div>' : '') +
+        '<div class="meta"><span class="badge ' + t[1] + '">' + t[0] + '</span><span class="badge">' + ic('sound') + vo[0] + '</span>' + (q.scope === 'cr' ? '<span class="badge c">Data ČR</span>' : '') + '<span>' + ic('map') + ' ' + qStopsCount + ' zastávek</span></div>' +
+        (qTags.length ? '<div class="tags">' + qTags.map((x) => '<span class="tag">' + esc(x) + '</span>').join('') + '</div>' : '') + (q.desc ? '<div class="adesc">' + esc(q.desc) + '</div>' : '') +
         '<div class="alist">' + (q.stops || []).map((s, i) => '<div class="ar"><span class="no">' + (i + 1) + '</span><span class="an">' + esc((s && s.n) || '') + '</span>' + (s.snd ? '<span class="aud' + (s.snd._p ? ' play' : '') + '"><button data-p="' + q.id + ':' + i + '" title="Přehrát">' + ic(s.snd._p ? 'min' : 'play') + '</button><em>' + esc(s.snd.name) + '</em><small>' + fmtDur(s.snd.dur) + '</small></span>' : '<span class="badge r">bez hlášení</span>') + '</div>').join('') + '</div>' +
         '<div class="acts2"><button class="btn danger" data-d="no" data-id="' + q.id + '">' + ic('x') + 'Zamítnout</button><button class="btn green" data-d="ok" data-id="' + q.id + '">' + ic('check') + 'Schválit</button></div></div>';
     }).join('') || '<div class="empty"><b>Nic ke schválení</b>Všechny odeslané linky jsou vyřízeny.</div>';

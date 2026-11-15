@@ -1051,13 +1051,18 @@ function pollAuthEmail(email) {
                 config.discord_nick = pollData.nick || pollData.email;
                 config.email = pollData.email;
                 saveConfig(config);
+                if (window.LC) {
+                    window.LC.setUser({ name: config.discord_nick, hwid: currentHWID, role: mapRoleToLC(pollData.role) });
+                    window.LC.setLoginView('success');
+                }
                 await initLauncher(config);
                 if (typeof initLCBridgeData === 'function') await initLCBridgeData();
                 showAuthView('success');
                 setTimeout(() => {
+                    if (window.LC) window.LC.showLogin(false);
                     loginOverlay.style.display = 'none';
                     loginOverlay.hidden = true;
-                }, 2000);
+                }, 1600);
             }
         } catch(_) {}
     }, 4000);
@@ -1082,60 +1087,84 @@ if (btnManualCode) {
     });
 }
 
+let isVerifyingEmailCode = false;
+async function performVerifyCode(code, providedEmail) {
+    if (isVerifyingEmailCode) return;
+    const cleanCode = String(code || '').trim().toUpperCase();
+    if (!cleanCode || cleanCode.length !== 5) {
+        if (window.LC) window.LC.showLoginError("Kód musí mít 5 znaků.");
+        return;
+    }
+    isVerifyingEmailCode = true;
+    const emailToVerify = providedEmail || currentPendingEmail || (document.getElementById('login-email-input') ? document.getElementById('login-email-input').value.trim() : '');
+    
+    const btnVer = document.getElementById('btn-verify-email-code') || document.getElementById('btn-verify-email-code-manual');
+    if (btnVer) {
+        btnVer.disabled = true;
+        btnVer.innerText = 'OVĚŘUJI...';
+    }
+
+    try {
+        const verifyRes = await fetch(`${API_BASE}/api/launcher/email_verify`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email: emailToVerify, code: cleanCode, hwid: currentHWID })
+        });
+        const verifyData = await verifyRes.json();
+        if (verifyData.status === 'success') {
+            if (window.emailPollInterval) {
+                clearInterval(window.emailPollInterval);
+                window.emailPollInterval = null;
+            }
+            if (window.emailAuthTimeoutTimer) {
+                clearTimeout(window.emailAuthTimeoutTimer);
+                window.emailAuthTimeoutTimer = null;
+            }
+            let config = loadConfig();
+            config.discord_id = verifyData.discord_id || `email_${emailToVerify}`;
+            config.discord_nick = verifyData.nick || verifyData.display_name || (emailToVerify ? emailToVerify.split('@')[0] : 'Uživatel');
+            config.email = verifyData.email || emailToVerify;
+            saveConfig(config);
+
+            if (window.LC) {
+                window.LC.setUser({ name: config.discord_nick, hwid: currentHWID, role: mapRoleToLC(verifyData.role) });
+                window.LC.setLoginView('success');
+            }
+            await initLauncher(config);
+            if (typeof initLCBridgeData === 'function') await initLCBridgeData();
+            setTimeout(() => {
+                if (window.LC) window.LC.showLogin(false);
+                const ov = document.getElementById('login-overlay');
+                if (ov) {
+                    ov.hidden = true;
+                    ov.style.display = 'none';
+                }
+            }, 1600);
+        } else {
+            if (window.LC) window.LC.showLoginError(verifyData.message || "Neplatný kód nebo vypršela platnost.");
+            if (btnVer) {
+                btnVer.disabled = false;
+                btnVer.innerText = 'Ověřit kód';
+            }
+        }
+    } catch(e) {
+        if (window.LC) window.LC.showLoginError("Chyba při ověřování kódu: " + e.message);
+        if (btnVer) {
+            btnVer.disabled = false;
+            btnVer.innerText = 'Ověřit kód';
+        }
+    } finally {
+        isVerifyingEmailCode = false;
+    }
+}
+
 const btnVerifyEmailCodeManual = document.getElementById('btn-verify-email-code-manual');
 if (btnVerifyEmailCodeManual) {
     btnVerifyEmailCodeManual.addEventListener('click', async () => {
-        const inputCode = document.getElementById('login-email-code-manual-input');
+        const inputCode = document.getElementById('login-email-code-manual-input') || document.getElementById('login-email-code-input');
         const code = inputCode ? inputCode.value.trim().toUpperCase() : '';
         const email = (inputEmail ? inputEmail.value.trim() : '') || currentPendingEmail;
-        
-        if (code.length !== 5) {
-            showLoginError("Zadejte platný 5místný kód.");
-            return;
-        }
-        
-        btnVerifyEmailCodeManual.disabled = true;
-        btnVerifyEmailCodeManual.innerText = 'OVĚŘUJI...';
-        
-        try {
-            const verifyRes = await fetch(`${API_BASE}/api/launcher/email_verify`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, code, hwid: currentHWID }) });
-            const verifyData = await verifyRes.json();
-            if (verifyData.status === 'success') {
-                let data = verifyData;
-                data.id = verifyData.discord_id;
-                let config = loadConfig();
-                config.discord_id = data.discord_id || "email-" + data.id;
-                config.discord_nick = data.nick || data.email;
-                config.email = data.email;
-                saveConfig(config);
-                if (window.LC) {
-                    window.LC.setUser({ name: config.discord_nick, hwid: currentHWID, role: mapRoleToLC(data.role) });
-                    window.LC.setLoginView('success');
-                }
-                await initLauncher(config);
-                if (typeof initLCBridgeData === 'function') await initLCBridgeData();
-                showAuthView('success');
-                setTimeout(() => {
-                    if (window.LC) window.LC.showLogin(false);
-                    if (loginOverlay) {
-                        loginOverlay.style.display = 'none';
-                        loginOverlay.hidden = true;
-                    }
-                }, 1600);
-            } else {
-                showLoginError(verifyData.message || "Neplatný kód nebo vypršela platnost.");
-                if (inputCode) inputCode.value = '';
-                showAuthView('emailCode');
-                pollAuthEmail(email);
-            }
-        } catch(e) {
-            showLoginError("Chyba při ověřování kódu.");
-            if (inputCode) inputCode.value = '';
-            showAuthView('emailCode');
-            pollAuthEmail(email);
-        }
-        btnVerifyEmailCodeManual.disabled = false;
-        btnVerifyEmailCodeManual.innerText = 'OVĚŘIT KÓD';
+        await performVerifyCode(code, email);
     });
 }
 
@@ -3563,40 +3592,8 @@ document.addEventListener('lc:login-email', async (e) => {
 
 document.addEventListener('lc:verify-code', async (e) => {
     const code = e.detail && e.detail.code ? String(e.detail.code).trim().toUpperCase() : '';
-    if (!code || code.length !== 5) {
-        if (window.LC) window.LC.showLoginError('Kód musí mít 5 znaků.');
-        return;
-    }
-    const emailToVerify = currentPendingEmail || (document.getElementById('login-email-input') ? document.getElementById('login-email-input').value.trim() : '');
-    try {
-        const res = await fetch(`${API_BASE}/api/launcher/email_verify`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ email: emailToVerify, code: code, hwid: currentHWID })
-        });
-        const data = await res.json();
-        if (data.status === 'success') {
-            let config = loadConfig();
-            config.discord_id = data.discord_id || `email_${emailToVerify}`;
-            config.discord_nick = data.nick || data.display_name || emailToVerify.split('@')[0];
-            config.email = emailToVerify;
-            saveConfig(config);
-            
-            if (window.LC) {
-                window.LC.setUser({ name: config.discord_nick, hwid: currentHWID, role: mapRoleToLC(data.role) });
-                window.LC.setLoginView('success');
-            }
-            setTimeout(async () => {
-                if (window.LC) window.LC.showLogin(false);
-                await initLauncher(config);
-                await initLCBridgeData();
-            }, 1600);
-        } else {
-            if (window.LC) window.LC.showLoginError(data.message || 'Neplatný kód z e-mailu.');
-        }
-    } catch(err) {
-        if (window.LC) window.LC.showLoginError('Chyba ověření kódu: ' + err.message);
-    }
+    const email = e.detail && e.detail.email ? String(e.detail.email).trim() : '';
+    await performVerifyCode(code, email);
 });
 
 document.addEventListener('lc:logout', () => {
