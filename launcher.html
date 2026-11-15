@@ -2106,8 +2106,10 @@ const CONFIG = { DEMO: false, REDUCED_FX: false };
         }, () => {
           l.status = 'local';
           delete l.published;
+          const foundCommItem = (S.comm || []).find(c => String(c.num).trim() === String(l.num).trim() && (c.version || 'V1') === curVer);
+          const foundCommId = l.commId || (foundCommItem ? foundCommItem.id : null);
           S.comm = (S.comm || []).filter(c => !(String(c.num).trim() === String(l.num).trim() && (c.version || 'V1') === curVer));
-          emit('line-delete', { id: l.id, num: l.num, version: curVer, unpublish: true, isPublished: true, commId: l.commId });
+          emit('line-delete', { id: l.id, num: l.num, version: curVer, unpublish: true, isPublished: true, commId: foundCommId });
           emit('line-save', { line: l });
           renderMine(l.id);
           renderComm();
@@ -2124,11 +2126,14 @@ const CONFIG = { DEMO: false, REDUCED_FX: false };
         }, () => {
           S.lines = S.lines.filter((x) => x.id !== l.id);
           delete S._mineActiveVer[String(l.num).trim()];
+          const foundCommItem = (S.comm || []).find(c => String(c.num).trim() === String(l.num).trim() && (c.version || 'V1') === curVer);
+          const foundCommId = l.commId || (foundCommItem ? foundCommItem.id : null);
+          const isPub = Boolean(foundCommItem) || l.status === 'published' || Boolean(l.commId);
           S.comm = (S.comm || []).filter(c => !(String(c.num).trim() === String(l.num).trim() && (c.version || 'V1') === curVer));
           renderMine();
           renderComm();
           toast('info', `Verze ${curVer} linky ${l.num} smazána`);
-          emit('line-delete', { id: l.id, num: l.num, version: curVer, isPublished: l.status === 'published' || Boolean(l.commId), commId: l.commId });
+          emit('line-delete', { id: l.id, num: l.num, version: curVer, isPublished: isPub, commId: foundCommId });
         });
       } else if (a === 'del') {
         if (l.source === 'comm' || String(l.id).startsWith('comm_')) {
@@ -2157,12 +2162,13 @@ const CONFIG = { DEMO: false, REDUCED_FX: false };
           title: `Smazat linku ${l.num}?`,
           desc: hasMultiple
             ? `Tato akce smaže linku ${l.num} včetně všech jejích verzí (${verList}) z vašeho počítače a stáhne ji z komunitní nabídky.`
-            : `Linka ${l.num} bude odstraněna z vašeho počítače i ze simulátoru.`,
+            : `Linka ${l.num} bude odstraněna z vašeho počítače i ze simulátoru a stažena z komunitní nabídky.`,
           yes: hasMultiple ? 'Smazat všechny verze' : 'Smazat linku'
         }, () => {
           const idsToDelete = sameNumLines.map(x => x.id);
-          const foundCommId = l.commId || (sameNumLines.find(x => x.commId) ? sameNumLines.find(x => x.commId).commId : null);
-          const isPub = sameNumLines.some(x => x.status === 'published' || x.commId);
+          const foundCommItem = (S.comm || []).find(c => String(c.num).trim() === String(l.num).trim());
+          const foundCommId = l.commId || (foundCommItem ? foundCommItem.id : null) || (sameNumLines.find(x => x.commId) ? sameNumLines.find(x => x.commId).commId : null);
+          const isPub = Boolean(foundCommItem) || sameNumLines.some(x => x.status === 'published' || x.commId);
           S.lines = S.lines.filter((x) => !idsToDelete.includes(x.id));
           delete S._mineActiveVer[String(l.num).trim()];
           S.comm = (S.comm || []).filter(c => String(c.num).trim() !== String(l.num).trim());

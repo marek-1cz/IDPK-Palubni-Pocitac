@@ -3038,7 +3038,13 @@ async function syncLocalLinesWithDatabase(lines) {
                 if (match) {
                     let changed = false;
                     const sStatus = match.status || 'approved';
-                    if (sStatus === 'approved') {
+                    if (match.is_deleted_by_author || sStatus === 'deleted_by_user') {
+                        if (line.status === 'published' || line.status === 'pending') {
+                            line.status = 'local';
+                            delete line.published;
+                            changed = true;
+                        }
+                    } else if (sStatus === 'approved') {
                         if (line.status !== 'published') {
                             line.status = 'published';
                             changed = true;
@@ -3054,6 +3060,10 @@ async function syncLocalLinesWithDatabase(lines) {
                             line.status = 'pending';
                             changed = true;
                         }
+                    }
+                    if (match.id && line.commId !== match.id) {
+                        line.commId = match.id;
+                        changed = true;
                     }
                     if (match.version && line.version !== match.version && !match.version.startsWith('V1') && (line.version === 'V1' || !line.version)) {
                         line.version = match.version;
@@ -3128,7 +3138,7 @@ async function loadCommunityEditorLines(preloadedLocalLines) {
                 // 2. Hráč, který linku nikdy nestáhl, ji nesmí vidět
                 // 3. Pouze hráč, který NENÍ autor a linku MÁ v PC (comm_${r.id}.json), ji uvidí dole jako "Již smazaná z komunity" pro možnost odinstalace
                 if (isDeleted) {
-                    if (isOwnAuthor || isLocal || !isInstalled) {
+                    if (isOwnAuthor || !isInstalled) {
                         continue;
                     }
                 }
