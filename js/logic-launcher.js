@@ -1086,8 +1086,8 @@ const btnVerifyEmailCodeManual = document.getElementById('btn-verify-email-code-
 if (btnVerifyEmailCodeManual) {
     btnVerifyEmailCodeManual.addEventListener('click', async () => {
         const inputCode = document.getElementById('login-email-code-manual-input');
-        const code = inputCode ? inputCode.value.trim() : '';
-        const email = inputEmail.value.trim();
+        const code = inputCode ? inputCode.value.trim().toUpperCase() : '';
+        const email = (inputEmail ? inputEmail.value.trim() : '') || currentPendingEmail;
         
         if (code.length !== 5) {
             showLoginError("Zadejte platný 5místný kód.");
@@ -1098,21 +1098,32 @@ if (btnVerifyEmailCodeManual) {
         btnVerifyEmailCodeManual.innerText = 'OVĚŘUJI...';
         
         try {
-            const verifyRes = await fetch(`${API_BASE}/api/launcher/email_verify`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, code }) }); const verifyData = await verifyRes.json(); if (verifyData.status === 'success') { let data = verifyData; data.id = verifyData.discord_id;
+            const verifyRes = await fetch(`${API_BASE}/api/launcher/email_verify`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, code, hwid: currentHWID }) });
+            const verifyData = await verifyRes.json();
+            if (verifyData.status === 'success') {
+                let data = verifyData;
+                data.id = verifyData.discord_id;
                 let config = loadConfig();
                 config.discord_id = data.discord_id || "email-" + data.id;
                 config.discord_nick = data.nick || data.email;
                 config.email = data.email;
                 saveConfig(config);
+                if (window.LC) {
+                    window.LC.setUser({ name: config.discord_nick, hwid: currentHWID, role: mapRoleToLC(data.role) });
+                    window.LC.setLoginView('success');
+                }
                 await initLauncher(config);
                 if (typeof initLCBridgeData === 'function') await initLCBridgeData();
                 showAuthView('success');
                 setTimeout(() => {
-                    loginOverlay.style.display = 'none';
-                    loginOverlay.hidden = true;
-                }, 2000);
+                    if (window.LC) window.LC.showLogin(false);
+                    if (loginOverlay) {
+                        loginOverlay.style.display = 'none';
+                        loginOverlay.hidden = true;
+                    }
+                }, 1600);
             } else {
-                showLoginError("Neplatný kód nebo vypršela platnost.");
+                showLoginError(verifyData.message || "Neplatný kód nebo vypršela platnost.");
                 if (inputCode) inputCode.value = '';
                 showAuthView('emailCode');
                 pollAuthEmail(email);
@@ -3472,7 +3483,7 @@ document.addEventListener('lc:login-email', async (e) => {
         const res = await fetch(`${API_BASE}/api/auth/email/request`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ email, nick: nick || '', intent: mode === 'signup' ? 'app_signup' : 'app_login' })
+            body: JSON.stringify({ email, nick: nick || '', intent: mode === 'signup' ? 'app_signup' : 'app_login', source: 'launcher' })
         });
         const data = await res.json();
         if (data.success || res.ok) {
@@ -3501,20 +3512,24 @@ document.addEventListener('lc:login-email', async (e) => {
 });
 
 document.addEventListener('lc:verify-code', async (e) => {
-    const code = e.detail && e.detail.code;
-    if (!code || code.length !== 6) return;
+    const code = e.detail && e.detail.code ? String(e.detail.code).trim().toUpperCase() : '';
+    if (!code || code.length !== 5) {
+        if (window.LC) window.LC.showLoginError('Kód musí mít 5 znaků.');
+        return;
+    }
+    const emailToVerify = currentPendingEmail || (document.getElementById('login-email-input') ? document.getElementById('login-email-input').value.trim() : '');
     try {
         const res = await fetch(`${API_BASE}/api/launcher/email_verify`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ email: currentPendingEmail, code: code, hwid: currentHWID })
+            body: JSON.stringify({ email: emailToVerify, code: code, hwid: currentHWID })
         });
         const data = await res.json();
         if (data.status === 'success') {
             let config = loadConfig();
-            config.discord_id = data.discord_id || `email_${currentPendingEmail}`;
-            config.discord_nick = data.display_name || currentPendingEmail.split('@')[0];
-            config.email = currentPendingEmail;
+            config.discord_id = data.discord_id || `email_${emailToVerify}`;
+            config.discord_nick = data.nick || data.display_name || emailToVerify.split('@')[0];
+            config.email = emailToVerify;
             saveConfig(config);
             
             if (window.LC) {

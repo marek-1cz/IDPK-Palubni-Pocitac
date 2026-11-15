@@ -2791,6 +2791,7 @@ window.renderLinkList = function() {
         html += `<span class="lsi-badge${isComm ? ' comm' : (isBeta ? ' beta' : '')}">${cleanName.toUpperCase()}</span>`;
         if(routeName) html += `<span class="lsi-name">${routeName}${isComm ? ' [KOMUNITA]' : (isBeta ? ' BETA' : '')}</span>`;
         else if (isComm) html += `<span class="lsi-name">[VLASTNÍ / KOMUNITA]</span>`;
+        else html += `<span class="lsi-name">Linka ${cleanName.toUpperCase()}</span>`;
         html += `</div>`;
     }); 
     listEl.innerHTML = html;

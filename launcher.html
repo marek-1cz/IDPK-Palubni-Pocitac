@@ -1128,7 +1128,7 @@ button.chip.dl:hover{border-color:var(--blue);color:#fff}
 
     <!-- Segmented switch (Discord DM / E-mail) -->
     <div class="sp-seg" id="login-method-seg" data-v="discord" role="tablist" aria-label="Způsob přihlášení">
-      <button type="button" role="tab" data-v="discord" aria-selected="true"><svg class="seg-ic"><use href="#i-discord"/></svg><span>Discord DM</span><small>doporučeno</small></button>
+      <button type="button" role="tab" data-v="discord" aria-selected="true"><svg class="seg-ic"><use href="#i-discord"/></svg><span>Discord DM</span></button>
       <button type="button" role="tab" data-v="email" aria-selected="false"><svg class="seg-ic"><use href="#i-mail"/></svg><span>E-mail</span></button>
     </div>
 
@@ -1923,7 +1923,17 @@ const CONFIG = { DEMO: false, REDUCED_FX: false };
   $('btn-cancel-email-auth').onclick = () => setLoginView('email');
   $('btn-cancel-auth').onclick = () => setLoginView('discord');
   $('btn-resend-email-auth').onclick = () => { toast('info', 'E-mail odeslán znovu', 'Zkontrolujte i složku Spam.'); $('email-retry-buttons').hidden = true; };
-  $('btn-verify-email-code-manual').onclick = () => { const c = $('login-email-code-manual-input').value.trim(); if (c.length !== 6) return showLoginError('Kód musí mít 6 číslic.'); emit('verify-code', { code: c }); loginOk(); };
+  const handleVerifyManualCode = () => {
+    const c = (($('login-email-code-manual-input') && $('login-email-code-manual-input').value) || '').trim().toUpperCase();
+    if (c.length !== 5) return showLoginError('Kód musí mít 5 znaků.');
+    emit('verify-code', { code: c });
+  };
+  $('btn-verify-email-code-manual').onclick = handleVerifyManualCode;
+  if ($('login-email-code-manual-input')) {
+    $('login-email-code-manual-input').addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') handleVerifyManualCode();
+    });
+  }
   async function loginOk() { setLoginView('success'); await wait(1600); showLogin(false); toast('ok', 'Vítejte zpět!', 'Přihlášení proběhlo úspěšně.'); }
 
   /* =====================================================================
