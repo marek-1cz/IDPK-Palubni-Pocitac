@@ -3105,16 +3105,32 @@ async function loadCommunityEditorLines(preloadedLocalLines) {
                 const dest = lastStop || r.route_name || 'Konečná';
                 const isInstalled = fs.existsSync(path.join(customDataPath, `comm_${r.id}.json`));
                 const localLine = localNumMap.get(String(r.route_number));
-                const isOwnAuthor = Boolean(currentNick && r.author_name && (r.author_name.toLowerCase().includes(currentNick.toLowerCase()) || currentNick.toLowerCase().includes(r.author_name.toLowerCase())));
+                const authorIdStr = String(r.author_id || '').trim();
+                const authorNameStr = String(r.author_name || '').trim().toLowerCase();
+                const myDiscordId = String(cfg.discord_id || '').trim();
+                const myEmail = String(cfg.email || '').toLowerCase().trim();
+                const myNick = String(cfg.discord_nick || '').trim().toLowerCase();
+                const myHWID = String(currentHWID || '').trim();
+
+                const isOwnAuthor = Boolean(
+                    (myDiscordId && authorIdStr && myDiscordId === authorIdStr) ||
+                    (myEmail && authorIdStr && myEmail === authorIdStr.toLowerCase()) ||
+                    (myHWID && authorIdStr && myHWID === authorIdStr) ||
+                    (myNick && authorNameStr && (authorNameStr.includes(myNick) || myNick.includes(authorNameStr))) ||
+                    (currentNick && authorNameStr && (authorNameStr.includes(currentNick.toLowerCase()) || currentNick.toLowerCase().includes(authorNameStr)))
+                );
                 const isLocal = Boolean(localLine);
                 const isAlreadyPresent = isInstalled || isOwnAuthor || isLocal;
 
                 const isDeleted = Boolean(r.is_deleted_by_author || r.status === 'deleted_by_user');
-                // Pokud je linka smazaná z komunity:
-                // Smazané komunitní linky NESMÍ vidět jejich autor (aby neměl matoucí duplicitu),
-                // a NESMÍ je vidět ani hráči, kteří si je dříve nestáhli do PC (comm_*.json)
-                if (isDeleted && (!isInstalled || isOwnAuthor)) {
-                    continue;
+                // Pravidlo pro smazané linky:
+                // 1. Autor nesmí vidět svou smazanou komunitní linku (má ji v Moje linky nebo ji smazal)
+                // 2. Hráč, který linku nikdy nestáhl, ji nesmí vidět
+                // 3. Pouze hráč, který NENÍ autor a linku MÁ v PC (comm_${r.id}.json), ji uvidí dole jako "Již smazaná z komunity" pro možnost odinstalace
+                if (isDeleted) {
+                    if (isOwnAuthor || isLocal || !isInstalled) {
+                        continue;
+                    }
                 }
 
                 // Detekce novější verze (update):
@@ -3835,9 +3851,15 @@ document.addEventListener('lc:line-delete', async (e) => {
                     discord_id: cfg.discord_id || (cfg.email ? 'email-' + cfg.email : currentHWID),
                     author_name: cfg.discord_nick || cfg.email || 'Hráč'
                 })
-            }).then(() => {
+            }).then(async () => {
                 if (typeof syncLocalLinesWithDatabase === 'function') {
-                    setTimeout(() => syncLocalLinesWithDatabase(), 500);
+                    await syncLocalLinesWithDatabase();
+                }
+                const updatedComm = await loadCommunityEditorLines();
+                if (window.LC) {
+                    if (window.LC.setComm) window.LC.setComm(updatedComm);
+                    if (window.LC.renderComm) window.LC.renderComm();
+                    if (window.LC.renderMine) window.LC.renderMine();
                 }
             }).catch(()=>{});
         }
