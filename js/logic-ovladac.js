@@ -1018,6 +1018,16 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
         availableFiles = files; 
         if (typeof listMode !== 'undefined' && listMode === 'JSON') { filteredFiles = files; renderLinesList(); } 
+        if (Array.isArray(files) && files.some(f => !f.includes('|'))) {
+            setTimeout(() => {
+                ipcRenderer.invoke('get-link-files').then(refreshed => {
+                    if (Array.isArray(refreshed) && refreshed.length) {
+                        availableFiles = refreshed;
+                        if (typeof listMode !== 'undefined' && listMode === 'JSON') { filteredFiles = refreshed; renderLinesList(); }
+                    }
+                }).catch(()=>{});
+            }, 800);
+        } 
     }).catch(()=>{});
     
     ipcRenderer.invoke('gtfs-load-routes').then(db => { 
@@ -2966,6 +2976,16 @@ window.backToManual = function() {
         }
         availableFiles = files; 
         if (typeof listMode !== 'undefined' && listMode === 'JSON') { filteredFiles = files; renderLinesList(); } 
+        if (Array.isArray(files) && files.some(f => !f.includes('|'))) {
+            setTimeout(() => {
+                ipcRenderer.invoke('get-link-files').then(refreshed => {
+                    if (Array.isArray(refreshed) && refreshed.length) {
+                        availableFiles = refreshed;
+                        if (typeof listMode !== 'undefined' && listMode === 'JSON') { filteredFiles = refreshed; renderLinesList(); }
+                    }
+                }).catch(()=>{});
+            }, 800);
+        } 
         if (appState === 'LINKOSPOJ') {
             window.updateLinkospojUI(); 
         }
@@ -4756,8 +4776,11 @@ window.renderSmartLinkList = function(query, mode = 'LINKOSPOJ') {
         const isBeta = orig.toUpperCase().includes('BETA');
         const isComm = isCustomOrComm(orig) || isCustomOrComm(name);
         let routeName = orig.includes('|') ? orig.split('|')[1].trim() : '';
-        routeName = routeName.replace(/(^|[\s-,\.]+)([a-zěščřžýáíéóúůďťňA-ZĚŠČŘŽÝÁÍÉÓÚŮĎŤŇ])/g, (match, sep, char) => sep + char.toUpperCase());
         let cleanBadge = name.split('|')[0].replace(/_custom/i, '').replace(/^comm_/i, '').trim().toUpperCase();
+        if (!routeName) {
+            routeName = isComm ? 'Komunitní linka' : `Linka ${cleanBadge}`;
+        }
+        routeName = routeName.replace(/(^|[\s-,\.]+)([a-zěščřžýáíéóúůďťňA-ZĚŠČŘŽÝÁÍÉÓÚŮĎŤŇ])/g, (match, sep, char) => sep + char.toUpperCase());
         
         let displayRouteName = routeName;
         let displayBadge = cleanBadge;

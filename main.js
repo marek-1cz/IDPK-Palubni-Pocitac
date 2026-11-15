@@ -488,16 +488,18 @@ ipcMain.handle('get-link-files', async () => {
                         rLong = rLong.replace(/(^|[\s-])([a-zěščřžýáíéóúůďťň])/g, (match) => match.toUpperCase());
                     }
                     
-                    let rNum = parseInt(rShort);
-                    if (!isNaN(rNum) && rShort.length >= 5) {
-                        const inRange = (rNum >= 400621 && rNum <= 405611) || 
-                                        (rNum >= 430432 && rNum <= 440649) || 
-                                        (rNum >= 450411 && rNum <= 475211) || 
-                                        (rNum >= 490722 && rNum <= 496711);
-                        if (inRange) {
-                            let endStr = rShort.slice(-3).replace(/^0+/, '');
-                            if (endStr.length > 0) routeNameMap.set(endStr, rLong);
+                    if (rShort) {
+                        let cleanNum = rShort.replace(/\D/g, '');
+                        if (cleanNum) {
+                            let unpadded = cleanNum.replace(/^0+/, '');
+                            if (unpadded) routeNameMap.set(unpadded, rLong);
+                            routeNameMap.set(cleanNum, rLong);
+                            if (cleanNum.length > 3) {
+                                let last3 = cleanNum.slice(-3).replace(/^0+/, '');
+                                if (last3) routeNameMap.set(last3, rLong);
+                            }
                         }
+                        routeNameMap.set(rShort, rLong);
                     }
                 }
                 stmt.free();
@@ -511,13 +513,66 @@ ipcMain.handle('get-link-files', async () => {
             fileList.forEach(f => {
                 let name = f.replace('.txt', '');
                 let routeNum = name.replace(/\D/g, ''); // Extract just the number e.g. 739
-                let dest = routeNameMap.get(routeNum) || "";
+                let dest = routeNameMap.get(routeNum) || routeNameMap.get(routeNum.replace(/^0+/, '')) || "";
                 
-                if (dest) {
-                    files.add(name + ' | ' + dest);
-                } else {
-                    files.add(name);
+                // Pokud ještě není cíl nalezen z GTFS mapy, zkusit přečíst metadata z JSON souboru nebo ze samotného .txt
+                if (!dest) {
+                    try {
+                        const customDataDir = path.join(PATH_USERDATA, 'data');
+                        const candidateJsonFiles = [
+                            f.replace('.txt', '.json'),
+                            `user_${routeNum}.json`,
+                            `comm_${routeNum}.json`
+                        ];
+                        for (const cj of candidateJsonFiles) {
+                            const jp = path.join(customDataDir, cj);
+                            if (fs.existsSync(jp)) {
+                                const parsed = JSON.parse(fs.readFileSync(jp, 'utf8'));
+                                if (parsed && (parsed.name || parsed.nazev || parsed.smer)) {
+                                    dest = parsed.name || parsed.nazev || parsed.smer;
+                                    break;
+                                }
+                            }
+                        }
+                    } catch(_) {}
                 }
+
+                // Pokud stále chybí, přečíst první a poslední zastávku z .txt souboru
+                if (!dest) {
+                    try {
+                        const content = fs.readFileSync(path.join(dir, f), 'utf8');
+                        const lines = content.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+                        let firstStop = '';
+                        let lastStop = '';
+                        let inStops = false;
+                        for (const line of lines) {
+                            if (/^(směr|smer|trasa|název|nazev):/i.test(line)) {
+                                dest = line.replace(/^(směr|smer|trasa|název|nazev):/i, '').trim();
+                                break;
+                            }
+                            if (line.toLowerCase().startsWith('zastávky:') || line.toLowerCase().startsWith('zastavky:')) {
+                                inStops = true;
+                                continue;
+                            }
+                            if (inStops && line.includes('=')) {
+                                const stopName = line.split('=')[0].trim();
+                                if (!firstStop) firstStop = stopName;
+                                lastStop = stopName;
+                            }
+                        }
+                        if (!dest && firstStop) {
+                            dest = (lastStop && lastStop !== firstStop) ? `${firstStop} – ${lastStop}` : firstStop;
+                        }
+                    } catch(_) {}
+                }
+
+                // Bezpečnostní pojistka: název nikdy nesmí zůstat prázdný
+                if (!dest) {
+                    const cleanBadge = name.replace(/_custom|_auto|-beta/gi, '').replace(/^comm_/i, '').trim();
+                    dest = `Linka ${cleanBadge || routeNum || 'IDPK'}`;
+                }
+
+                files.add(name + ' | ' + dest);
             });
         }
         processDir(path.join(PATH_USERDATA, 'linky'));

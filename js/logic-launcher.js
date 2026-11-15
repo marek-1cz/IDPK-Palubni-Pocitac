@@ -1051,7 +1051,8 @@ function pollAuthEmail(email) {
                 config.discord_nick = pollData.nick || pollData.email;
                 config.email = pollData.email;
                 saveConfig(config);
-                initLauncher(config);
+                await initLauncher(config);
+                if (typeof initLCBridgeData === 'function') await initLCBridgeData();
                 showAuthView('success');
                 setTimeout(() => {
                     loginOverlay.style.display = 'none';
@@ -1103,7 +1104,8 @@ if (btnVerifyEmailCodeManual) {
                 config.discord_nick = data.nick || data.email;
                 config.email = data.email;
                 saveConfig(config);
-                initLauncher(config);
+                await initLauncher(config);
+                if (typeof initLCBridgeData === 'function') await initLCBridgeData();
                 showAuthView('success');
                 setTimeout(() => {
                     loginOverlay.style.display = 'none';
@@ -1262,7 +1264,8 @@ async function pollAuth(discordId) {
             config.discord_nick = data.display_name || (isDevMode ? "VSC-DEV" : "Neznámý");
             saveConfig(config);
             
-            initLauncher(config);
+            await initLauncher(config);
+            if (typeof initLCBridgeData === 'function') await initLCBridgeData();
             showAuthView('success');
             setTimeout(() => {
                 loginOverlay.style.display = 'none';
@@ -1387,12 +1390,18 @@ async function initLauncher(config) {
 
         const versionsPromise = loadAvailableVersions();
         await Promise.allSettled([rolePromise, versionsPromise]);
+        if (typeof initLCBridgeData === 'function') {
+            await initLCBridgeData();
+        }
     } catch(e) {
         console.error("Chyba při startu launcheru:", e);
         const overlay = document.getElementById('initial-loading-overlay');
         if (overlay) overlay.style.display = 'none';
         ensureCentralUserDataFolders();
         await loadAvailableVersions();
+        if (typeof initLCBridgeData === 'function') {
+            await initLCBridgeData();
+        }
     }
 }
 

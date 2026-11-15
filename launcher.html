@@ -355,7 +355,7 @@ button.chip{cursor:pointer;transition:.2s}button.chip:hover{color:#fff;border-co
 .boot-t{position:relative;font-weight:800;letter-spacing:.3em;font-size:12px;color:var(--muted);text-transform:uppercase}
 .boot-t span{display:inline-block;animation:bt 1.2s ease-in-out infinite}
 @keyframes bt{50%{opacity:.35}}
-.lg{position:relative;width:430px;max-width:90%;padding:36px 30px 28px;border-radius:24px;background:#0c1427;border:1px solid rgba(255,255,255,.14);box-shadow:0 24px 60px rgba(0,0,0,.75);animation:mIn .45s var(--ease) both;text-align:center}
+.lg{position:relative;width:460px;max-width:92%;padding:34px 26px 26px;border-radius:24px;background:#0c1427;border:1px solid rgba(255,255,255,.14);box-shadow:0 24px 60px rgba(0,0,0,.75);animation:mIn .45s var(--ease) both;text-align:center}
 .lg-top{text-align:center;margin-bottom:22px}
 .lg-top .mark{width:60px;height:60px;margin:0 auto 12px;display:grid;place-items:center;background:transparent;border:none;box-shadow:none;overflow:visible;}
 .lg-top .mark img{width:100%;height:100%;object-fit:contain;display:block;filter:drop-shadow(0 6px 20px rgba(56,189,248,.45));}
@@ -654,15 +654,15 @@ button.chip.dl:hover{border-color:var(--blue);color:#fff}
 .lg-seg{display:flex;width:100%}.lg-seg button{flex:1}
 
 /* Přepínač způsobu přihlášení (Discord DM vs E-mail) */
-.sp-seg{position:relative;display:grid;grid-template-columns:1fr 1fr;padding:4px;margin:0 auto 20px auto;width:100%;box-sizing:border-box;border-radius:999px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.14)}
-.sp-seg::before{content:"";position:absolute;top:4px;bottom:4px;left:4px;width:calc(50% - 4px);border-radius:999px;background:linear-gradient(135deg,#5865f2,#7983ff);box-shadow:0 8px 26px rgba(88,101,242,.5);transition:transform .4s cubic-bezier(.22,1,.36,1),background .3s,box-shadow .3s}
-.sp-seg[data-v=email]::before{transform:translateX(100%);background:linear-gradient(135deg,var(--blue),var(--cyan));box-shadow:0 8px 26px rgba(47,107,255,.45)}
-.sp-seg button{position:relative;z-index:1;display:flex;align-items:center;justify-content:center;gap:8px;padding:11px 8px;border:none;background:transparent;border-radius:999px;font-weight:800;font-size:13.5px;color:var(--muted);cursor:pointer;transition:color .3s}
-.sp-seg button small{font-weight:700;font-size:9.5px;letter-spacing:.08em;text-transform:uppercase;padding:2px 7px;border-radius:999px;background:rgba(255,255,255,.18);color:#fff}
+.sp-seg{position:relative;display:grid;grid-template-columns:1fr 1fr;padding:5px;margin:0 auto 22px auto;width:100%;box-sizing:border-box;border-radius:999px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.14);user-select:none}
+.sp-seg::before{content:"";position:absolute;top:5px;bottom:5px;left:5px;width:calc(50% - 5px);border-radius:999px;background:linear-gradient(135deg,#5865f2,#7983ff);box-shadow:0 8px 24px rgba(88,101,242,.55);transition:transform .45s cubic-bezier(.22,1,.36,1),background .35s,box-shadow .35s}
+.sp-seg[data-v=email]::before{transform:translateX(100%);background:linear-gradient(135deg,#0284c7,#38bdf8);box-shadow:0 8px 24px rgba(56,189,248,.45)}
+.sp-seg button{position:relative;z-index:1;display:flex;align-items:center;justify-content:center;gap:7px;padding:11px 10px;border:none;background:transparent;border-radius:999px;font-weight:800;font-size:13.5px;color:var(--muted);cursor:pointer;transition:color .25s ease;white-space:nowrap;line-height:1}
+.sp-seg button small{font-weight:800;font-size:9.5px;letter-spacing:.08em;text-transform:uppercase;padding:2px 7px;border-radius:999px;background:rgba(255,255,255,.2);color:#fff;display:inline-block;white-space:nowrap}
 .sp-seg button[aria-selected=true]{color:#fff}
 .sp-seg[data-v=email] button[aria-selected=true]{color:#031028}
-.sp-seg button svg{transition:transform .3s ease}
-.sp-seg button[aria-selected=true] svg{transform:scale(1.15) rotate(-6deg)}
+.sp-seg button .seg-ic{width:19px;height:19px;flex:none;display:inline-block;vertical-align:middle;transition:transform .35s cubic-bezier(.22,1,.36,1)}
+.sp-seg button[aria-selected=true] .seg-ic{transform:scale(1.15) rotate(-6deg)}
 
 /* Nápověda jak zjistit Discord ID */
 .id-help summary::-webkit-details-marker{display:none}
@@ -712,8 +712,8 @@ button.chip.dl:hover{border-color:var(--blue);color:#fff}
 <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></symbol>
 <symbol id="i-grip" viewBox="0 0 24 24"><path d="M9 6h.01M15 6h.01M9 12h.01M15 12h.01M9 18h.01M15 18h.01" stroke-width="3"/></symbol>
 <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></symbol>
-<symbol id="i-mail" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 7 9-7"/></symbol>
-<symbol id="i-discord" viewBox="0 0 24 24"><path d="M5 7c2-1.5 4-2 7-2s5 .5 7 2c1.5 3 2.5 6 2.5 10-2 1.5-4 2-5.5 2l-1-2c-1 .3-2 .4-3 .4s-2-.1-3-.4l-1 2c-1.5 0-3.5-.5-5.5-2C2.5 13 3.5 10 5 7zM9 12h.01M15 12h.01"/></symbol>
+<symbol id="i-mail" viewBox="0 0 24 24"><path fill="currentColor" stroke="none" d="M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4.25-8 5-8-5V6.75l8 5 8-5v1.5z"/></symbol>
+<symbol id="i-discord" viewBox="0 0 24 24"><path fill="currentColor" stroke="none" d="M19.27 5.33C17.94 4.71 16.5 4.26 15 4a.09.09 0 0 0-.07.03c-.18.33-.39.76-.53 1.09a16.09 16.09 0 0 0-4.8 0c-.14-.34-.35-.76-.54-1.09-.01-.02-.04-.03-.07-.03-1.5.26-2.93.71-4.27 1.33-.01 0-.02.01-.03.02-2.72 4.07-3.47 8.03-3.1 11.95 0 .02.01.04.03.05 1.8 1.32 3.53 2.12 5.24 2.65.03.01.06 0 .07-.02.4-.55.76-1.13 1.07-1.74.02-.04 0-.08-.04-.09-.57-.22-1.11-.48-1.64-.78-.04-.02-.04-.08-.01-.11.11-.08.22-.17.33-.25.02-.02.05-.02.07-.01 3.44 1.57 7.15 1.57 10.55 0 .02-.01.05-.01.07.01.11.09.22.17.33.26.04.03.04.08-.01.11-.52.31-1.07.56-1.64.78-.04.01-.05.06-.04.09.32.61.68 1.19 1.07 1.74.03.01.06.02.09.01 1.72-.53 3.45-1.33 5.25-2.65.02-.01.03-.03.03-.05.44-4.53-.73-8.46-3.1-11.95-.01-.01-.02-.02-.04-.02zM8.52 14.91c-1.03 0-1.89-.95-1.89-2.12s.84-2.12 1.89-2.12c1.06 0 1.9.96 1.89 2.12 0 1.17-.84 2.12-1.89 2.12zm6.97 0c-1.03 0-1.89-.95-1.89-2.12s.84-2.12 1.89-2.12c1.06 0 1.9.96 1.89 2.12 0 1.17-.83 2.12-1.89 2.12z"/></symbol>
 <symbol id="i-user" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0116 0"/></symbol>
 <symbol id="i-box" viewBox="0 0 24 24"><path d="M21 8l-9-5-9 5v8l9 5 9-5zM3 8l9 5 9-5M12 13v8"/></symbol>
 <symbol id="i-lock" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 018 0v4"/></symbol>
@@ -1128,8 +1128,8 @@ button.chip.dl:hover{border-color:var(--blue);color:#fff}
 
     <!-- Segmented switch (Discord DM / E-mail) -->
     <div class="sp-seg" id="login-method-seg" data-v="discord" role="tablist" aria-label="Způsob přihlášení">
-      <button type="button" role="tab" data-v="discord" aria-selected="true"><svg class="ic" style="width:18px;height:18px"><use href="#i-discord"/></svg>Discord DM <small>doporučeno</small></button>
-      <button type="button" role="tab" data-v="email" aria-selected="false"><svg class="ic" style="width:18px;height:18px"><use href="#i-mail"/></svg>E-mail</button>
+      <button type="button" role="tab" data-v="discord" aria-selected="true"><svg class="seg-ic"><use href="#i-discord"/></svg><span>Discord DM</span><small>doporučeno</small></button>
+      <button type="button" role="tab" data-v="email" aria-selected="false"><svg class="seg-ic"><use href="#i-mail"/></svg><span>E-mail</span></button>
     </div>
 
     <div class="lg-err" id="login-error-message" hidden><svg class="ic"><use href="#i-alert"/></svg><span id="login-error-text">Chyba</span></div>
@@ -1534,6 +1534,10 @@ const CONFIG = { DEMO: false, REDUCED_FX: false };
       el.hidden = !on;
       $('sidebar-btn-' + k).classList.toggle('active', on);
     });
+    if (v === 'editor') {
+      if (typeof renderMine === 'function') renderMine();
+      if (typeof renderComm === 'function') renderComm();
+    }
     emit('view', { view: v });
   }
   $('sidebar-btn-game').onclick = () => show('game');
