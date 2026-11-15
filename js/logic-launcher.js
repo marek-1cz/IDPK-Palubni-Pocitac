@@ -795,7 +795,7 @@ async function checkAuthAndInit() {
     });
 
     currentHWID = await getHWID();
-    if (typeof hwidText !== 'undefined' && hwidText) hwidText.innerText = "HWID: " + currentHWID;
+    if (typeof hwidText !== 'undefined' && hwidText) hwidText.innerText = currentHWID;
 
     // Pokud je nalezena povinná aktualizace launcheru, přerušíme start a spustíme update
     const isUpdating = await Promise.race([
@@ -1051,12 +1051,12 @@ function pollAuthEmail(email) {
                 config.discord_nick = pollData.nick || pollData.email;
                 config.email = pollData.email;
                 saveConfig(config);
+                initLauncher(config);
                 showAuthView('success');
                 setTimeout(() => {
                     loginOverlay.style.display = 'none';
                     loginOverlay.hidden = true;
-                    initLauncher(config);
-                }, 5000);
+                }, 2000);
             }
         } catch(_) {}
     }, 4000);
@@ -1103,12 +1103,12 @@ if (btnVerifyEmailCodeManual) {
                 config.discord_nick = data.nick || data.email;
                 config.email = data.email;
                 saveConfig(config);
+                initLauncher(config);
                 showAuthView('success');
                 setTimeout(() => {
                     loginOverlay.style.display = 'none';
                     loginOverlay.hidden = true;
-                    initLauncher(config);
-                }, 5000);
+                }, 2000);
             } else {
                 showLoginError("Neplatný kód nebo vypršela platnost.");
                 if (inputCode) inputCode.value = '';
@@ -1262,12 +1262,12 @@ async function pollAuth(discordId) {
             config.discord_nick = data.display_name || (isDevMode ? "VSC-DEV" : "Neznámý");
             saveConfig(config);
             
+            initLauncher(config);
             showAuthView('success');
             setTimeout(() => {
                 loginOverlay.style.display = 'none';
                 loginOverlay.hidden = true;
-                initLauncher(config);
-            }, 5000);
+            }, 2000);
         } else if (data.status === 'timeout') {
             clearInterval(authPollInterval);
             showAuthView('discord');
@@ -1290,70 +1290,32 @@ async function initLauncher(config) {
     try {
         if (hwidDisplay) hwidDisplay.innerText = config.discord_nick || currentHWID;
         
-        // Získat roli z users tabulky s timeoutem
-        try {
-            const roleRes = await safeFetch(`${API_BASE}/api/launcher/user_info`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ discord_id: config.discord_id })
-            }, 5000);
-            if (roleRes.ok) {
-                const data = await roleRes.json();
-                if (data && data.status === 'success') {
-                    currentUserRole = data.role || 'User';
-                    config.user_role = currentUserRole;
-                    saveConfig(config);
-
-                    if (data.avatar_url) {
-                        currentUserAvatarUrl = data.avatar_url;
-                        config.avatar_url = data.avatar_url;
-                        saveConfig(config);
-                        const avEl = document.getElementById('avatar');
-                        if (avEl) {
-                            avEl.innerHTML = `<img src="${data.avatar_url}" style="width:100%;height:100%;border-radius:50%;object-fit:cover;" alt="Avatar">`;
-                        }
-                        if (window.LC && window.LC.setUser) {
-                            window.LC.setUser({
-                                name: config.discord_nick || config.email || 'Uživatel',
-                                hwid: currentHWID,
-                                role: mapRoleToLC(currentUserRole),
-                                avatar_url: data.avatar_url
-                            });
-                        }
-                    }
-                    if (currentUserRole.includes('DEV') || currentUserRole.includes('SA')) {
-                        const btnDevBuild = document.getElementById('btn-dev-build');
-                        if (btnDevBuild) {
-                            btnDevBuild.style.display = 'block';
-                            if (!window.LC) {
-                                btnDevBuild.addEventListener('click', () => {
-                                    btnDevBuild.disabled = true;
-                                    btnDevBuild.innerHTML = '<i class="fas fa-spinner fa-spin"></i> SPOUŠTÍM...';
-                                    ipcRenderer.send('launch-dev-build');
-                                });
-                            }
-                        }
-                    }
-                } else {
-                    currentUserRole = config.user_role || 'User';
-                }
-            } else {
-                currentUserRole = config.user_role || 'User';
-            }
-        } catch(eRole) {
-            console.warn('[initLauncher] Nelze načíst roli ze serveru, použita uložená role:', eRole.message || eRole);
-            currentUserRole = config.user_role || 'User';
-        }
-        
-        let color = '#64748b'; // public
+        // Okamžitě použít uloženou roli pro bleskový start
+        currentUserRole = config.user_role || 'User';
+        let color = '#64748b';
         if (currentUserRole.includes('DEV') || currentUserRole.includes('SA')) color = '#ef4444';
         else if (currentUserRole.includes('BT')) color = '#3b82f6';
-        
         if (roleDisplay) {
             roleDisplay.innerText = currentUserRole.toUpperCase();
             roleDisplay.style.backgroundColor = color;
         }
 
+        if (config.avatar_url) {
+            const avEl = document.getElementById('avatar');
+            if (avEl) {
+                avEl.innerHTML = `<img src="${config.avatar_url}" style="width:100%;height:100%;border-radius:50%;object-fit:cover;" alt="Avatar">`;
+            }
+        }
+
+        if (window.LC && window.LC.setUser) {
+            window.LC.setUser({
+                name: config.discord_nick || config.email || 'Uživatel',
+                hwid: currentHWID,
+                role: mapRoleToLC(currentUserRole),
+                avatar_url: config.avatar_url || ''
+            });
+        }
+
         ensureCentralUserDataFolders();
         try {
             const versionsDir = path.join(userDataPath, 'versions');
@@ -1363,20 +1325,73 @@ async function initLauncher(config) {
             }
         } catch (_) {}
 
-        await loadAvailableVersions();
+        // Paralelní načtení: aktualizace role ze serveru + načtení verzí
+        const rolePromise = (async () => {
+            try {
+                const roleRes = await safeFetch(`${API_BASE}/api/launcher/user_info`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ discord_id: config.discord_id })
+                }, 4000);
+                if (roleRes.ok) {
+                    const data = await roleRes.json();
+                    if (data && data.status === 'success') {
+                        currentUserRole = data.role || 'User';
+                        config.user_role = currentUserRole;
+                        saveConfig(config);
+
+                        if (data.avatar_url) {
+                            currentUserAvatarUrl = data.avatar_url;
+                            config.avatar_url = data.avatar_url;
+                            saveConfig(config);
+                            const avEl = document.getElementById('avatar');
+                            if (avEl) {
+                                avEl.innerHTML = `<img src="${data.avatar_url}" style="width:100%;height:100%;border-radius:50%;object-fit:cover;" alt="Avatar">`;
+                            }
+                            if (window.LC && window.LC.setUser) {
+                                window.LC.setUser({
+                                    name: config.discord_nick || config.email || 'Uživatel',
+                                    hwid: currentHWID,
+                                    role: mapRoleToLC(currentUserRole),
+                                    avatar_url: data.avatar_url
+                                });
+                            }
+                        }
+                        if (currentUserRole.includes('DEV') || currentUserRole.includes('SA')) {
+                            const btnDevBuild = document.getElementById('btn-dev-build');
+                            if (btnDevBuild) {
+                                btnDevBuild.style.display = 'block';
+                                if (!window.LC) {
+                                    btnDevBuild.addEventListener('click', () => {
+                                        btnDevBuild.disabled = true;
+                                        btnDevBuild.innerHTML = '<i class="fas fa-spinner fa-spin"></i> SPOUŠTÍM...';
+                                        ipcRenderer.send('launch-dev-build');
+                                    });
+                                }
+                            }
+                        }
+
+                        let c2 = '#64748b';
+                        if (currentUserRole.includes('DEV') || currentUserRole.includes('SA')) c2 = '#ef4444';
+                        else if (currentUserRole.includes('BT')) c2 = '#3b82f6';
+                        if (roleDisplay) {
+                            roleDisplay.innerText = currentUserRole.toUpperCase();
+                            roleDisplay.style.backgroundColor = c2;
+                        }
+                    }
+                }
+            } catch (eRole) {
+                console.warn('[initLauncher] Nelze aktualizovat roli ze serveru:', eRole.message || eRole);
+            }
+        })();
+
+        const versionsPromise = loadAvailableVersions();
+        await Promise.allSettled([rolePromise, versionsPromise]);
     } catch(e) {
         console.error("Chyba při startu launcheru:", e);
         const overlay = document.getElementById('initial-loading-overlay');
         if (overlay) overlay.style.display = 'none';
         ensureCentralUserDataFolders();
-        try {
-            const versionsDir = path.join(userDataPath, 'versions');
-            if (fs.existsSync(versionsDir)) {
-                const dirs = fs.readdirSync(versionsDir);
-                dirs.forEach(d => backupUserRoutesFromVersion(path.join(versionsDir, d)));
-            }
-        } catch (_) {}
-
         await loadAvailableVersions();
     }
 }
@@ -1576,6 +1591,7 @@ async function loadAvailableVersions() {
     versionSelect.disabled = false;
     const cs2 = document.getElementById('custom-version-select'); if(cs2) cs2.classList.remove('disabled');
     updateCustomSelectUI(finalVersions);
+    syncWithLCVersions();
     checkLocalVersion(versionSelect.value);
 }
 
@@ -1648,17 +1664,20 @@ function checkLocalVersion(versionName) {
                 launchText.innerText = "PŘEDPLATITELÉ";
                 launchIcon.className = "fas fa-lock";
                 btnLaunch.classList.add('btn-locked');
+                btnLaunch.dataset.state = 'locked';
                 btnLaunch.title = "Dostupné pouze pro Beta Testery.\nPodpořte mě na BuyMeACoffee nebo HeroHero pro přístup!";
             } else {
                 launchText.innerText = "NEMÁTE ROLI";
                 launchIcon.className = "fas fa-lock";
                 btnLaunch.classList.add('btn-locked');
+                btnLaunch.dataset.state = 'locked';
                 btnLaunch.title = "Nemáte dostatečnou roli (Vývojář/Admin) pro hraní této verze.";
             }
         } else if (!selectedVersion.can_launch) {
             launchText.innerText = "ZABLOKOVÁNO SPRÁVCEM SYSTÉMU";
             launchIcon.className = "fas fa-lock";
             btnLaunch.classList.add('btn-locked');
+            btnLaunch.dataset.state = 'locked';
             btnLaunch.title = "Administrátor zakázal spouštění této verze.\nPro více informací navštivte Discord.";
         } else if (isOfflineMode) {
             // V OFFLINE REŽIMU: Neřešíme online databázi ani nové patche, rovnou povolíme spuštění naposledy uložené hry
@@ -1667,6 +1686,7 @@ function checkLocalVersion(versionName) {
             btnLaunch.classList.remove('btn-locked');
             btnLaunch.disabled = false;
             btnLaunch.dataset.action = 'play';
+            btnLaunch.dataset.state = 'ready';
             btnLaunch.title = "Spustit hru v offline režimu bez nutnosti internetového připojení.";
         } else {
             const localInfo = getLocalBuildInfo(folder);
@@ -1683,6 +1703,7 @@ function checkLocalVersion(versionName) {
                 btnLaunch.classList.remove('btn-locked');
                 btnLaunch.disabled = false;
                 btnLaunch.dataset.action = 'patch';
+                btnLaunch.dataset.state = 'update';
                 btnLaunch.title = `Je vyžadována aktualizace na build ${remoteBuild} (aktuálně máte ${localBuild}).\nSpuštění hry je zablokováno, dokud nestáhnete patch.`;
             } else if (patchUrl && remoteBuild && !localBuild && remoteBuild !== selectedVersion.db_version) {
                 launchText.innerText = `AKTUALIZOVAT (${remoteBuild})`;
@@ -1690,6 +1711,7 @@ function checkLocalVersion(versionName) {
                 btnLaunch.classList.remove('btn-locked');
                 btnLaunch.disabled = false;
                 btnLaunch.dataset.action = 'patch';
+                btnLaunch.dataset.state = 'update';
                 btnLaunch.title = `Je vyžadována aktualizace na build ${remoteBuild}.\nKliknutím stáhnete rychlou aktualizaci bez mazání souborů.`;
             } else {
                 launchText.innerText = "HRÁT";
@@ -1697,6 +1719,7 @@ function checkLocalVersion(versionName) {
                 btnLaunch.classList.remove('btn-locked');
                 btnLaunch.disabled = false;
                 btnLaunch.dataset.action = 'play';
+                btnLaunch.dataset.state = 'ready';
                 btnLaunch.title = localBuild ? `Nainstalovaný build: ${localBuild}` : "";
             }
         }
@@ -2628,30 +2651,7 @@ if (btnCleanCache) {
 }
 
 
-// Custom select – přímá inicializace (DOM je již připraven)
-(function initCustomSelect() {
-    const customSelect = document.getElementById('custom-version-select');
-    const customTrigger = document.getElementById('custom-select-trigger');
-
-    if (!customSelect || !customTrigger) return;
-
-    customTrigger.addEventListener('click', (e) => {
-        e.stopPropagation();
-        if (!customSelect.classList.contains('disabled')) {
-            const isOpen = customSelect.classList.toggle('open');
-            const customOptions = document.getElementById('custom-options-container');
-            if (customOptions) customOptions.hidden = !isOpen;
-        }
-    });
-
-    document.addEventListener('click', (e) => {
-        if (!customSelect.contains(e.target)) {
-            customSelect.classList.remove('open');
-            const customOptions = document.getElementById('custom-options-container');
-            if (customOptions) customOptions.hidden = true;
-        }
-    });
-})();
+// Custom select trigger a rozklikávání řeší čistě launcher.html (openSelect / closeSelect / toggleSelect)
 
 
 function updateCustomSelectUI(versions) {
