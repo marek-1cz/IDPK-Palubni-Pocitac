@@ -112,9 +112,9 @@ function getUnlockedCustomRoutes() {
             files.filter(f => f.endsWith('.txt')).forEach(f => {
                 try {
                     let content = fs.readFileSync(path.join(dir, f), 'utf-8');
-                    let match = content.match(/Linka:\s*["']?(\d+)["']?/i);
+                    let match = content.match(/Linka:\s*["']?([^"'\r\n]+)["']?/i);
                     if (match && match[1]) {
-                        customRoutes.add(match[1]);
+                        customRoutes.add(match[1].trim());
                     }
                 } catch(e) { console.error(e); }
             });
@@ -196,12 +196,16 @@ ipcMain.handle('get-hwid', async () => {
 
 ipcMain.handle('purge-custom-route-cache', async (event, { lineNum, id } = {}) => {
     try {
-        if (id) CUSTOM_ROUTES_CACHE.delete(String(id));
-        if (lineNum) {
-            const cleanStr = String(lineNum).trim();
-            for (const [k, v] of CUSTOM_ROUTES_CACHE.entries()) {
-                if (v && (v.lineNum === cleanStr || String(k).includes(cleanStr))) {
-                    CUSTOM_ROUTES_CACHE.delete(k);
+        if (!lineNum && !id) {
+            CUSTOM_ROUTES_CACHE.clear();
+        } else {
+            if (id) CUSTOM_ROUTES_CACHE.delete(String(id));
+            if (lineNum) {
+                const cleanStr = String(lineNum).trim();
+                for (const [k, v] of CUSTOM_ROUTES_CACHE.entries()) {
+                    if (v && (v.lineNum === cleanStr || String(k).includes(cleanStr))) {
+                        CUSTOM_ROUTES_CACHE.delete(k);
+                    }
                 }
             }
         }
@@ -1965,6 +1969,7 @@ ipcMain.handle('gtfs-load-routes', async () => {
     try {
         let dirsToScan = [path.join(PATH_USERDATA, 'data'), path.join(PATH_EXE, 'data'), path.join(PATH_DEV, 'data')];
         const seenJsonRoutes = new Set();
+        const seenLineNums = new Set();
         const IGNORED = new Set([
             'stop_importance', 'via_priority', 'zones_override',
             'gtfs_version', 'build_info', 'cached_launcher_state', 'config',
@@ -1979,6 +1984,10 @@ ipcMain.handle('gtfs-load-routes', async () => {
                     try {
                         const parsed = JSON.parse(fs.readFileSync(path.join(dir, f), 'utf8'));
                         const lineNum = parsed.num || parsed.line || base;
+                        const cleanNum = String(lineNum).trim();
+                        if (seenLineNums.has(cleanNum)) return;
+                        seenLineNums.add(cleanNum);
+
                         const lineName = parsed.name || (`Linka ${lineNum}`);
                         const author = parsed.author ? parsed.author : 'Uživatel';
                         // Zvýraznění autora a čisté číslo linky (pravidlo #11)

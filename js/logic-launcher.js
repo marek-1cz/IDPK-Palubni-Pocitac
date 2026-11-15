@@ -2782,8 +2782,127 @@ function syncRouteFileToLinky(line) {
         }
         
         fs.writeFileSync(filePath, txt, 'utf-8');
+
+        // Také synchronizovat do všech existujících složek verzí a dev prostředí
+        try {
+            const versionsDir = path.join(userDataPath, 'versions');
+            if (fs.existsSync(versionsDir)) {
+                const vFolders = fs.readdirSync(versionsDir);
+                vFolders.forEach(vf => {
+                    const vLinky1 = path.join(versionsDir, vf, 'linky');
+                    if (fs.existsSync(vLinky1)) {
+                        try { fs.writeFileSync(path.join(vLinky1, filename), txt, 'utf-8'); } catch (_) {}
+                    }
+                    const vLinky2 = path.join(versionsDir, vf, 'resources', 'linky');
+                    if (fs.existsSync(vLinky2)) {
+                        try { fs.writeFileSync(path.join(vLinky2, filename), txt, 'utf-8'); } catch (_) {}
+                    }
+                });
+            }
+            if (typeof devPath !== 'undefined' && devPath) {
+                const devLinky = path.join(devPath, 'linky');
+                if (fs.existsSync(devLinky)) {
+                    try { fs.writeFileSync(path.join(devLinky, filename), txt, 'utf-8'); } catch (_) {}
+                }
+            }
+        } catch (_) {}
     } catch (e) {
         console.error('[syncRouteFileToLinky] Chyba:', e);
+    }
+}
+
+function reconcileLinesWithGameApplication(lines) {
+    try {
+        if (!Array.isArray(lines)) {
+            if (window.LC && window.LC.S && Array.isArray(window.LC.S.lines)) {
+                lines = window.LC.S.lines;
+            } else {
+                return;
+            }
+        }
+
+        const allowedSafeNums = new Set();
+        const allowedIds = new Set();
+        lines.forEach(l => {
+            if (!l) return;
+            const safeNum = String(l.num || '').trim().replace(/[^a-zA-Z0-9_-]/g, '_');
+            if (safeNum) allowedSafeNums.add(safeNum);
+            if (l.id) allowedIds.add(String(l.id));
+        });
+
+        // 1. Projít složky linky a odstranit osiřelé *_custom.txt
+        const linkDirs = [
+            path.join(centralUserDataPath, 'linky')
+        ];
+        if (typeof devPath !== 'undefined' && devPath) {
+            linkDirs.push(path.join(devPath, 'linky'));
+        }
+        const versionsDir = path.join(userDataPath, 'versions');
+        if (fs.existsSync(versionsDir)) {
+            try {
+                const vFolders = fs.readdirSync(versionsDir);
+                vFolders.forEach(vf => {
+                    linkDirs.push(path.join(versionsDir, vf, 'linky'));
+                    linkDirs.push(path.join(versionsDir, vf, 'resources', 'linky'));
+                });
+            } catch (_) {}
+        }
+
+        linkDirs.forEach(dir => {
+            if (!fs.existsSync(dir)) return;
+            try {
+                const files = fs.readdirSync(dir);
+                files.forEach(f => {
+                    if (f.toLowerCase().endsWith('_custom.txt')) {
+                        const nameNoCustom = f.replace(/_custom\.txt$/i, '');
+                        if (!allowedSafeNums.has(nameNoCustom)) {
+                            try {
+                                fs.unlinkSync(path.join(dir, f));
+                                console.log(`[Reconcile] Odstraněna osiřelá linka ze hry: ${path.join(dir, f)}`);
+                            } catch (_) {}
+                        }
+                    }
+                });
+            } catch (_) {}
+        });
+
+        // 2. Projít centralUserDataPath/data a odstranit osiřelé JSON soubory
+        const customDataPath = path.join(centralUserDataPath, 'data');
+        if (fs.existsSync(customDataPath)) {
+            try {
+                const jFiles = fs.readdirSync(customDataPath).filter(f => f.endsWith('.json'));
+                jFiles.forEach(jf => {
+                    if (!jf.startsWith('user_') && !jf.startsWith('comm_')) return;
+                    const fp = path.join(customDataPath, jf);
+                    try {
+                        const parsed = JSON.parse(fs.readFileSync(fp, 'utf8'));
+                        const parsedSafeNum = parsed.num ? String(parsed.num).trim().replace(/[^a-zA-Z0-9_-]/g, '_') : null;
+                        const parsedId = String(parsed.id || jf.replace('.json', ''));
+                        // Pokud ID ani číslo linky není mezi platnými linkami profilu
+                        if (!allowedIds.has(parsedId) && (!parsedSafeNum || !allowedSafeNums.has(parsedSafeNum))) {
+                            fs.unlinkSync(fp);
+                            console.log(`[Reconcile] Odstraněn osiřelý JSON linky: ${fp}`);
+                        }
+                    } catch (_) {}
+                });
+            } catch (_) {}
+        }
+
+        // 3. Pro všechny aktivní linky zajistit aktuální *_custom.txt soubor
+        lines.forEach(l => {
+            if (l && l.num) {
+                try {
+                    syncRouteFileToLinky(l);
+                } catch (_) {}
+            }
+        });
+
+        // 4. Pročistit mezipaměť v hlavním procesu Electronu
+        if (typeof ipcRenderer !== 'undefined' && ipcRenderer.invoke) {
+            ipcRenderer.invoke('purge-custom-route-cache').catch(() => {});
+        }
+    } catch (err) {
+        console.warn('[reconcileLinesWithGameApplication] Chyba synchronizace:', err);
     }
 }
 
@@ -2855,6 +2974,7 @@ async function loadLocalEditorLines(syncDb = true) {
         if (syncDb) {
             await syncLocalLinesWithDatabase(lines);
         }
+        reconcileLinesWithGameApplication(lines);
         return lines;
     } catch (e) {
         return [];
@@ -3108,6 +3228,7 @@ async function initLCBridgeData() {
         // 1. Rychlé načtení lokálních linek z disku (okamžité zobrazení v UI)
         const myLines = await loadLocalEditorLines(false);
         if (window.LC.setLines) window.LC.setLines(myLines);
+        reconcileLinesWithGameApplication(myLines);
 
         // 2. Paralelní načtení komunitních linek a admin fronty s využitím již načtených lokálních linek
         const [commLines, pendingQueue] = await Promise.all([
@@ -3211,6 +3332,7 @@ document.addEventListener('lc:launch', (e) => {
     config.last_version = verId;
     config.launcher_path = process.execPath;
     saveConfig(config);
+    reconcileLinesWithGameApplication();
     try {
         const proc = spawn(exePath, ['--no-launcher'], {
             detached: true,
@@ -3400,6 +3522,7 @@ document.addEventListener('lc:line-save', (e) => {
         const filePath = path.join(customDataPath, `${line.id}.json`);
         fs.writeFileSync(filePath, JSON.stringify(line, null, 2), 'utf8');
         syncRouteFileToLinky(line);
+        reconcileLinesWithGameApplication();
         if (window.LC) {
             window.LC.toast('ok', `Linka ${line.num} uložena`, 'Linka byla uložena do vašich linek.');
         }
@@ -3718,6 +3841,7 @@ document.addEventListener('lc:line-delete', async (e) => {
                 }
             }).catch(()=>{});
         }
+        reconcileLinesWithGameApplication();
     } catch(err) {
         console.warn('Chyba při mazání souboru linky:', err);
     }
@@ -3769,6 +3893,7 @@ document.addEventListener('lc:launch-dev-build', async () => {
         }
     } catch (_) {}
     isDevBuildLaunching = true;
+    reconcileLinesWithGameApplication();
     ipcRenderer.send('launch-dev-build');
     setTimeout(() => { isDevBuildLaunching = false; }, 3000);
 });

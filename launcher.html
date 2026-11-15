@@ -1232,10 +1232,10 @@ button.chip.dl:hover{border-color:var(--blue);color:#fff}
 <div class="modal" id="save-modal" hidden>
   <div class="mbox" style="width:560px">
     <div class="mico g"><svg class="ic"><use href="#i-save"/></svg></div>
-    <h3>Jak chcete linku uložit?</h3><p>Vlastní linku můžete kdykoli později zveřejnit.</p>
+    <h3 id="sv-title">Jak chcete linku uložit?</h3><p id="sv-desc">Vlastní linku můžete kdykoli později zveřejnit.</p>
     <div class="opt2">
-      <button class="o2" id="sv-own"><div class="mi b"><svg class="ic"><use href="#i-user"/></svg></div><b>Vlastní linka</b><span>Jen pro Vás. Nemusíte zadávat název, číslo ani štítky. Při dalším spuštění ji najdete ve hře.</span></button>
-      <button class="o2" id="sv-pub"><div class="mi v"><svg class="ic"><use href="#i-users"/></svg></div><b>Komunitní linka</b><span>Uložíte ji a rovnou vyplníte údaje pro zveřejnění. Před zveřejněním ji zkontrolují správci.</span></button>
+      <button class="o2" id="sv-own"><div class="mi b"><svg class="ic"><use href="#i-user"/></svg></div><b id="sv-own-b">Vlastní linka</b><span id="sv-own-span">Jen pro Vás. Nemusíte zadávat název, číslo ani štítky. Při dalším spuštění ji najdete ve hře.</span></button>
+      <button class="o2" id="sv-pub"><div class="mi v"><svg class="ic"><use href="#i-users"/></svg></div><b id="sv-pub-b">Komunitní linka</b><span id="sv-pub-span">Uložíte ji a rovnou vyplníte údaje pro zveřejnění. Před zveřejněním ji zkontrolují správci.</span></button>
     </div>
     <div class="acts" style="margin-top:14px"><button class="btn ghost" id="sv-cancel">Zrušit</button></div>
   </div>
@@ -2094,32 +2094,7 @@ const CONFIG = { DEMO: false, REDUCED_FX: false };
       if (a === 'pv') {
         linePreview(l);
       } else if (a === 'edit') {
-        if (l.status === 'published' || l.status === 'pending') {
-          const curV = l.version || 'V1';
-          const vNum = parseInt(curV.replace(/\D/g, ''), 10) || 1;
-          const nextV = `V${vNum + 1}`;
-          confirmBox({
-            title: `Upravit linku ${l.num}?`,
-            desc: `Linka ${l.num} je již ${l.status === 'published' ? 'zveřejněna v komunitě' : 'odeslána ke schválení'} jako ${curV}. Přejete si vytvořit novou verzi (${nextV}), která bude po úpravě připravena ke schválení administrátorem, nebo chcete linku pouze lokálně upravit pro sebe?`,
-            yes: `Vytvořit a upravit novou verzi (${nextV})`
-          }, () => {
-            const newId = `user_${l.num}_${Date.now()}`;
-            const newLine = JSON.parse(JSON.stringify(l));
-            newLine.id = newId;
-            newLine.version = nextV;
-            newLine.status = 'local';
-            newLine.source = 'manual';
-            newLine.is_custom = true;
-            newLine.parent_version = curV;
-            S.lines.push(newLine);
-            S._mineActiveVer[String(l.num).trim()] = newId;
-            emit('line-save', { line: newLine });
-            renderMine(newId);
-            openEdit(newLine);
-          });
-        } else {
-          openEdit(l);
-        }
+        openEdit(l);
       } else if (a === 'pub') {
         openPublish(l);
       } else if (a === 'unpub') {
@@ -2876,6 +2851,10 @@ const CONFIG = { DEMO: false, REDUCED_FX: false };
     E.existing = !isNew;
     E.version = l ? (l.version || 'V1') : 'V1';
     E.parent_version = l ? (l.parent_version || null) : null;
+    E._isPublishedEdit = Boolean(l && (l.status === 'published' || l.status === 'pending' || l.commId));
+    E._origLine = l || null;
+    E._origVersion = l ? (l.version || 'V1') : 'V1';
+    E._origDesc = l ? (l.desc || l.description || l.notes || '') : '';
     E.dirty = false;
 
     const firstStopN = E.stops.length ? (E.stops[0].n || E.stops[0].name || '') : '';
@@ -3247,11 +3226,30 @@ const CONFIG = { DEMO: false, REDUCED_FX: false };
     const prev = E.id && S.lines.find((x) => x && x.id === E.id);
 
     const proceedSave = () => {
-      if (prev) {
-        commit(o, prev);
-        toast('ok', 'Linka ' + o.num + ' uložena', 'Je dostupná ve hře.' + (prev.status === 'published' || prev.status === 'pending' ? ' Po úpravě ji můžete znovu zveřejnit.' : '') + (missing ? ' Bez hlášení: ' + missing + ' zastávek.' : ''), 5500);
+      if (E && E._isPublishedEdit) {
+        const curV = E._origVersion || 'V1';
+        const vNum = parseInt(curV.replace(/\D/g, ''), 10) || 1;
+        const nextV = `V${vNum + 1}`;
+        $('sv-title').textContent = `Uložit upravenou linku ${o.num}`;
+        $('sv-desc').textContent = `Linka byla původně zveřejněna (${curV}). Můžete poslat novou verzi (${nextV}) na schválení, nebo ji uložit pouze jako soukromou verzi ve svém profilu.`;
+        $('sv-own-b').textContent = 'Pouze soukromá verze';
+        $('sv-own-span').textContent = `Linka se uloží pouze do Vašeho profilu a do hry (${nextV}). Do veřejné nabídky se neodešle.`;
+        $('sv-pub-b').textContent = `Poslat novou verzi (${nextV}) na schválení`;
+        $('sv-pub-span').textContent = `Vytvoří novou verzi (${nextV}) a otevře formulář pro schválení administrátorem s předvyplněnými údaji z minulé verze.`;
+        openModal('save-modal');
         return;
       }
+      if (prev) {
+        commit(o, prev);
+        toast('ok', 'Linka ' + o.num + ' uložena', 'Je dostupná ve hře.' + (missing ? ' Bez hlášení: ' + missing + ' zastávek.' : ''), 5500);
+        return;
+      }
+      $('sv-title').textContent = 'Jak chcete linku uložit?';
+      $('sv-desc').textContent = 'Vlastní linku můžete kdykoli později zveřejnit.';
+      $('sv-own-b').textContent = 'Vlastní linka';
+      $('sv-own-span').textContent = 'Jen pro Vás. Nemusíte zadávat název, číslo ani štítky. Při dalším spuštění ji najdete ve hře.';
+      $('sv-pub-b').textContent = 'Komunitní linka';
+      $('sv-pub-span').textContent = 'Uložíte ji a rovnou vyplníte údaje pro zveřejnění. Před zveřejněním ji zkontrolují správci.';
       openModal('save-modal');
     };
 
@@ -3266,8 +3264,60 @@ const CONFIG = { DEMO: false, REDUCED_FX: false };
     }
   };
   $('sv-cancel').onclick = () => closeModal('save-modal');
-  $('sv-own').onclick = () => { closeModal('save-modal'); const o = buildLine(); commit(o, null); const miss = o.stops.length - annOf(o); toast('ok', 'Uloženo jako vlastní linka', 'Při dalším spuštění ji najdete ve hře.' + (miss ? ' Bez hlášení: ' + miss + ' zastávek.' : ''), 5500); };
-  $('sv-pub').onclick = () => { closeModal('save-modal'); const o = buildLine(); commit(o, null); toast('ok', 'Linka uložena', 'Vyplňte údaje pro zveřejnění.'); setTimeout(() => openPublish(o), 350); };
+  $('sv-own').onclick = () => {
+    closeModal('save-modal');
+    const o = buildLine();
+    if (E && E._isPublishedEdit) {
+      const curV = E._origVersion || 'V1';
+      const vNum = parseInt(curV.replace(/\D/g, ''), 10) || 1;
+      const nextV = `V${vNum + 1}`;
+      const newId = `user_${o.num}_${Date.now()}`;
+      o.id = newId;
+      o.version = nextV;
+      o.parent_version = curV;
+      o.status = 'local';
+      o.source = 'manual';
+      o.is_custom = true;
+      o.desc = (E && E._origDesc) || '';
+      commit(o, null);
+      S._mineActiveVer[String(o.num).trim()] = newId;
+      renderMine(newId);
+      const miss = o.stops.length - annOf(o);
+      toast('ok', `Linka ${o.num} (${nextV}) uložena`, 'Byla uložena jako soukromá verze ve Vašem profilu.' + (miss ? ' Bez hlášení: ' + miss + ' zastávek.' : ''), 5500);
+      return;
+    }
+    const prev = E.id && S.lines.find((x) => x && x.id === E.id);
+    commit(o, prev || null);
+    const miss = o.stops.length - annOf(o);
+    toast('ok', 'Uloženo jako vlastní linka', 'Při dalším spuštění ji najdete ve hře.' + (miss ? ' Bez hlášení: ' + miss + ' zastávek.' : ''), 5500);
+  };
+  $('sv-pub').onclick = () => {
+    closeModal('save-modal');
+    const o = buildLine();
+    if (E && E._isPublishedEdit) {
+      const curV = E._origVersion || 'V1';
+      const vNum = parseInt(curV.replace(/\D/g, ''), 10) || 1;
+      const nextV = `V${vNum + 1}`;
+      const newId = `user_${o.num}_${Date.now()}`;
+      o.id = newId;
+      o.version = nextV;
+      o.parent_version = curV;
+      o.status = 'local';
+      o.source = 'manual';
+      o.is_custom = true;
+      o.desc = (E && E._origDesc) || '';
+      commit(o, null);
+      S._mineActiveVer[String(o.num).trim()] = newId;
+      renderMine(newId);
+      toast('ok', `Nová verze ${o.num} (${nextV}) připravena`, 'Zkontrolujte a doplňte údaje pro odeslání ke schválení.');
+      setTimeout(() => openPublish(o), 350);
+      return;
+    }
+    const prev = E.id && S.lines.find((x) => x && x.id === E.id);
+    commit(o, prev || null);
+    toast('ok', 'Linka uložena', 'Vyplňte údaje pro zveřejnění.');
+    setTimeout(() => openPublish(o), 350);
+  };
 
   /* ---------- zveřejnění ---------- */
   let P = null;
@@ -3316,7 +3366,7 @@ const CONFIG = { DEMO: false, REDUCED_FX: false };
     };
     $('pb-num').value = l.num;
     $('pb-name').value = defaultName;
-    $('pb-desc').value = '';
+    $('pb-desc').value = l.desc || l.description || l.notes || (E && E._origDesc) || '';
     $('pb-ok').checked = false;
     $('pb-tag-in').value = '';
     $('pb-user-name').textContent = $('hwid-display').textContent;
