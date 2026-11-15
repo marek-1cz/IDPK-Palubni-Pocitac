@@ -654,15 +654,19 @@ button.chip.dl:hover{border-color:var(--blue);color:#fff}
 .lg-seg{display:flex;width:100%}.lg-seg button{flex:1}
 
 /* Přepínač způsobu přihlášení (Discord DM vs E-mail) */
-.sp-seg{position:relative;display:grid;grid-template-columns:1fr 1fr;padding:5px;margin:0 auto 22px auto;width:100%;box-sizing:border-box;border-radius:999px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.14);user-select:none}
-.sp-seg::before{content:"";position:absolute;top:5px;bottom:5px;left:5px;width:calc(50% - 5px);border-radius:999px;background:linear-gradient(135deg,#5865f2,#7983ff);box-shadow:0 8px 24px rgba(88,101,242,.55);transition:transform .45s cubic-bezier(.22,1,.36,1),background .35s,box-shadow .35s}
-.sp-seg[data-v=email]::before{transform:translateX(100%);background:linear-gradient(135deg,#0284c7,#38bdf8);box-shadow:0 8px 24px rgba(56,189,248,.45)}
-.sp-seg button{position:relative;z-index:1;display:flex;align-items:center;justify-content:center;gap:7px;padding:11px 10px;border:none;background:transparent;border-radius:999px;font-weight:800;font-size:13.5px;color:var(--muted);cursor:pointer;transition:color .25s ease;white-space:nowrap;line-height:1}
-.sp-seg button small{font-weight:800;font-size:9.5px;letter-spacing:.08em;text-transform:uppercase;padding:2px 7px;border-radius:999px;background:rgba(255,255,255,.2);color:#fff;display:inline-block;white-space:nowrap}
-.sp-seg button[aria-selected=true]{color:#fff}
-.sp-seg[data-v=email] button[aria-selected=true]{color:#031028}
-.sp-seg button .seg-ic{width:19px;height:19px;flex:none;display:inline-block;vertical-align:middle;transition:transform .35s cubic-bezier(.22,1,.36,1)}
-.sp-seg button[aria-selected=true] .seg-ic{transform:scale(1.15) rotate(-6deg)}
+.sp-seg{position:relative;display:grid;grid-template-columns:1fr 1fr;padding:4px;margin:0 auto 20px auto;width:100%;box-sizing:border-box;border-radius:999px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.14);user-select:none}
+.sp-seg::before{content:"";position:absolute;top:4px;bottom:4px;left:4px;width:calc(50% - 4px);border-radius:999px;background:linear-gradient(135deg,#5865f2,#7983ff);box-shadow:0 6px 22px rgba(88,101,242,.55);transition:transform .35s cubic-bezier(.16,1,.3,1),background .3s,box-shadow .3s}
+.sp-seg[data-v=email]::before{transform:translateX(100%);background:linear-gradient(135deg,#0284c7,#2563eb);box-shadow:0 6px 22px rgba(37,99,235,.55)}
+.sp-seg button{position:relative;z-index:1;display:flex;align-items:center;justify-content:center;gap:8px;padding:12px 14px;border:none;background:transparent;border-radius:999px;font-weight:800;font-size:14px;color:rgba(255,255,255,.6);cursor:pointer;transition:color .25s ease;white-space:nowrap;line-height:1}
+.sp-seg button:hover{color:rgba(255,255,255,.9)}
+.sp-seg button[aria-selected=true]{color:#fff !important;text-shadow:0 1px 3px rgba(0,0,0,.4)}
+.sp-seg button .seg-ic{width:18px;height:18px;flex:none;display:inline-block;vertical-align:middle;transition:transform .3s cubic-bezier(.16,1,.3,1)}
+.sp-seg button[aria-selected=true] .seg-ic{transform:scale(1.12)}
+
+#btn-dev-build{display:inline-flex;align-items:center;justify-content:center;gap:8px;height:60px;padding:0 22px;font-size:14px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;background:linear-gradient(135deg,rgba(239,68,68,.18) 0%,rgba(185,28,28,.28) 100%);border:1px solid rgba(239,68,68,.55);border-radius:14px;color:#fca5a5;cursor:pointer;transition:all .25s var(--ease)}
+#btn-dev-build:hover{background:linear-gradient(135deg,rgba(239,68,68,.35) 0%,rgba(220,38,38,.45) 100%);border-color:#ef4444;color:#fff;transform:translateY(-2px);box-shadow:0 6px 20px rgba(239,68,68,.4)}
+#btn-dev-build:active{transform:scale(.98)}
+#btn-dev-build[hidden]{display:none !important}
 
 /* Nápověda jak zjistit Discord ID */
 .id-help summary::-webkit-details-marker{display:none}
@@ -814,7 +818,7 @@ button.chip.dl:hover{border-color:var(--blue);color:#fff}
           <button class="btn-launch" id="btn-launch" data-state="loading">
             <svg class="ic launch-icon"><use href="#i-play"/></svg><span class="launch-text">Načítání…</span>
           </button>
-          <button class="btn" id="btn-dev-build" title="Vývojářský build" hidden><svg class="ic"><use href="#i-flask"/></svg>Dev build</button>
+          <button class="btn" id="btn-dev-build" title="Spustit vývojářský build" hidden><svg class="ic"><use href="#i-flask"/></svg><span>Spustit dev build</span></button>
         </div>
 
         <div class="dl-card" id="download-progress" hidden>
@@ -1522,6 +1526,18 @@ const CONFIG = { DEMO: false, REDUCED_FX: false };
       { id: 'v1.5.2', name: 'V1.5.2', tag: 'old', size: '1.1 GB', installed: true },
     ],
     sel: 'v1.6.3', dlTimer: null, dlCancel: false, running: false,
+    lines: [],
+    comm: [],
+    queue: [],
+    mineFilter: 'all',
+    cmFilter: 'all',
+    cmVoice: 'all',
+    _mineActiveVer: {},
+    gtfsCR: false,
+    notifyVia: 'Discord DM',
+    flow: null,
+    cur: null,
+    guideNext: null
   };
 
   /* ---------------- zobrazení ---------------- */
@@ -1568,10 +1584,30 @@ const CONFIG = { DEMO: false, REDUCED_FX: false };
   }
   function setRole(r) {
     S.role = r; const el = $('role-display');
-    el.className = 'role-badge ' + r; el.textContent = ROLES[r] || r;
-    const isDev = ['admin', 'sa', 'dev', 'developer', 'tester'].includes(String(r).toLowerCase());
-    $('btn-dev-build').hidden = !isDev;
-    const sDev = $('settings-dev-card'); if (sDev) sDev.hidden = !isDev;
+    if (el) { el.className = 'role-badge ' + r; el.textContent = ROLES[r] || r; }
+    const isDev = ['admin', 'sa', 'dev', 'developer', 'tester'].includes(String(r).toLowerCase()) || (typeof currentUserRole === 'string' && (currentUserRole.includes('SA') || currentUserRole.includes('DEV') || currentUserRole.toLowerCase().includes('admin')));
+    const bDev = $('btn-dev-build');
+    if (bDev) {
+      bDev.hidden = !isDev;
+      if (isDev) {
+        bDev.removeAttribute('hidden');
+        bDev.style.display = 'inline-flex';
+      } else {
+        bDev.setAttribute('hidden', '');
+        bDev.style.display = 'none';
+      }
+    }
+    const sDev = $('settings-dev-card');
+    if (sDev) {
+      sDev.hidden = !isDev;
+      if (isDev) {
+        sDev.removeAttribute('hidden');
+        sDev.style.display = '';
+      } else {
+        sDev.setAttribute('hidden', '');
+        sDev.style.display = 'none';
+      }
+    }
     if (window.__syncAdmin) window.__syncAdmin(r);
   }
   function setOffline(b) {
@@ -1876,7 +1912,33 @@ const CONFIG = { DEMO: false, REDUCED_FX: false };
   /* ---------------- přihlášení ---------------- */
   const LV = ['discord', 'email', 'email-code', 'email-manual', 'waiting', 'success'];
   const LVID = { discord: 'login-discord-view', email: 'login-email-view', 'email-code': 'login-email-code-view', 'email-manual': 'login-email-code-manual-view', waiting: 'login-waiting-view', success: 'login-success-view' };
-  function setLoginView(v) { LV.forEach((k) => ($(LVID[k]).hidden = k !== v)); $('login-error-message').hidden = true; }
+  function setLoginView(v) {
+    LV.forEach((k) => {
+      const el = $(LVID[k]);
+      if (el) el.hidden = (k !== v);
+    });
+    $('login-error-message').hidden = true;
+    const seg = $('login-method-seg');
+    if (seg) {
+      if (v === 'discord' || v === 'email') {
+        seg.hidden = false;
+        seg.dataset.v = v;
+        $$('#login-method-seg button').forEach((b) => {
+          b.setAttribute('aria-selected', b.dataset.v === v ? 'true' : 'false');
+        });
+      } else {
+        seg.hidden = true;
+      }
+    }
+  }
+  $$('#login-method-seg button').forEach((b) => {
+    b.onclick = () => {
+      const target = b.dataset.v;
+      if (target === 'discord' || target === 'email') {
+        setLoginView(target);
+      }
+    };
+  });
   function showLoginError(t) { const e = $('login-error-message'); e.hidden = true; void e.offsetWidth; $('login-error-text').textContent = t; e.hidden = false; }
   function showLogin(on) { $('login-overlay').hidden = !on; if (on) showBoot(false); }
   function showBoot(on) {
@@ -2039,12 +2101,16 @@ const CONFIG = { DEMO: false, REDUCED_FX: false };
   }
 
   /* ---------- Skutečná data linek (žádné vzory) ---------- */
-  S.gtfsCR = false; S.notifyVia = 'Discord DM'; S.cmFilter = 'all'; S.cmVoice = 'all'; S.mineFilter = 'all';
+  S.gtfsCR = S.gtfsCR || false;
+  S.notifyVia = S.notifyVia || 'Discord DM';
+  S.cmFilter = S.cmFilter || 'all';
+  S.cmVoice = S.cmVoice || 'all';
+  S.mineFilter = S.mineFilter || 'all';
   const snd = (name, dur) => ({ name, dur });
   const withSnd = (arr, all) => { const st = mkStops(arr); st.forEach((s, i) => { if (all || i % 2 === 0) s.snd = snd(norm(s.n).replace(/ /g, '-') + '.mp3', 1.6 + (i % 3) * 0.7); }); return st; };
-  S.lines = [];
-  S.comm = [];
-  S.queue = [];
+  if (!Array.isArray(S.lines)) S.lines = [];
+  if (!Array.isArray(S.comm)) S.comm = [];
+  if (!Array.isArray(S.queue)) S.queue = [];
   S.cur = null; S.flow = null; S.guideNext = null;
   const annOf = (l) => (l && Array.isArray(l.stops) ? l.stops.filter((s) => s && s.snd).length : 0);
 
@@ -2120,15 +2186,18 @@ const CONFIG = { DEMO: false, REDUCED_FX: false };
   }
   $$('#ed-tabs .ed-tab').forEach((b) => (b.onclick = () => selTab(b.dataset.tab)));
   function syncAdminTab(role) {
-    const adm = role === 'admin'; $('tab-admin').hidden = !adm; $('cnt-admin').textContent = (S.queue || []).length;
-    if (!adm && !$('pane-admin').hidden) selTab('mine');
+    const adm = role === 'admin';
+    if ($('tab-admin')) $('tab-admin').hidden = !adm;
+    if ($('cnt-admin')) $('cnt-admin').textContent = (S.queue || []).length;
+    if (!adm && $('pane-admin') && !$('pane-admin').hidden) selTab('mine');
   }
   window.__syncAdmin = syncAdminTab;
 
   S._mineActiveVer = S._mineActiveVer || {};
   function renderMine(flashId) {
-    const q = $('ed-search').value.trim().toLowerCase(), f = S.mineFilter;
-    $('cnt-mine').textContent = S.lines.length;
+    if (!S.lines || !Array.isArray(S.lines)) S.lines = [];
+    const q = ($('ed-search') ? $('ed-search').value : '').trim().toLowerCase(), f = S.mineFilter || 'all';
+    if ($('cnt-mine')) $('cnt-mine').textContent = S.lines.length;
     const arr = S.lines.filter((l) => (!q || (l.num + ' ' + l.name + ' ' + l.dest).toLowerCase().includes(q)) && (
       f === 'all' ||
       (f === 'comm' && (l.source === 'comm' || (l.tags || []).includes('Komunita') || String(l.id).startsWith('comm_'))) ||
@@ -2417,8 +2486,9 @@ const CONFIG = { DEMO: false, REDUCED_FX: false };
   /* ---------- komunita ---------- */
   S._cmActiveVer = S._cmActiveVer || {};
   function renderComm() {
-    const q = $('cm-search').value.trim().toLowerCase(), f = S.cmFilter, v = S.cmVoice;
-    $('cnt-comm').textContent = S.comm.length;
+    if (!S.comm || !Array.isArray(S.comm)) S.comm = [];
+    const q = ($('cm-search') ? $('cm-search').value : '').trim().toLowerCase(), f = S.cmFilter || 'all', v = S.cmVoice || 'all';
+    if ($('cnt-comm')) $('cnt-comm').textContent = S.comm.length;
     const arr = S.comm.filter((c) => (!q || (c.num + ' ' + (c.name || '') + ' ' + (c.full_name || '') + ' ' + (c.from || '') + ' ' + c.dest + ' ' + c.author + ' ' + (c.tags || []).join(' ')).toLowerCase().includes(q)) && (f === 'all' || (f === 'inst' ? c.state === 'installed' : c.type === f)) && (v === 'all' || c.voice === v || (v === 'none' && (c.voice === 'none' || (c.tags || []).includes('bez zvuku')))));
     arr.sort((a, b) => {
       const aNo = (a.tags || []).includes('bez zvuku') || a.voice === 'none' || (a.stops && a.stops.length && a.stops.every(s => !s.snd && !s.audio_url));
@@ -3506,7 +3576,8 @@ const CONFIG = { DEMO: false, REDUCED_FX: false };
 
   /* ---------- administrace (jen role admin) ---------- */
   function renderAdmin() {
-    $('cnt-admin').textContent = S.queue.length;
+    if (!S.queue || !Array.isArray(S.queue)) S.queue = [];
+    if ($('cnt-admin')) $('cnt-admin').textContent = S.queue.length;
     $('adm-list').innerHTML = S.queue.map((q) => {
       const t = TYPES[q.type], vo = VOICES[q.voice];
       return '<div class="acard" data-id="' + q.id + '"><div class="top"><span class="numchip">' + esc(q.num) + '</span><div class="tx"><b>' + esc(q.name) + '</b><small>od ' + esc(q.author) + ' · účet ověřen ✓</small></div></div>' +

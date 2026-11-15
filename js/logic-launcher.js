@@ -1314,6 +1314,38 @@ async function initLauncher(config) {
             roleDisplay.style.backgroundColor = color;
         }
 
+        const isDevUserAtStart = currentUserRole.includes('DEV') || currentUserRole.includes('SA') || currentUserRole.toLowerCase().includes('admin');
+        const bDevStart = document.getElementById('btn-dev-build');
+        if (bDevStart) {
+            bDevStart.hidden = !isDevUserAtStart;
+            if (isDevUserAtStart) {
+                bDevStart.removeAttribute('hidden');
+                bDevStart.style.display = 'inline-flex';
+            } else {
+                bDevStart.setAttribute('hidden', '');
+                bDevStart.style.display = 'none';
+            }
+            if (!bDevStart._hasDevClickListener) {
+                bDevStart._hasDevClickListener = true;
+                bDevStart.addEventListener('click', () => {
+                    bDevStart.disabled = true;
+                    bDevStart.innerHTML = '<i class="fas fa-spinner fa-spin"></i> SPOUŠTÍM...';
+                    ipcRenderer.send('launch-dev-build');
+                });
+            }
+        }
+        const sDevCardStart = document.getElementById('settings-dev-card');
+        if (sDevCardStart) {
+            sDevCardStart.hidden = !isDevUserAtStart;
+            if (isDevUserAtStart) {
+                sDevCardStart.removeAttribute('hidden');
+                sDevCardStart.style.display = '';
+            } else {
+                sDevCardStart.setAttribute('hidden', '');
+                sDevCardStart.style.display = 'none';
+            }
+        }
+
         if (config.avatar_url) {
             const avEl = document.getElementById('avatar');
             if (avEl) {
@@ -1371,17 +1403,35 @@ async function initLauncher(config) {
                                 });
                             }
                         }
-                        if (currentUserRole.includes('DEV') || currentUserRole.includes('SA')) {
-                            const btnDevBuild = document.getElementById('btn-dev-build');
-                            if (btnDevBuild) {
-                                btnDevBuild.style.display = 'block';
-                                if (!window.LC) {
-                                    btnDevBuild.addEventListener('click', () => {
-                                        btnDevBuild.disabled = true;
-                                        btnDevBuild.innerHTML = '<i class="fas fa-spinner fa-spin"></i> SPOUŠTÍM...';
-                                        ipcRenderer.send('launch-dev-build');
-                                    });
-                                }
+                        const isDevNow = currentUserRole.includes('DEV') || currentUserRole.includes('SA') || currentUserRole.toLowerCase().includes('admin');
+                        const btnDevBuild = document.getElementById('btn-dev-build');
+                        if (btnDevBuild) {
+                            btnDevBuild.hidden = !isDevNow;
+                            if (isDevNow) {
+                                btnDevBuild.removeAttribute('hidden');
+                                btnDevBuild.style.display = 'inline-flex';
+                            } else {
+                                btnDevBuild.setAttribute('hidden', '');
+                                btnDevBuild.style.display = 'none';
+                            }
+                            if (!btnDevBuild._hasDevClickListener) {
+                                btnDevBuild._hasDevClickListener = true;
+                                btnDevBuild.addEventListener('click', () => {
+                                    btnDevBuild.disabled = true;
+                                    btnDevBuild.innerHTML = '<i class="fas fa-spinner fa-spin"></i> SPOUŠTÍM...';
+                                    ipcRenderer.send('launch-dev-build');
+                                });
+                            }
+                        }
+                        const sDevCard = document.getElementById('settings-dev-card');
+                        if (sDevCard) {
+                            sDevCard.hidden = !isDevNow;
+                            if (isDevNow) {
+                                sDevCard.removeAttribute('hidden');
+                                sDevCard.style.display = '';
+                            } else {
+                                sDevCard.setAttribute('hidden', '');
+                                sDevCard.style.display = 'none';
                             }
                         }
 
