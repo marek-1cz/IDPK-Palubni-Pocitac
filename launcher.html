@@ -3036,6 +3036,17 @@ const CONFIG = { DEMO: false, REDUCED_FX: false };
     const trips = (E.trips || []).slice().sort((a, b) => a.no - b.no); $('trip-count').textContent = trips.length + ' spojů';
     $('trips').innerHTML = trips.map((t) => { const k = tripKind(t.no); return '<div class="tcard"><span class="numchip sm">' + t.no + '</span><span class="badge ' + k[1] + '">' + k[0] + '</span><div class="tx"><b>' + esc(nameOf(t.items[0].s)) + ' → ' + esc(nameOf(t.items[t.items.length - 1].s)) + '</b><small>' + t.items.length + ' zastávek · ' + (t.items[0].time || '—') + ' – ' + (t.items[t.items.length - 1].time || '—') + '</small></div><button class="ib" data-t="edit" data-id="' + t.id + '" title="Upravit">' + ic('edit') + '</button><button class="ib" data-t="del" data-id="' + t.id + '" title="Smazat">' + ic('trash') + '</button></div>'; }).join('') || '<div class="tnone">Zatím žádný spoj. Vytvořte první tlačítkem níže.</div>';
     $$('#trips [data-t]').forEach((b) => (b.onclick = () => { const t = E.trips.find((x) => x.id === b.dataset.id); if (b.dataset.t === 'edit') openTrip(t); else { E.trips = E.trips.filter((x) => x.id !== t.id); dirty(); renderTrips(); } }));
+    const saveBtn = $('ed-save');
+    if (saveBtn) {
+      const hasTrip = (E.trips || []).some((t) => t && Array.isArray(t.items) && t.items.length >= 2);
+      if (!hasTrip) {
+        saveBtn.style.opacity = '0.65';
+        saveBtn.title = 'Před uložením linky musíte vytvořit alespoň jeden spoj';
+      } else {
+        saveBtn.style.opacity = '';
+        saveBtn.title = '';
+      }
+    }
   }
   if ($('tr-reverse')) {
     $('tr-reverse').onclick = () => {
@@ -3075,6 +3086,17 @@ const CONFIG = { DEMO: false, REDUCED_FX: false };
   const nameOf = (id) => { const s = (E.stops || []).find((x) => x && x.id === id); return s ? (s.n || '(bez názvu)') : '?'; };
   let T = null;
   function nextNo() { const used = new Set((E.trips || []).map((t) => t.no)); let n = 1; while (used.has(n)) n++; return n; }
+  function cleanValidTime(str) {
+    if (!str) return null;
+    const m = /^(\d{1,2}):?(\d{2})$/.exec(String(str).trim());
+    if (!m) return null;
+    const hh = parseInt(m[1], 10);
+    const mm = parseInt(m[2], 10);
+    if (hh >= 0 && hh <= 23 && mm >= 0 && mm <= 59) {
+      return ('0' + hh).slice(-2) + ':' + ('0' + mm).slice(-2);
+    }
+    return null;
+  }
   function openTrip(t) {
     if ((E.stops || []).filter((s) => s && (s.n || '').trim()).length < 2) return toast('warn', 'Nejdřív přidejte zastávky', 'Pro spoj potřebujete alespoň dvě pojmenované zastávky.');
     T = t ? JSON.parse(JSON.stringify(t)) : { id: null, no: nextNo(), items: [] };
@@ -3086,17 +3108,6 @@ const CONFIG = { DEMO: false, REDUCED_FX: false };
     $$('#tm-lib .tm-s').forEach((b) => (b.onclick = () => { const last = T.items[T.items.length - 1]; T.items.push({ s: b.dataset.id, time: last && last.time ? addMin(last.time, 5) : '06:00' }); renderTrip(); const q = $('tm-seq'); q.scrollTop = q.scrollHeight; }));
     $('tm-count').textContent = T.items.length + ' zastávek';
     $('tm-seq').innerHTML = T.items.map((x, i) => '<div class="tm-r"><span class="no">' + (i + 1) + '</span><span class="tn">' + esc(nameOf(x.s)) + '</span><input class="inp mono" type="text" inputmode="numeric" maxlength="5" placeholder="HH:MM" autocomplete="off" value="' + esc(x.time) + '" data-i="' + i + '"><button class="ib" data-m="up" data-i="' + i + '" title="Výš">' + ic('chev', 'rot180') + '</button><button class="ib" data-m="dn" data-i="' + i + '" title="Níž">' + ic('chev') + '</button><button class="ib" data-m="rm" data-i="' + i + '" title="Odebrat">' + ic('x') + '</button></div>').join('') || '<div class="tnone">Klikejte na zastávky vlevo.</div>';
-    function cleanValidTime(str) {
-      if (!str) return null;
-      const m = /^(\d{1,2}):?(\d{2})$/.exec(String(str).trim());
-      if (!m) return null;
-      const hh = parseInt(m[1], 10);
-      const mm = parseInt(m[2], 10);
-      if (hh >= 0 && hh <= 23 && mm >= 0 && mm <= 59) {
-        return ('0' + hh).slice(-2) + ':' + ('0' + mm).slice(-2);
-      }
-      return null;
-    }
 
     $$('#tm-seq input').forEach((inp) => {
       inp.oninput = () => {
@@ -3195,6 +3206,8 @@ const CONFIG = { DEMO: false, REDUCED_FX: false };
   $('ed-save').onclick = () => {
     const stops = (E.stops || []).filter((s) => s && (s.n || '').trim());
     if (E.mode === 'manual' && stops.length < 2) return toast('warn', 'Málo zastávek', 'Linka potřebuje alespoň dvě pojmenované zastávky.');
+    const validTrips = (E.trips || []).filter((t) => t && Array.isArray(t.items) && t.items.length >= 2);
+    if (!validTrips.length) return toast('warn', 'Chybí spoj', 'Před uložením linky musíte vytvořit alespoň jeden spoj. Klikněte níže na „Vytvořit spoj“.');
     const o = buildLine();
     const missing = o.stops.length - annOf(o);
     const prev = E.id && S.lines.find((x) => x && x.id === E.id);
