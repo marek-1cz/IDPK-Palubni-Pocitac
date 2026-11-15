@@ -3532,46 +3532,162 @@ document.addEventListener('lc:storage-clean-orphans', async () => {
     }
 });
 
-document.addEventListener('lc:line-delete', (e) => {
-    const id = e.detail && e.detail.id;
-    if (!id) return;
+document.addEventListener('lc:line-delete', async (e) => {
+    const detail = e.detail || {};
+    const id = detail.id;
+    const num = detail.num;
+    if (!id && !num) return;
     try {
-        const isUnpub = Boolean(e.detail && e.detail.unpublish);
-        
+        const isUnpub = Boolean(detail.unpublish);
+        const safeNum = num ? String(num).trim().replace(/[^a-zA-Z0-9_-]/g, '_') : null;
+        const allIds = new Set();
+        if (id) allIds.add(String(id));
+        if (Array.isArray(detail.ids)) {
+            detail.ids.forEach(x => x && allIds.add(String(x)));
+        }
+
         // Pokud jde pouze o smazání z veřejné komunity (unpublish), NEMAZAT lokální soubor z PC
         if (!isUnpub) {
             const customDataPath = path.join(centralUserDataPath, 'data');
-            const candidates = [
-                path.join(customDataPath, `${id}.json`),
-                path.join(customDataPath, `user_${id}.json`),
-                path.join(customDataPath, `comm_${id}.json`)
-            ];
-            
+            const linkyDir = path.join(centralUserDataPath, 'linky');
             const lineSounds = new Set();
-            candidates.forEach(fp => {
-                if (fs.existsSync(fp)) {
+
+            // A. Smazat odpovídající JSON soubory z centralUserDataPath/data
+            if (fs.existsSync(customDataPath)) {
+                try {
+                    const jFiles = fs.readdirSync(customDataPath).filter(f => f.endsWith('.json'));
+                    jFiles.forEach(jf => {
+                        const base = jf.replace('.json', '');
+                        let shouldDel = false;
+                        if (allIds.has(base) || (id && jf.includes(id))) shouldDel = true;
+                        if (safeNum && (base === safeNum || base === `user_${safeNum}` || base === `comm_${safeNum}` || jf.startsWith(`user_${safeNum}_`))) {
+                            if (detail.deleteAll || !detail.version) shouldDel = true;
+                        }
+
+                        const fp = path.join(customDataPath, jf);
+                        try {
+                            const parsed = JSON.parse(fs.readFileSync(fp, 'utf-8'));
+                            const parsedNum = parsed.num ? String(parsed.num).trim().replace(/[^a-zA-Z0-9_-]/g, '_') : null;
+                            const parsedVer = parsed.version || 'V1';
+                            if (safeNum && parsedNum === safeNum) {
+                                if (detail.deleteAll) shouldDel = true;
+                                if (detail.version && parsedVer === detail.version) shouldDel = true;
+                                if (id && parsed.id === id) shouldDel = true;
+                            }
+                            if (shouldDel) {
+                                (parsed.stops || []).forEach(st => {
+                                    const snd = st.audio || st.audio_file || (st.snd && st.snd.name);
+                                    if (snd) lineSounds.add(path.basename(String(snd)).toLowerCase());
+                                });
+                                fs.unlinkSync(fp);
+                            }
+                        } catch(_) {
+                            if (shouldDel) {
+                                try { fs.unlinkSync(fp); } catch(__) {}
+                            }
+                        }
+                    });
+                } catch(_) {}
+            }
+
+            // B. Smazat soubory z centralUserDataPath/linky
+            if (fs.existsSync(linkyDir)) {
+                try {
+                    const txtFiles = fs.readdirSync(linkyDir);
+                    txtFiles.forEach(tf => {
+                        let shouldDel = false;
+                        allIds.forEach(targetId => {
+                            if (tf.includes(targetId)) shouldDel = true;
+                        });
+                        if (safeNum) {
+                            if (tf === `${safeNum}_custom.txt` || tf === `${safeNum}.txt` || tf.startsWith(`${safeNum}_custom`)) {
+                                shouldDel = true;
+                            }
+                        }
+                        if (shouldDel) {
+                            try { fs.unlinkSync(path.join(linkyDir, tf)); } catch(_) {}
+                        }
+                    });
+                } catch(_) {}
+            }
+
+            // C. Smazat z VŠECH nainstalovaných verzí hry (userDataPath/versions/*) a jejich podsložek!
+            const versionsDir = path.join(userDataPath, 'versions');
+            if (fs.existsSync(versionsDir)) {
+                try {
+                    const subdirs = fs.readdirSync(versionsDir);
+                    subdirs.forEach(vName => {
+                        const vFolder = path.join(versionsDir, vName);
+                        // Linky složky ve verzi
+                        const vLinkyDirs = findLinkyFoldersInVersion(vFolder);
+                        vLinkyDirs.forEach(dir => {
+                            if (fs.existsSync(dir)) {
+                                try {
+                                    const vFiles = fs.readdirSync(dir);
+                                    vFiles.forEach(vf => {
+                                        let shouldDel = false;
+                                        allIds.forEach(targetId => { if (vf.includes(targetId)) shouldDel = true; });
+                                        if (safeNum && (vf === `${safeNum}_custom.txt` || vf === `${safeNum}.txt` || vf.startsWith(`${safeNum}_custom`))) {
+                                            shouldDel = true;
+                                        }
+                                        if (shouldDel) {
+                                            try { fs.unlinkSync(path.join(dir, vf)); } catch(_) {}
+                                        }
+                                    });
+                                } catch(_) {}
+                            }
+                        });
+                        // Data složky ve verzi
+                        const vDataDirs = findDataFoldersInVersion(vFolder);
+                        vDataDirs.forEach(dir => {
+                            if (fs.existsSync(dir)) {
+                                try {
+                                    const vFiles = fs.readdirSync(dir);
+                                    vFiles.forEach(vf => {
+                                        let shouldDel = false;
+                                        allIds.forEach(targetId => { if (vf.includes(targetId)) shouldDel = true; });
+                                        if (safeNum && (vf === `${safeNum}.json` || vf.startsWith(`user_${safeNum}_`) || vf.startsWith(`comm_${safeNum}`))) {
+                                            shouldDel = true;
+                                        }
+                                        if (shouldDel) {
+                                            try { fs.unlinkSync(path.join(dir, vf)); } catch(_) {}
+                                        }
+                                    });
+                                } catch(_) {}
+                            }
+                        });
+                    });
+                } catch(_) {}
+            }
+
+            // D. Smazat z DEV a lokálních adresářů
+            const devDirs = [
+                path.join(__dirname, '..', 'linky'),
+                path.join(__dirname, 'linky'),
+                path.join(__dirname, '..', 'data'),
+                path.join(__dirname, 'data')
+            ];
+            devDirs.forEach(d => {
+                if (fs.existsSync(d)) {
                     try {
-                        const parsed = JSON.parse(fs.readFileSync(fp, 'utf-8'));
-                        (parsed.stops || []).forEach(st => {
-                            const snd = st.audio || st.audio_file || (st.snd && st.snd.name);
-                            if (snd) lineSounds.add(path.basename(String(snd)).toLowerCase());
+                        const dFiles = fs.readdirSync(d);
+                        dFiles.forEach(df => {
+                            if (safeNum && (df === `${safeNum}_custom.txt` || df === `${safeNum}.json`)) {
+                                try { fs.unlinkSync(path.join(d, df)); } catch(_) {}
+                            }
                         });
                     } catch(_) {}
-                    try { fs.unlinkSync(fp); } catch(_) {}
                 }
             });
 
-            const linkyDir = path.join(centralUserDataPath, 'linky');
-            if (fs.existsSync(linkyDir)) {
-                const txtFiles = fs.readdirSync(linkyDir);
-                const safeNum = e.detail && e.detail.num ? String(e.detail.num).trim().replace(/[^a-zA-Z0-9_-]/g, '_') : null;
-                txtFiles.forEach(tf => {
-                    if (tf.includes(id) || (safeNum && tf === `${safeNum}_custom.txt`)) {
-                        try { fs.unlinkSync(path.join(linkyDir, tf)); } catch(_) {}
-                    }
-                });
-            }
+            // E. Pročistit in-memory cache v main procesu
+            try {
+                if (typeof ipcRenderer !== 'undefined' && ipcRenderer.invoke) {
+                    ipcRenderer.invoke('purge-custom-route-cache', { lineNum: num, id: id });
+                }
+            } catch(_) {}
 
+            // F. Úklid osiřelých zvuků
             if (lineSounds.size > 0) {
                 setTimeout(() => {
                     try {
@@ -3581,19 +3697,20 @@ document.addEventListener('lc:line-delete', (e) => {
             }
         }
 
-        // Pokud byla linka zveřejněná a autor ji maže/stahuje z komunity (nikoliv pouhá odinstalace stažené cizí linky)
-        const isInstalledOnly = Boolean(e.detail && e.detail.isInstalledOnly);
-        if (!isInstalledOnly && e.detail && (e.detail.unpublish || e.detail.isPublished || (e.detail.deleteAll && !String(id).startsWith('comm_')))) {
+        // 2. Požadavek na server pro komunitní / zveřejněné linky
+        const isInstalledOnly = Boolean(detail.isInstalledOnly);
+        if (!isInstalledOnly && (detail.unpublish || detail.isPublished || (detail.deleteAll && !String(id).startsWith('comm_')))) {
             const cfg = loadConfig();
             fetch(`${API_BASE}/api/community-routes/delete`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    route_id: e.detail.commId || (String(id).startsWith('comm_') ? id.replace('comm_', '') : undefined),
-                    route_number: e.detail.num || (e.detail.deleteAll ? (e.detail.num || '') : undefined),
-                    version: e.detail.version || undefined,
-                    discord_id: cfg.discord_id || currentHWID,
-                    author_name: cfg.discord_nick || 'Hráč'
+                    route_id: detail.commId || (String(id).startsWith('comm_') ? id.replace('comm_', '') : undefined),
+                    route_number: detail.num || (detail.deleteAll ? (detail.num || '') : undefined),
+                    version: detail.version || undefined,
+                    author_id: cfg.discord_id || cfg.email || currentHWID,
+                    discord_id: cfg.discord_id || (cfg.email ? 'email-' + cfg.email : currentHWID),
+                    author_name: cfg.discord_nick || cfg.email || 'Hráč'
                 })
             }).then(() => {
                 if (typeof syncLocalLinesWithDatabase === 'function') {
@@ -3858,6 +3975,28 @@ document.addEventListener('lc:community-download', async (e) => {
     fs.writeFileSync(path.join(customDataPath, `comm_${id}.json`), JSON.stringify(lineData, null, 2), 'utf8');
     syncRouteFileToLinky(lineData);
     commItem.state = 'installed';
+
+    // Zaznamenat stažení do serverového počítadla (s automatickým vyloučením autora linky)
+    try {
+        const cfg = loadConfig();
+        const curUid = cfg.discord_id || (cfg.email ? 'email-' + cfg.email : currentHWID);
+        const curUname = cfg.discord_nick || cfg.email || '';
+        fetch(`${API_BASE}/api/community-routes/download`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                route_id: id,
+                user_id: curUid,
+                user_name: curUname
+            })
+        }).then(r => r.json()).then(dlData => {
+            if (dlData && dlData.success && typeof dlData.download_count === 'number') {
+                commItem.dl = dlData.download_count;
+                if (window.LC && window.LC.renderComm) window.LC.renderComm();
+            }
+        }).catch(() => {});
+    } catch(_) {}
+
     if (window.LC) {
         if (window.LC.S && window.LC.S.lines) {
             window.LC.S.lines = window.LC.S.lines.filter(x => x.id !== lineData.id);

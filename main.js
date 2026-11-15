@@ -194,6 +194,23 @@ ipcMain.handle('get-hwid', async () => {
     });
 });
 
+ipcMain.handle('purge-custom-route-cache', async (event, { lineNum, id } = {}) => {
+    try {
+        if (id) CUSTOM_ROUTES_CACHE.delete(String(id));
+        if (lineNum) {
+            const cleanStr = String(lineNum).trim();
+            for (const [k, v] of CUSTOM_ROUTES_CACHE.entries()) {
+                if (v && (v.lineNum === cleanStr || String(k).includes(cleanStr))) {
+                    CUSTOM_ROUTES_CACHE.delete(k);
+                }
+            }
+        }
+        return { success: true };
+    } catch(err) {
+        return { success: false, error: err.message };
+    }
+});
+
 function createDebugWindow() {
     debugWindow = new BrowserWindow({
         width: 600, height: 400, title: "Diagnostický Log OIS IDPK V1.6.3", autoHideMenuBar: true,

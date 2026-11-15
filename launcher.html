@@ -2149,7 +2149,7 @@ const CONFIG = { DEMO: false, REDUCED_FX: false };
           delete S._mineActiveVer[String(l.num).trim()];
           renderMine();
           toast('info', `Verze ${curVer} linky ${l.num} smazána`);
-          emit('line-delete', { id: l.id, num: l.num, isPublished: l.status === 'published' });
+          emit('line-delete', { id: l.id, num: l.num, version: curVer, isPublished: l.status === 'published' || Boolean(l.commId), commId: l.commId });
         });
       } else if (a === 'del') {
         if (l.source === 'comm' || String(l.id).startsWith('comm_')) {
@@ -2167,7 +2167,7 @@ const CONFIG = { DEMO: false, REDUCED_FX: false };
             renderMine();
             renderComm();
             toast('info', `Linka ${l.num} byla odinstalována z vašeho PC.`);
-            emit('line-delete', { id: l.id, commId: l.commId, num: l.num, isInstalledOnly: true });
+            emit('line-delete', { id: l.id, ids: idsToDelete, commId: l.commId, num: l.num, isInstalledOnly: true });
           });
           return;
         }
@@ -2182,11 +2182,13 @@ const CONFIG = { DEMO: false, REDUCED_FX: false };
           yes: hasMultiple ? 'Smazat všechny verze' : 'Smazat linku'
         }, () => {
           const idsToDelete = sameNumLines.map(x => x.id);
+          const foundCommId = l.commId || (sameNumLines.find(x => x.commId) ? sameNumLines.find(x => x.commId).commId : null);
+          const isPub = sameNumLines.some(x => x.status === 'published' || x.commId);
           S.lines = S.lines.filter((x) => !idsToDelete.includes(x.id));
           delete S._mineActiveVer[String(l.num).trim()];
           renderMine();
           toast('info', `Linka ${l.num} smazána`);
-          emit('line-delete', { id: l.id, num: l.num, deleteAll: true, isPublished: l.status === 'published' });
+          emit('line-delete', { id: l.id, ids: idsToDelete, num: l.num, deleteAll: true, isPublished: isPub, commId: foundCommId });
         });
       }
     }));
@@ -3038,10 +3040,58 @@ const CONFIG = { DEMO: false, REDUCED_FX: false };
   $('ed-cancel').onclick = () => $('flow-back').click();
 
   /* ---------- spoje ---------- */
+  function reverseSingleTrip(baseTrip) {
+    if (!baseTrip || !baseTrip.items || baseTrip.items.length < 2) {
+      return toast('warn', 'Neplatný spoj', 'Původní spoj nemá dostatek zastávek pro vytvoření zpátečního směru.');
+    }
+    const trips = E.trips || [];
+    const usedNos = new Set(trips.map(t => t.no));
+    let newNo = baseTrip.no % 2 !== 0 ? (baseTrip.no + 1) : (baseTrip.no + 2);
+    while (usedNos.has(newNo)) newNo++;
+
+    const revItems = baseTrip.items.slice().reverse();
+    const lastOrigTime = baseTrip.items[baseTrip.items.length - 1].time || '07:00';
+    const [lh, lm] = lastOrigTime.split(':').map(Number);
+    let startMins = ((lh || 7) * 60 + (lm || 0) + 15) % (24 * 60);
+
+    const newItems = revItems.map((it, idx) => {
+      const curMins = (startMins + idx * 5) % (24 * 60);
+      const hh = String(Math.floor(curMins / 60)).padStart(2, '0');
+      const mm = String(curMins % 60).padStart(2, '0');
+      return { s: it.s, time: `${hh}:${mm}` };
+    });
+
+    const newTrip = {
+      id: uid(),
+      no: newNo,
+      items: newItems
+    };
+
+    E.trips = trips.concat(newTrip);
+    dirty();
+    renderTrips();
+    toast('ok', 'Zpáteční spoj vytvořen', `Byl přidán zpáteční spoj ${newNo} v opačném směru ke spoji ${baseTrip.no} (odjezd v ${newItems[0].time}).`);
+  }
+
   function renderTrips() {
     const trips = (E.trips || []).slice().sort((a, b) => a.no - b.no); $('trip-count').textContent = trips.length + ' spojů';
-    $('trips').innerHTML = trips.map((t) => { const k = tripKind(t.no); return '<div class="tcard"><span class="numchip sm">' + t.no + '</span><span class="badge ' + k[1] + '">' + k[0] + '</span><div class="tx"><b>' + esc(nameOf(t.items[0].s)) + ' → ' + esc(nameOf(t.items[t.items.length - 1].s)) + '</b><small>' + t.items.length + ' zastávek · ' + (t.items[0].time || '—') + ' – ' + (t.items[t.items.length - 1].time || '—') + '</small></div><button class="ib" data-t="edit" data-id="' + t.id + '" title="Upravit">' + ic('edit') + '</button><button class="ib" data-t="del" data-id="' + t.id + '" title="Smazat">' + ic('trash') + '</button></div>'; }).join('') || '<div class="tnone">Zatím žádný spoj. Vytvořte první tlačítkem níže.</div>';
-    $$('#trips [data-t]').forEach((b) => (b.onclick = () => { const t = E.trips.find((x) => x.id === b.dataset.id); if (b.dataset.t === 'edit') openTrip(t); else { E.trips = E.trips.filter((x) => x.id !== t.id); dirty(); renderTrips(); } }));
+    $('trips').innerHTML = trips.map((t) => {
+      const k = tripKind(t.no);
+      return '<div class="tcard"><span class="numchip sm">' + t.no + '</span><span class="badge ' + k[1] + '">' + k[0] + '</span><div class="tx"><b>' + esc(nameOf(t.items[0].s)) + ' → ' + esc(nameOf(t.items[t.items.length - 1].s)) + '</b><small>' + t.items.length + ' zastávek · ' + (t.items[0].time || '—') + ' – ' + (t.items[t.items.length - 1].time || '—') + '</small></div><button class="ib" data-t="rev" data-id="' + t.id + '" title="Vytvořit zpáteční spoj k tomuto spoji">' + ic('refresh') + '</button><button class="ib" data-t="edit" data-id="' + t.id + '" title="Upravit">' + ic('edit') + '</button><button class="ib" data-t="del" data-id="' + t.id + '" title="Smazat">' + ic('trash') + '</button></div>';
+    }).join('') || '<div class="tnone">Zatím žádný spoj. Vytvořte první tlačítkem níže.</div>';
+    $$('#trips [data-t]').forEach((b) => (b.onclick = () => {
+      const t = E.trips.find((x) => x.id === b.dataset.id);
+      if (!t) return;
+      if (b.dataset.t === 'edit') {
+        openTrip(t);
+      } else if (b.dataset.t === 'rev') {
+        reverseSingleTrip(t);
+      } else {
+        E.trips = E.trips.filter((x) => x.id !== t.id);
+        dirty();
+        renderTrips();
+      }
+    }));
     const saveBtn = $('ed-save');
     if (saveBtn) {
       const hasTrip = (E.trips || []).some((t) => t && Array.isArray(t.items) && t.items.length >= 2);
@@ -3058,35 +3108,11 @@ const CONFIG = { DEMO: false, REDUCED_FX: false };
     $('tr-reverse').onclick = () => {
       const trips = E.trips || [];
       if (trips.length === 0) return toast('warn', 'Žádný spoj k otočení', 'Nejdřív vytvořte alespoň jeden spoj, ze kterého se vygeneruje zpáteční.');
-      const baseTrip = trips[trips.length - 1];
-      if (!baseTrip.items || baseTrip.items.length < 2) return toast('warn', 'Neplatný spoj', 'Původní spoj nemá dostatek zastávek.');
-      
-      const usedNos = new Set(trips.map(t => t.no));
-      let newNo = baseTrip.no % 2 !== 0 ? (baseTrip.no + 1) : (baseTrip.no + 2);
-      while (usedNos.has(newNo)) newNo++;
-
-      const revItems = baseTrip.items.slice().reverse();
-      const lastOrigTime = baseTrip.items[baseTrip.items.length - 1].time || '07:00';
-      const [lh, lm] = lastOrigTime.split(':').map(Number);
-      let startMins = ((lh || 7) * 60 + (lm || 0) + 15) % (24 * 60);
-
-      const newItems = revItems.map((it, idx) => {
-        const curMins = (startMins + idx * 5) % (24 * 60);
-        const hh = String(Math.floor(curMins / 60)).padStart(2, '0');
-        const mm = String(curMins % 60).padStart(2, '0');
-        return { s: it.s, time: `${hh}:${mm}` };
-      });
-
-      const newTrip = {
-        id: uid(),
-        no: newNo,
-        items: newItems
-      };
-
-      E.trips = trips.concat(newTrip);
-      dirty();
-      renderTrips();
-      toast('ok', 'Zpáteční spoj vytvořen', `Byl přidán spoj ${newNo} v opačném směru (odjezd v ${newItems[0].time}).`);
+      if (trips.length === 1) {
+        reverseSingleTrip(trips[0]);
+      } else {
+        toast('info', 'Zvolte spoj', 'Máte více spojů – klepněte na tlačítko otočení přímo u konkrétního spoje na jeho kartě výše.');
+      }
     };
   }
   const nameOf = (id) => { const s = (E.stops || []).find((x) => x && x.id === id); return s ? (s.n || '(bez názvu)') : '?'; };
