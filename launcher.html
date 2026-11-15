@@ -3085,10 +3085,11 @@ const CONFIG = { DEMO: false, REDUCED_FX: false };
     }));
     const saveBtn = $('ed-save');
     if (saveBtn) {
+      const isManual = E && E.mode === 'manual';
       const hasTrip = (E.trips || []).some((t) => t && Array.isArray(t.items) && t.items.length >= 2);
-      if (!hasTrip) {
+      if (isManual && !hasTrip) {
         saveBtn.style.opacity = '0.65';
-        saveBtn.title = 'Před uložením linky musíte vytvořit alespoň jeden spoj';
+        saveBtn.title = 'Před uložením vlastní linky musíte vytvořit alespoň jeden spoj';
       } else {
         saveBtn.style.opacity = '';
         saveBtn.title = '';
@@ -3230,9 +3231,11 @@ const CONFIG = { DEMO: false, REDUCED_FX: false };
   function commit(o, prev) { if (prev) S.lines[S.lines.indexOf(prev)] = o; else S.lines.unshift(o); setStatus(false); emit('line-save', { line: o }); home(); selTab('mine'); renderMine(o.id); renderComm(); }
   $('ed-save').onclick = () => {
     const stops = (E.stops || []).filter((s) => s && (s.n || '').trim());
-    if (E.mode === 'manual' && stops.length < 2) return toast('warn', 'Málo zastávek', 'Linka potřebuje alespoň dvě pojmenované zastávky.');
-    const validTrips = (E.trips || []).filter((t) => t && Array.isArray(t.items) && t.items.length >= 2);
-    if (!validTrips.length) return toast('warn', 'Chybí spoj', 'Před uložením linky musíte vytvořit alespoň jeden spoj. Klikněte níže na „Vytvořit spoj“.');
+    if (E && E.mode === 'manual') {
+      if (stops.length < 2) return toast('warn', 'Málo zastávek', 'Linka potřebuje alespoň dvě pojmenované zastávky.');
+      const validTrips = (E.trips || []).filter((t) => t && Array.isArray(t.items) && t.items.length >= 2);
+      if (!validTrips.length) return toast('warn', 'Chybí spoj', 'Před uložením vlastní linky musíte vytvořit alespoň jeden spoj. Klikněte níže na „Vytvořit spoj“.');
+    }
     const o = buildLine();
     const missing = o.stops.length - annOf(o);
     const prev = E.id && S.lines.find((x) => x && x.id === E.id);
