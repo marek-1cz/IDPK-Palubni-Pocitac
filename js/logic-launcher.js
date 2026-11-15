@@ -310,37 +310,17 @@ const loginWaitingView = document.getElementById('login-waiting-view');
 const btnStartAuth = document.getElementById('btn-start-auth');
 const btnCancelAuth = document.getElementById('btn-cancel-auth');
 
-const loginMethodSeg = document.getElementById('login-method-seg');
-const discordSegBtn = loginMethodSeg ? loginMethodSeg.querySelector('button[data-v="discord"]') : null;
-const emailSegBtn = loginMethodSeg ? loginMethodSeg.querySelector('button[data-v="email"]') : null;
-const discordSuggestionsBox = document.getElementById('discord-suggestions-box');
-const discordSuggestionsList = document.getElementById('discord-suggestions-list');
-const loginTargetUser = document.getElementById('login-target-user');
-
 const loginEmailView = document.getElementById('login-email-view');
 const loginEmailCodeView = document.getElementById('login-email-code-view');
 const linkShowEmailLogin = document.getElementById('link-show-email-login');
 const linkShowDiscordLogin = document.getElementById('link-show-discord-login');
 const inputEmail = document.getElementById('login-email-input');
-const inputNick = document.getElementById('login-nick-input');
-const emailModeSeg = document.getElementById('email-mode');
-const emailHint = document.getElementById('email-hint');
 const btnStartEmailAuth = document.getElementById('btn-start-email-auth');
 const btnCancelEmailAuth = document.getElementById('btn-cancel-email-auth');
 const btnResendEmailAuth = document.getElementById('btn-resend-email-auth');
 
 const inputIdentifier = document.getElementById('login-identifier-input');
 const hwidText = document.getElementById('login-hwid-text');
-
-function escapeHtml(str) {
-    if (!str) return '';
-    return String(str)
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#039;');
-}
 
 
 
@@ -351,13 +331,6 @@ inputIdentifier.addEventListener('keydown', (e) => {
 inputEmail.addEventListener('keydown', (e) => {
     if (e.key === 'Enter') btnStartEmailAuth.click();
 });
-if (inputNick) {
-    inputNick.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter') {
-            if (inputEmail) inputEmail.focus();
-        }
-    });
-}
 
 let authPollInterval = null;
 let denialCount = parseInt(localStorage.getItem('authDenialCount') || '0', 10);
@@ -795,7 +768,7 @@ async function checkAuthAndInit() {
     });
 
     currentHWID = await getHWID();
-    if (typeof hwidText !== 'undefined' && hwidText) hwidText.innerText = currentHWID;
+    if (typeof hwidText !== 'undefined' && hwidText) hwidText.innerText = "HWID: " + currentHWID;
 
     // Pokud je nalezena povinná aktualizace launcheru, přerušíme start a spustíme update
     const isUpdating = await Promise.race([
@@ -813,170 +786,73 @@ async function checkAuthAndInit() {
             window.LC.show('game');
         }
         const overlay = document.getElementById('initial-loading-overlay');
-        if (overlay) {
-            overlay.hidden = true;
-            overlay.style.display = 'none';
-        }
+        if (overlay) overlay.style.display = 'none';
     } else {
-        // Není přihlášen, okamžitě zobrazit login overlay BEZ probliknutí rozhraní launcheru
-        if (typeof loginOverlay !== 'undefined' && loginOverlay) {
-            loginOverlay.hidden = false;
-            loginOverlay.removeAttribute('hidden');
-            loginOverlay.style.display = 'flex';
-        }
+        // Není přihlášen, zobrazit auth
+        const overlay = document.getElementById('initial-loading-overlay');
+        if (overlay) overlay.style.display = 'none';
+        if (typeof loginOverlay !== 'undefined' && loginOverlay) loginOverlay.style.display = 'flex';
         showAuthView('discord');
+        if (typeof initLCBridgeData === 'function') await initLCBridgeData();
         if (window.LC) {
+            window.LC.showBoot(false);
             window.LC.showLogin(true);
             window.LC.setLoginView('discord');
             window.LC.setUser({ hwid: currentHWID });
         }
-        const overlay = document.getElementById('initial-loading-overlay');
-        if (overlay) {
-            overlay.hidden = true;
-            overlay.style.display = 'none';
-        }
-        if (typeof initLCBridgeData === 'function') await initLCBridgeData();
     }
 }
 
 function showAuthView(viewName) {
     hideLoginError();
-    const views = [
-        loginDiscordView,
-        loginWaitingView,
-        loginEmailView,
-        loginEmailCodeView,
-        document.getElementById('login-email-code-manual-view'),
-        document.getElementById('login-success-view')
-    ];
-    views.forEach(v => {
-        if (v) {
-            v.hidden = true;
-            v.style.display = 'none';
-        }
-    });
-
-    // Segmentovaný přepínač (Discord DM vs E-mail)
-    if (loginMethodSeg) {
-        if (viewName === 'discord') {
-            loginMethodSeg.style.display = 'grid';
-            loginMethodSeg.dataset.v = 'discord';
-            if (discordSegBtn) discordSegBtn.setAttribute('aria-selected', 'true');
-            if (emailSegBtn) emailSegBtn.setAttribute('aria-selected', 'false');
-        } else if (viewName === 'email') {
-            loginMethodSeg.style.display = 'grid';
-            loginMethodSeg.dataset.v = 'email';
-            if (emailSegBtn) emailSegBtn.setAttribute('aria-selected', 'true');
-            if (discordSegBtn) discordSegBtn.setAttribute('aria-selected', 'false');
-        } else {
-            loginMethodSeg.style.display = 'none';
-        }
+    loginDiscordView.style.display = 'none';
+    loginWaitingView.style.display = 'none';
+    loginEmailView.style.display = 'none';
+    loginEmailCodeView.style.display = 'none';
+    const vSucc = document.getElementById('login-success-view'); if (vSucc) vSucc.style.display = 'none';
+    const titleElT = document.querySelector('#login-overlay > div > div:first-child'); if (titleElT && viewName !== 'success') titleElT.style.display = 'block';
+    if (viewName === 'discord') loginDiscordView.style.display = 'flex';
+    if (viewName === 'waiting') loginWaitingView.style.display = 'flex';
+    if (viewName === 'email') loginEmailView.style.display = 'flex';
+    if (viewName === 'emailCode') loginEmailCodeView.style.display = 'flex';
+    if (viewName === 'success') {
+        const v = document.getElementById('login-success-view');
+        if (v) v.style.display = 'flex';
+        document.querySelector('#login-overlay > div > div:first-child').style.display = 'none'; // hide title PŘIHLÁŠENÍ DO SYSTÉMU
     }
-
-    let targetEl = null;
-    if (viewName === 'discord') targetEl = loginDiscordView;
-    else if (viewName === 'waiting') targetEl = loginWaitingView;
-    else if (viewName === 'email') targetEl = loginEmailView;
-    else if (viewName === 'emailCode') targetEl = loginEmailCodeView;
-    else if (viewName === 'emailCodeManual') targetEl = document.getElementById('login-email-code-manual-view');
-    else if (viewName === 'success') targetEl = document.getElementById('login-success-view');
-
-    if (targetEl) {
-        targetEl.hidden = false;
-        targetEl.removeAttribute('hidden');
-        targetEl.style.display = 'flex';
+    if (viewName === 'emailCodeManual') {
+        const v = document.getElementById('login-email-code-manual-view');
+        if (v) v.style.display = 'flex';
     }
-
-    const titleElT = document.querySelector('#login-overlay .lg-top');
-    if (titleElT) {
-        titleElT.style.display = (viewName === 'success') ? 'none' : 'block';
-    }
-
-    // Zajištění stavů tlačítek a inputů
+    
+    // Zajištění, že se nezasekne disabled stav (např. při reloadu stránky)
     let isLocked = (lockoutEndTime > Date.now());
     inputIdentifier.disabled = isLocked;
-    inputEmail.disabled = false;
-    if (inputNick) inputNick.disabled = false;
+    inputEmail.disabled = false; // email is separate
     btnStartAuth.disabled = isLocked;
     btnStartEmailAuth.disabled = false;
-    btnStartEmailAuth.innerText = (currentEmailMode === 'signup') ? 'Vytvořit účet a poslat kód' : 'Poslat přihlašovací odkaz';
+    btnStartEmailAuth.innerText = 'Odeslat přihlašovací odkaz';
 }
 
-if (discordSegBtn) {
-    discordSegBtn.addEventListener('click', () => {
-        showAuthView('discord');
-    });
-}
-if (emailSegBtn) {
-    emailSegBtn.addEventListener('click', () => {
-        showAuthView('email');
-    });
-}
+linkShowEmailLogin.addEventListener('click', (e) => {
+    e.preventDefault();
+    showAuthView('email');
+});
 
-if (linkShowEmailLogin) {
-    linkShowEmailLogin.addEventListener('click', (e) => {
-        e.preventDefault();
-        showAuthView('email');
-    });
-}
-if (linkShowDiscordLogin) {
-    linkShowDiscordLogin.addEventListener('click', (e) => {
-        e.preventDefault();
-        showAuthView('discord');
-    });
-}
-
-// Přepínání módu v E-mail sekci (Přihlásit se vs Vytvořit účet)
-let currentEmailMode = 'login';
-if (emailModeSeg) {
-    emailModeSeg.querySelectorAll('button').forEach(btn => {
-        btn.addEventListener('click', () => {
-            emailModeSeg.querySelectorAll('button').forEach(b => b.classList.remove('on'));
-            btn.classList.add('on');
-            currentEmailMode = btn.dataset.m || 'login';
-            if (currentEmailMode === 'signup') {
-                if (inputNick) {
-                    inputNick.hidden = false;
-                    inputNick.removeAttribute('hidden');
-                    inputNick.style.display = 'block';
-                }
-                if (emailHint) emailHint.innerHTML = 'Zvolte si přezdívku a zadejte e-mail. Na e-mail vám přijde <b>ověřovací odkaz a kód</b> k registraci.';
-                if (btnStartEmailAuth) btnStartEmailAuth.innerText = 'Vytvořit účet a poslat kód';
-            } else {
-                if (inputNick) {
-                    inputNick.hidden = true;
-                    inputNick.style.display = 'none';
-                    inputNick.value = '';
-                }
-                if (emailHint) emailHint.innerHTML = 'Zadejte e-mail, se kterým jste se registrovali. Pošleme Vám <b>přihlašovací odkaz a kód</b>.';
-                if (btnStartEmailAuth) btnStartEmailAuth.innerText = 'Poslat přihlašovací odkaz';
-            }
-            hideLoginError();
-        });
-    });
-}
+linkShowDiscordLogin.addEventListener('click', (e) => {
+    e.preventDefault();
+    showAuthView('discord');
+});
 
 btnStartEmailAuth.addEventListener('click', async () => {
+    const inputNick = document.getElementById('login-nick-input');
     const nick = inputNick ? inputNick.value.trim() : '';
     const email = inputEmail.value.trim();
-    
-    if (currentEmailMode === 'signup') {
-        if (!nick || nick.length < 3) {
-            showLoginError("Přezdívka musí mít alespoň 3 znaky!");
-            return;
-        }
-        if (nick.length > 24) {
-            showLoginError("Přezdívka může mít maximálně 24 znaků!");
-            return;
-        }
-        const nickRegex = /^[a-zA-Z0-9_\-\.\ áčďéěíňóřšťúůýžÁČĎÉĚÍŇÓŘŠŤÚŮÝŽ]+$/;
-        if (!nickRegex.test(nick)) {
-            showLoginError("Přezdívka obsahuje nepovolené znaky. Použijte písmena, čísla, mezeru, tečku nebo pomlčku.");
-            return;
-        }
+    if (!nick || nick.length < 2) {
+        showLoginError("Zadejte prosím svou přezdívku (alespoň 2 znaky)!");
+        return;
     }
-    
-    if (!email || !email.includes('@') || email.length < 5) {
+    if (!email || !email.includes('@')) {
         showLoginError("Zadejte platný e-mail!");
         return;
     }
@@ -984,19 +860,20 @@ btnStartEmailAuth.addEventListener('click', async () => {
     btnStartEmailAuth.disabled = true;
     btnStartEmailAuth.innerText = 'ODESÍLÁM...';
     
+    let emailAuthOldToken = null;
+    try {
+        const pollInitRes = await fetch(`${API_BASE}/api/launcher/email_poll`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email }) }); const pollInitData = await pollInitRes.json(); emailAuthOldToken = pollInitData.status === 'success' ? pollInitData.web_session_token : null;
+    } catch(e) {}
+    
     try {
         const res = await fetch(`${API_BASE}/api/auth/email/request`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                email: email,
-                nick: nick || '',
-                intent: currentEmailMode === 'signup' ? 'signup' : 'app_login'
-            })
+            body: JSON.stringify({ email: email, nick: nick, intent: 'app_login' })
         });
         
         const data = await res.json();
-        if (data.status === 'success' || data.success || res.ok) {
+        if (data.success || res.ok) {
             window.lastEmailSentAt = Date.now();
             if (window.emailAuthTimeoutTimer) clearTimeout(window.emailAuthTimeoutTimer);
             window.emailAuthTimeoutTimer = setTimeout(() => {
@@ -1007,6 +884,8 @@ btnStartEmailAuth.addEventListener('click', async () => {
             showAuthView('emailCode');
             
             const retryBtns = document.getElementById('email-retry-buttons');
+            const statusEl = document.getElementById('email-waiting-status');
+            
             if (retryBtns) {
                 retryBtns.style.display = 'none';
                 if (window.retryBtnsTimeout) clearTimeout(window.retryBtnsTimeout);
@@ -1019,11 +898,11 @@ btnStartEmailAuth.addEventListener('click', async () => {
             showLoginError(data.message || "Nepodařilo se odeslat odkaz na e-mail.");
         }
     } catch (e) {
-        showLoginError("Chyba spojení s API serverem.");
+        showLoginError("Chyba spojení s API.");
     }
     
     btnStartEmailAuth.disabled = false;
-    btnStartEmailAuth.innerText = (currentEmailMode === 'signup') ? 'Vytvořit účet a poslat kód' : 'Poslat přihlašovací odkaz';
+    btnStartEmailAuth.innerText = 'Odeslat přihlašovací odkaz';
 });
 
 function pollAuthEmail(email) {
@@ -1051,18 +930,10 @@ function pollAuthEmail(email) {
                 config.discord_nick = pollData.nick || pollData.email;
                 config.email = pollData.email;
                 saveConfig(config);
-                if (window.LC) {
-                    window.LC.setUser({ name: config.discord_nick, hwid: currentHWID, role: mapRoleToLC(pollData.role) });
-                    window.LC.setLoginView('success');
-                }
-                await initLauncher(config);
-                if (typeof initLCBridgeData === 'function') await initLCBridgeData();
-                showAuthView('success');
                 setTimeout(() => {
-                    if (window.LC) window.LC.showLogin(false);
                     loginOverlay.style.display = 'none';
-                    loginOverlay.hidden = true;
-                }, 1600);
+                    initLauncher(config);
+                }, 1500);
             }
         } catch(_) {}
     }, 4000);
@@ -1087,84 +958,44 @@ if (btnManualCode) {
     });
 }
 
-let isVerifyingEmailCode = false;
-async function performVerifyCode(code, providedEmail) {
-    if (isVerifyingEmailCode) return;
-    const cleanCode = String(code || '').trim().toUpperCase();
-    if (!cleanCode || cleanCode.length !== 5) {
-        if (window.LC) window.LC.showLoginError("Kód musí mít 5 znaků.");
-        return;
-    }
-    isVerifyingEmailCode = true;
-    const emailToVerify = providedEmail || currentPendingEmail || (document.getElementById('login-email-input') ? document.getElementById('login-email-input').value.trim() : '');
-    
-    const btnVer = document.getElementById('btn-verify-email-code') || document.getElementById('btn-verify-email-code-manual');
-    if (btnVer) {
-        btnVer.disabled = true;
-        btnVer.innerText = 'OVĚŘUJI...';
-    }
-
-    try {
-        const verifyRes = await fetch(`${API_BASE}/api/launcher/email_verify`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ email: emailToVerify, code: cleanCode, hwid: currentHWID })
-        });
-        const verifyData = await verifyRes.json();
-        if (verifyData.status === 'success') {
-            if (window.emailPollInterval) {
-                clearInterval(window.emailPollInterval);
-                window.emailPollInterval = null;
-            }
-            if (window.emailAuthTimeoutTimer) {
-                clearTimeout(window.emailAuthTimeoutTimer);
-                window.emailAuthTimeoutTimer = null;
-            }
-            let config = loadConfig();
-            config.discord_id = verifyData.discord_id || `email_${emailToVerify}`;
-            config.discord_nick = verifyData.nick || verifyData.display_name || (emailToVerify ? emailToVerify.split('@')[0] : 'Uživatel');
-            config.email = verifyData.email || emailToVerify;
-            saveConfig(config);
-
-            if (window.LC) {
-                window.LC.setUser({ name: config.discord_nick, hwid: currentHWID, role: mapRoleToLC(verifyData.role) });
-                window.LC.setLoginView('success');
-            }
-            await initLauncher(config);
-            if (typeof initLCBridgeData === 'function') await initLCBridgeData();
-            setTimeout(() => {
-                if (window.LC) window.LC.showLogin(false);
-                const ov = document.getElementById('login-overlay');
-                if (ov) {
-                    ov.hidden = true;
-                    ov.style.display = 'none';
-                }
-            }, 1600);
-        } else {
-            if (window.LC) window.LC.showLoginError(verifyData.message || "Neplatný kód nebo vypršela platnost.");
-            if (btnVer) {
-                btnVer.disabled = false;
-                btnVer.innerText = 'Ověřit kód';
-            }
-        }
-    } catch(e) {
-        if (window.LC) window.LC.showLoginError("Chyba při ověřování kódu: " + e.message);
-        if (btnVer) {
-            btnVer.disabled = false;
-            btnVer.innerText = 'Ověřit kód';
-        }
-    } finally {
-        isVerifyingEmailCode = false;
-    }
-}
-
 const btnVerifyEmailCodeManual = document.getElementById('btn-verify-email-code-manual');
 if (btnVerifyEmailCodeManual) {
     btnVerifyEmailCodeManual.addEventListener('click', async () => {
-        const inputCode = document.getElementById('login-email-code-manual-input') || document.getElementById('login-email-code-input');
-        const code = inputCode ? inputCode.value.trim().toUpperCase() : '';
-        const email = (inputEmail ? inputEmail.value.trim() : '') || currentPendingEmail;
-        await performVerifyCode(code, email);
+        const inputCode = document.getElementById('login-email-code-manual-input');
+        const code = inputCode ? inputCode.value.trim() : '';
+        const email = inputEmail.value.trim();
+        
+        if (code.length !== 5) {
+            showLoginError("Zadejte platný 5místný kód.");
+            return;
+        }
+        
+        btnVerifyEmailCodeManual.disabled = true;
+        btnVerifyEmailCodeManual.innerText = 'OVĚŘUJI...';
+        
+        try {
+            const verifyRes = await fetch(`${API_BASE}/api/launcher/email_verify`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, code }) }); const verifyData = await verifyRes.json(); if (verifyData.status === 'success') { let data = verifyData; data.id = verifyData.discord_id;
+                let config = loadConfig();
+                config.discord_id = data.discord_id || "email-" + data.id;
+                config.discord_nick = data.nick || data.email;
+                config.email = data.email;
+                saveConfig(config);
+                loginOverlay.style.display = 'none';
+                initLauncher(config);
+            } else {
+                showLoginError("Neplatný kód nebo vypršela platnost.");
+                if (inputCode) inputCode.value = '';
+                showAuthView('emailCode');
+                pollAuthEmail(email);
+            }
+        } catch(e) {
+            showLoginError("Chyba při ověřování kódu.");
+            if (inputCode) inputCode.value = '';
+            showAuthView('emailCode');
+            pollAuthEmail(email);
+        }
+        btnVerifyEmailCodeManual.disabled = false;
+        btnVerifyEmailCodeManual.innerText = 'OVĚŘIT KÓD';
     });
 }
 
@@ -1181,7 +1012,7 @@ if (btnCancelEmailManual) {
 
 btnCancelEmailAuth.addEventListener('click', () => {
     if (window.emailPollInterval) clearInterval(window.emailPollInterval);
-    showAuthView('email');
+    showAuthView('discord');
 });
 
 document.getElementById('btn-logout').addEventListener('click', () => {
@@ -1204,17 +1035,11 @@ btnCancelAuth.addEventListener('click', () => {
 
 btnStartAuth.addEventListener('click', async () => {
     const val = inputIdentifier.value.trim();
-    if (!val) { showLoginError("Zadejte Discord uživatelské jméno nebo ID!"); return; }
+    if (!val) { showLoginError("Zadejte ID nebo Nick!"); return; }
     
-    if (discordSuggestionsBox) {
-        discordSuggestionsBox.hidden = true;
-        if (discordSuggestionsList) discordSuggestionsList.innerHTML = '';
-    }
-
     inputIdentifier.disabled = true;
     let titleEl = document.getElementById('login-waiting-title');
     if (titleEl) titleEl.innerHTML = '<i class="fas fa-paper-plane" style="margin-right: 8px;"></i>Odesílám požadavek...';
-    if (loginTargetUser) loginTargetUser.textContent = val;
     showAuthView('waiting');
 
     try {
@@ -1235,39 +1060,19 @@ btnStartAuth.addEventListener('click', async () => {
         const fixedText = textData.replace(/"discord_id":\s*(\d+)/g, '"discord_id": "$1"');
         const data = JSON.parse(fixedText);
 
-        const isDevMode = false;
+        const isDevMode = false; // !__dirname.includes('app.asar');
+        
+        let titleEl = document.getElementById('login-waiting-title');
 
         if (data.status === 'waiting' || isDevMode) {
             if (titleEl) titleEl.innerHTML = '<i class="fas fa-hourglass-half" style="margin-right: 8px; color: #facc15;"></i>Čekám na Vaši reakci...';
-            if (loginTargetUser) loginTargetUser.textContent = data.nick || val;
             if (isDevMode && data.status !== 'waiting') {
                 data.discord_id = val;
             }
-            if (authPollInterval) clearInterval(authPollInterval);
-            authPollInterval = setInterval(() => pollAuth(data.discord_id), 6000);
-        } else if (data.status === 'suggestions') {
-            showAuthView('discord');
-            inputIdentifier.disabled = false;
-            if (discordSuggestionsBox && discordSuggestionsList) {
-                discordSuggestionsBox.hidden = false;
-                discordSuggestionsList.innerHTML = '';
-                (data.suggestions || []).forEach(s => {
-                    const chip = document.createElement('button');
-                    chip.type = 'button';
-                    chip.className = 'sug-chip';
-                    chip.innerHTML = `<svg class="ic" style="width:14px;height:14px"><use href="#i-user"/></svg> ${escapeHtml(s.nick || s.username)} <span style="opacity:0.65;font-size:11px">(@${escapeHtml(s.username)})</span>`;
-                    chip.addEventListener('click', () => {
-                        inputIdentifier.value = s.discord_id;
-                        discordSuggestionsBox.hidden = true;
-                        btnStartAuth.click();
-                    });
-                    discordSuggestionsList.appendChild(chip);
-                });
-            }
-            showLoginError(data.message || "Tento nick nebyl nalezen. Mysleli jste některého z těchto uživatelů?");
+            authPollInterval = setInterval(() => pollAuth(data.discord_id), 8000);
         } else {
             showAuthView('discord');
-            let errMsg = data.message ? data.message : "Toto ID nebo uživatelské jméno neexistuje. Jestli problém přetrvává, jděte na náš Discord.";
+            let errMsg = data.message ? data.message : "Toto ID neexistuje. Jestli problém přetrvává, jděte na náš Discord.";
             showLoginError(errMsg);
             inputIdentifier.disabled = false;
         }
@@ -1304,12 +1109,10 @@ async function pollAuth(discordId) {
             config.discord_nick = data.display_name || (isDevMode ? "VSC-DEV" : "Neznámý");
             saveConfig(config);
             
-            await initLauncher(config);
-            if (typeof initLCBridgeData === 'function') await initLCBridgeData();
             showAuthView('success');
             setTimeout(() => {
                 loginOverlay.style.display = 'none';
-                loginOverlay.hidden = true;
+                initLauncher(config);
             }, 2000);
         } else if (data.status === 'timeout') {
             clearInterval(authPollInterval);
@@ -1333,62 +1136,68 @@ async function initLauncher(config) {
     try {
         if (hwidDisplay) hwidDisplay.innerText = config.discord_nick || currentHWID;
         
-        // Okamžitě použít uloženou roli pro bleskový start
-        currentUserRole = config.user_role || 'User';
-        let color = '#64748b';
+        // Získat roli z users tabulky s timeoutem
+        try {
+            const roleRes = await safeFetch(`${API_BASE}/api/launcher/user_info`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ discord_id: config.discord_id })
+            }, 5000);
+            if (roleRes.ok) {
+                const data = await roleRes.json();
+                if (data && data.status === 'success') {
+                    currentUserRole = data.role || 'User';
+                    config.user_role = currentUserRole;
+                    saveConfig(config);
+
+                    if (data.avatar_url) {
+                        currentUserAvatarUrl = data.avatar_url;
+                        config.avatar_url = data.avatar_url;
+                        saveConfig(config);
+                        const avEl = document.getElementById('avatar');
+                        if (avEl) {
+                            avEl.innerHTML = `<img src="${data.avatar_url}" style="width:100%;height:100%;border-radius:50%;object-fit:cover;" alt="Avatar">`;
+                        }
+                        if (window.LC && window.LC.setUser) {
+                            window.LC.setUser({
+                                name: config.discord_nick || config.email || 'Uživatel',
+                                hwid: currentHWID,
+                                role: mapRoleToLC(currentUserRole),
+                                avatar_url: data.avatar_url
+                            });
+                        }
+                    }
+                    if (currentUserRole.includes('DEV') || currentUserRole.includes('SA')) {
+                        const btnDevBuild = document.getElementById('btn-dev-build');
+                        if (btnDevBuild) {
+                            btnDevBuild.style.display = 'block';
+                            if (!window.LC) {
+                                btnDevBuild.addEventListener('click', () => {
+                                    btnDevBuild.disabled = true;
+                                    btnDevBuild.innerHTML = '<i class="fas fa-spinner fa-spin"></i> SPOUŠTÍM...';
+                                    ipcRenderer.send('launch-dev-build');
+                                });
+                            }
+                        }
+                    }
+                } else {
+                    currentUserRole = config.user_role || 'User';
+                }
+            } else {
+                currentUserRole = config.user_role || 'User';
+            }
+        } catch(eRole) {
+            console.warn('[initLauncher] Nelze načíst roli ze serveru, použita uložená role:', eRole.message || eRole);
+            currentUserRole = config.user_role || 'User';
+        }
+        
+        let color = '#64748b'; // public
         if (currentUserRole.includes('DEV') || currentUserRole.includes('SA')) color = '#ef4444';
         else if (currentUserRole.includes('BT')) color = '#3b82f6';
+        
         if (roleDisplay) {
             roleDisplay.innerText = currentUserRole.toUpperCase();
             roleDisplay.style.backgroundColor = color;
-        }
-
-        const isDevUserAtStart = currentUserRole.includes('DEV') || currentUserRole.includes('SA') || currentUserRole.toLowerCase().includes('admin');
-        const bDevStart = document.getElementById('btn-dev-build');
-        if (bDevStart) {
-            bDevStart.hidden = !isDevUserAtStart;
-            if (isDevUserAtStart) {
-                bDevStart.removeAttribute('hidden');
-                bDevStart.style.display = 'inline-flex';
-            } else {
-                bDevStart.setAttribute('hidden', '');
-                bDevStart.style.display = 'none';
-            }
-            if (!bDevStart._hasDevClickListener) {
-                bDevStart._hasDevClickListener = true;
-                bDevStart.addEventListener('click', () => {
-                    bDevStart.disabled = true;
-                    bDevStart.innerHTML = '<i class="fas fa-spinner fa-spin"></i> SPOUŠTÍM...';
-                    ipcRenderer.send('launch-dev-build');
-                });
-            }
-        }
-        const sDevCardStart = document.getElementById('settings-dev-card');
-        if (sDevCardStart) {
-            sDevCardStart.hidden = !isDevUserAtStart;
-            if (isDevUserAtStart) {
-                sDevCardStart.removeAttribute('hidden');
-                sDevCardStart.style.display = '';
-            } else {
-                sDevCardStart.setAttribute('hidden', '');
-                sDevCardStart.style.display = 'none';
-            }
-        }
-
-        if (config.avatar_url) {
-            const avEl = document.getElementById('avatar');
-            if (avEl) {
-                avEl.innerHTML = `<img src="${config.avatar_url}" style="width:100%;height:100%;border-radius:50%;object-fit:cover;" alt="Avatar">`;
-            }
-        }
-
-        if (window.LC && window.LC.setUser) {
-            window.LC.setUser({
-                name: config.discord_nick || config.email || 'Uživatel',
-                hwid: currentHWID,
-                role: mapRoleToLC(currentUserRole),
-                avatar_url: config.avatar_url || ''
-            });
         }
 
         ensureCentralUserDataFolders();
@@ -1400,98 +1209,21 @@ async function initLauncher(config) {
             }
         } catch (_) {}
 
-        // Paralelní načtení: aktualizace role ze serveru + načtení verzí
-        const rolePromise = (async () => {
-            try {
-                const roleRes = await safeFetch(`${API_BASE}/api/launcher/user_info`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ discord_id: config.discord_id })
-                }, 4000);
-                if (roleRes.ok) {
-                    const data = await roleRes.json();
-                    if (data && data.status === 'success') {
-                        currentUserRole = data.role || 'User';
-                        config.user_role = currentUserRole;
-                        saveConfig(config);
-
-                        if (data.avatar_url) {
-                            currentUserAvatarUrl = data.avatar_url;
-                            config.avatar_url = data.avatar_url;
-                            saveConfig(config);
-                            const avEl = document.getElementById('avatar');
-                            if (avEl) {
-                                avEl.innerHTML = `<img src="${data.avatar_url}" style="width:100%;height:100%;border-radius:50%;object-fit:cover;" alt="Avatar">`;
-                            }
-                            if (window.LC && window.LC.setUser) {
-                                window.LC.setUser({
-                                    name: config.discord_nick || config.email || 'Uživatel',
-                                    hwid: currentHWID,
-                                    role: mapRoleToLC(currentUserRole),
-                                    avatar_url: data.avatar_url
-                                });
-                            }
-                        }
-                        const isDevNow = currentUserRole.includes('DEV') || currentUserRole.includes('SA') || currentUserRole.toLowerCase().includes('admin');
-                        const btnDevBuild = document.getElementById('btn-dev-build');
-                        if (btnDevBuild) {
-                            btnDevBuild.hidden = !isDevNow;
-                            if (isDevNow) {
-                                btnDevBuild.removeAttribute('hidden');
-                                btnDevBuild.style.display = 'inline-flex';
-                            } else {
-                                btnDevBuild.setAttribute('hidden', '');
-                                btnDevBuild.style.display = 'none';
-                            }
-                            if (!btnDevBuild._hasDevClickListener) {
-                                btnDevBuild._hasDevClickListener = true;
-                                btnDevBuild.addEventListener('click', () => {
-                                    btnDevBuild.disabled = true;
-                                    btnDevBuild.innerHTML = '<i class="fas fa-spinner fa-spin"></i> SPOUŠTÍM...';
-                                    ipcRenderer.send('launch-dev-build');
-                                });
-                            }
-                        }
-                        const sDevCard = document.getElementById('settings-dev-card');
-                        if (sDevCard) {
-                            sDevCard.hidden = !isDevNow;
-                            if (isDevNow) {
-                                sDevCard.removeAttribute('hidden');
-                                sDevCard.style.display = '';
-                            } else {
-                                sDevCard.setAttribute('hidden', '');
-                                sDevCard.style.display = 'none';
-                            }
-                        }
-
-                        let c2 = '#64748b';
-                        if (currentUserRole.includes('DEV') || currentUserRole.includes('SA')) c2 = '#ef4444';
-                        else if (currentUserRole.includes('BT')) c2 = '#3b82f6';
-                        if (roleDisplay) {
-                            roleDisplay.innerText = currentUserRole.toUpperCase();
-                            roleDisplay.style.backgroundColor = c2;
-                        }
-                    }
-                }
-            } catch (eRole) {
-                console.warn('[initLauncher] Nelze aktualizovat roli ze serveru:', eRole.message || eRole);
-            }
-        })();
-
-        const versionsPromise = loadAvailableVersions();
-        await Promise.allSettled([rolePromise, versionsPromise]);
-        if (typeof initLCBridgeData === 'function') {
-            await initLCBridgeData();
-        }
+        await loadAvailableVersions();
     } catch(e) {
         console.error("Chyba při startu launcheru:", e);
         const overlay = document.getElementById('initial-loading-overlay');
         if (overlay) overlay.style.display = 'none';
         ensureCentralUserDataFolders();
+        try {
+            const versionsDir = path.join(userDataPath, 'versions');
+            if (fs.existsSync(versionsDir)) {
+                const dirs = fs.readdirSync(versionsDir);
+                dirs.forEach(d => backupUserRoutesFromVersion(path.join(versionsDir, d)));
+            }
+        } catch (_) {}
+
         await loadAvailableVersions();
-        if (typeof initLCBridgeData === 'function') {
-            await initLCBridgeData();
-        }
     }
 }
 
@@ -1690,7 +1422,6 @@ async function loadAvailableVersions() {
     versionSelect.disabled = false;
     const cs2 = document.getElementById('custom-version-select'); if(cs2) cs2.classList.remove('disabled');
     updateCustomSelectUI(finalVersions);
-    syncWithLCVersions();
     checkLocalVersion(versionSelect.value);
 }
 
@@ -1763,20 +1494,17 @@ function checkLocalVersion(versionName) {
                 launchText.innerText = "PŘEDPLATITELÉ";
                 launchIcon.className = "fas fa-lock";
                 btnLaunch.classList.add('btn-locked');
-                btnLaunch.dataset.state = 'locked';
                 btnLaunch.title = "Dostupné pouze pro Beta Testery.\nPodpořte mě na BuyMeACoffee nebo HeroHero pro přístup!";
             } else {
                 launchText.innerText = "NEMÁTE ROLI";
                 launchIcon.className = "fas fa-lock";
                 btnLaunch.classList.add('btn-locked');
-                btnLaunch.dataset.state = 'locked';
                 btnLaunch.title = "Nemáte dostatečnou roli (Vývojář/Admin) pro hraní této verze.";
             }
         } else if (!selectedVersion.can_launch) {
             launchText.innerText = "ZABLOKOVÁNO SPRÁVCEM SYSTÉMU";
             launchIcon.className = "fas fa-lock";
             btnLaunch.classList.add('btn-locked');
-            btnLaunch.dataset.state = 'locked';
             btnLaunch.title = "Administrátor zakázal spouštění této verze.\nPro více informací navštivte Discord.";
         } else if (isOfflineMode) {
             // V OFFLINE REŽIMU: Neřešíme online databázi ani nové patche, rovnou povolíme spuštění naposledy uložené hry
@@ -1785,7 +1513,6 @@ function checkLocalVersion(versionName) {
             btnLaunch.classList.remove('btn-locked');
             btnLaunch.disabled = false;
             btnLaunch.dataset.action = 'play';
-            btnLaunch.dataset.state = 'ready';
             btnLaunch.title = "Spustit hru v offline režimu bez nutnosti internetového připojení.";
         } else {
             const localInfo = getLocalBuildInfo(folder);
@@ -1802,7 +1529,6 @@ function checkLocalVersion(versionName) {
                 btnLaunch.classList.remove('btn-locked');
                 btnLaunch.disabled = false;
                 btnLaunch.dataset.action = 'patch';
-                btnLaunch.dataset.state = 'update';
                 btnLaunch.title = `Je vyžadována aktualizace na build ${remoteBuild} (aktuálně máte ${localBuild}).\nSpuštění hry je zablokováno, dokud nestáhnete patch.`;
             } else if (patchUrl && remoteBuild && !localBuild && remoteBuild !== selectedVersion.db_version) {
                 launchText.innerText = `AKTUALIZOVAT (${remoteBuild})`;
@@ -1810,7 +1536,6 @@ function checkLocalVersion(versionName) {
                 btnLaunch.classList.remove('btn-locked');
                 btnLaunch.disabled = false;
                 btnLaunch.dataset.action = 'patch';
-                btnLaunch.dataset.state = 'update';
                 btnLaunch.title = `Je vyžadována aktualizace na build ${remoteBuild}.\nKliknutím stáhnete rychlou aktualizaci bez mazání souborů.`;
             } else {
                 launchText.innerText = "HRÁT";
@@ -1818,7 +1543,6 @@ function checkLocalVersion(versionName) {
                 btnLaunch.classList.remove('btn-locked');
                 btnLaunch.disabled = false;
                 btnLaunch.dataset.action = 'play';
-                btnLaunch.dataset.state = 'ready';
                 btnLaunch.title = localBuild ? `Nainstalovaný build: ${localBuild}` : "";
             }
         }
@@ -2750,7 +2474,30 @@ if (btnCleanCache) {
 }
 
 
-// Custom select trigger a rozklikávání řeší čistě launcher.html (openSelect / closeSelect / toggleSelect)
+// Custom select – přímá inicializace (DOM je již připraven)
+(function initCustomSelect() {
+    const customSelect = document.getElementById('custom-version-select');
+    const customTrigger = document.getElementById('custom-select-trigger');
+
+    if (!customSelect || !customTrigger) return;
+
+    customTrigger.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (!customSelect.classList.contains('disabled')) {
+            const isOpen = customSelect.classList.toggle('open');
+            const customOptions = document.getElementById('custom-options-container');
+            if (customOptions) customOptions.hidden = !isOpen;
+        }
+    });
+
+    document.addEventListener('click', (e) => {
+        if (!customSelect.contains(e.target)) {
+            customSelect.classList.remove('open');
+            const customOptions = document.getElementById('custom-options-container');
+            if (customOptions) customOptions.hidden = true;
+        }
+    });
+})();
 
 
 function updateCustomSelectUI(versions) {
@@ -3562,7 +3309,7 @@ document.addEventListener('lc:login-email', async (e) => {
         const res = await fetch(`${API_BASE}/api/auth/email/request`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ email, nick: nick || '', intent: mode === 'signup' ? 'app_signup' : 'app_login', source: 'launcher' })
+            body: JSON.stringify({ email, nick: nick || '', intent: mode === 'signup' ? 'app_signup' : 'app_login' })
         });
         const data = await res.json();
         if (data.success || res.ok) {
@@ -3591,9 +3338,37 @@ document.addEventListener('lc:login-email', async (e) => {
 });
 
 document.addEventListener('lc:verify-code', async (e) => {
-    const code = e.detail && e.detail.code ? String(e.detail.code).trim().toUpperCase() : '';
-    const email = e.detail && e.detail.email ? String(e.detail.email).trim() : '';
-    await performVerifyCode(code, email);
+    const code = e.detail && e.detail.code;
+    if (!code || code.length !== 6) return;
+    try {
+        const res = await fetch(`${API_BASE}/api/launcher/email_verify`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email: currentPendingEmail, code: code, hwid: currentHWID })
+        });
+        const data = await res.json();
+        if (data.status === 'success') {
+            let config = loadConfig();
+            config.discord_id = data.discord_id || `email_${currentPendingEmail}`;
+            config.discord_nick = data.display_name || currentPendingEmail.split('@')[0];
+            config.email = currentPendingEmail;
+            saveConfig(config);
+            
+            if (window.LC) {
+                window.LC.setUser({ name: config.discord_nick, hwid: currentHWID, role: mapRoleToLC(data.role) });
+                window.LC.setLoginView('success');
+            }
+            setTimeout(async () => {
+                if (window.LC) window.LC.showLogin(false);
+                await initLauncher(config);
+                await initLCBridgeData();
+            }, 1600);
+        } else {
+            if (window.LC) window.LC.showLoginError(data.message || 'Neplatný kód z e-mailu.');
+        }
+    } catch(err) {
+        if (window.LC) window.LC.showLoginError('Chyba ověření kódu: ' + err.message);
+    }
 });
 
 document.addEventListener('lc:logout', () => {

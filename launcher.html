@@ -138,25 +138,19 @@ svg.ic{width:1.15em;height:1.15em;fill:none;stroke:currentColor;stroke-width:2;s
 .opt .meta{margin-left:auto;color:var(--dim);font-size:12px;display:flex;align-items:center;gap:10px}
 .opt .inst{color:var(--green2);display:inline-flex;align-items:center;gap:4px}
 
-.btn-launch{width:100%;border:0;border-radius:14px;padding:0 24px;height:60px;display:flex;align-items:center;justify-content:center;gap:12px;font-size:16px;font-weight:900;letter-spacing:.08em;text-transform:uppercase;color:#fff;transition:transform .2s var(--ease),background .25s,box-shadow .25s,border-color .25s;position:relative;overflow:hidden;cursor:pointer;user-select:none}
-.btn-launch .launch-icon{font-size:22px;transition:transform .25s ease}
-.btn-launch:hover:not([data-state=loading]):not([data-state=locked]) .launch-icon{transform:scale(1.15) rotate(-4deg)}
-.btn-launch::after{content:"";position:absolute;top:0;left:-100%;width:60%;height:100%;background:linear-gradient(90deg,transparent,rgba(255,255,255,.28),transparent);transform:skewX(-25deg);transition:none}
-.btn-launch:hover:not([data-state=loading]):not([data-state=locked])::after{left:160%;transition:left .75s ease-in-out}
-.btn-launch[data-state=ready]{background:linear-gradient(135deg,#10b981 0%,#059669 100%);box-shadow:0 6px 24px rgba(16,185,129,.38);border:1px solid rgba(255,255,255,.2)}
-.btn-launch[data-state=ready]:hover{background:linear-gradient(135deg,#22c55e 0%,#10b981 100%);transform:translateY(-2px);box-shadow:0 10px 32px rgba(34,197,94,.55)}
-.btn-launch[data-state=ready]:active{transform:scale(.98);box-shadow:0 3px 12px rgba(16,185,129,.35)}
-.btn-launch[data-state=loading],.btn-launch[data-state=locked]{background:rgba(255,255,255,.07);color:var(--muted);cursor:not-allowed;border:1px solid var(--line);box-shadow:none}
-.btn-launch[data-state=install]{background:linear-gradient(135deg,#2563eb 0%,#1d4ed8 100%);box-shadow:0 6px 24px rgba(37,99,235,.4);border:1px solid rgba(255,255,255,.2)}
-.btn-launch[data-state=install]:hover{background:linear-gradient(135deg,#3b82f6 0%,#2563eb 100%);transform:translateY(-2px);box-shadow:0 10px 32px rgba(59,130,246,.55)}
-.btn-launch[data-state=install]:active{transform:scale(.98)}
-.btn-launch[data-state=update]{background:linear-gradient(135deg,#f59e0b 0%,#d97706 100%);color:#1a1100;box-shadow:0 6px 24px rgba(245,158,11,.4);border:1px solid rgba(255,255,255,.25)}
-.btn-launch[data-state=update]:hover{background:linear-gradient(135deg,#fbbf24 0%,#f59e0b 100%);transform:translateY(-2px);box-shadow:0 10px 32px rgba(251,191,36,.55)}
-.btn-launch[data-state=update]:active{transform:scale(.98)}
+.btn-launch{width:100%;border:0;border-radius:14px;padding:0 24px;height:60px;display:flex;align-items:center;justify-content:center;gap:12px;font-size:16px;font-weight:900;letter-spacing:.1em;text-transform:uppercase;color:#fff;transition:.25s var(--ease);position:relative;overflow:hidden}
+.btn-launch .launch-icon{font-size:20px}
+.btn-launch::after{content:"";position:absolute;inset:0;background:transparent;transform:translateX(-120%)}
+.btn-launch[data-state=ready]{background:#2563eb;}
+.btn-launch[data-state=ready]:hover{transform:translateY(-2px);}
+.btn-launch[data-state=ready]:hover::after,.btn-launch[data-state=install]:hover::after,.btn-launch[data-state=update]:hover::after{transform:translateX(120%);transition:transform .8s var(--ease)}
+.btn-launch[data-state=loading],.btn-launch[data-state=locked]{background:rgba(255,255,255,.07);color:var(--muted);cursor:not-allowed;border:1px solid var(--line)}
+.btn-launch[data-state=install]{background:#2563eb;}
+.btn-launch[data-state=update]{background:#d97706;color:#1a1100;}
 .btn-launch[data-state=downloading]{background:rgba(59,130,246,.15);border:1px solid rgba(59,130,246,.4);color:#93c5fd;cursor:progress}
-.btn-launch[data-state=running]{background:rgba(96,165,250,.15);border:1px solid rgba(96,165,250,.5);color:#93c5fd;animation:runPulse 2s ease-in-out infinite;cursor:default}
-@keyframes runPulse{50%{opacity:.7}}
-.btn-launch[data-state=error]{background:rgba(239,68,68,.18);border:1px solid rgba(239,68,68,.5);color:#fca5a5;cursor:pointer}
+.btn-launch[data-state=running]{background:rgba(96,165,250,.12);border:1px solid rgba(96,165,250,.5);color:#93c5fd;animation:runPulse 2s ease-in-out infinite;cursor:default}
+@keyframes runPulse{50%{}}
+.btn-launch[data-state=error]{background:rgba(239,68,68,.14);border:1px solid rgba(239,68,68,.5);color:#fca5a5}
 .launch-row{display:grid;grid-template-columns:1fr auto;gap:10px}
 .launch-row .btn{height:60px;padding:0 20px}
 .spin{animation:spin 1s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}
@@ -355,21 +349,21 @@ button.chip{cursor:pointer;transition:.2s}button.chip:hover{color:#fff;border-co
 .boot-t{position:relative;font-weight:800;letter-spacing:.3em;font-size:12px;color:var(--muted);text-transform:uppercase}
 .boot-t span{display:inline-block;animation:bt 1.2s ease-in-out infinite}
 @keyframes bt{50%{opacity:.35}}
-.lg{position:relative;width:460px;max-width:92%;padding:34px 26px 26px;border-radius:24px;background:#0c1427;border:1px solid rgba(255,255,255,.14);box-shadow:0 24px 60px rgba(0,0,0,.75);animation:mIn .45s var(--ease) both;text-align:center}
-.lg-top{text-align:center;margin-bottom:22px}
-.lg-top .mark{width:60px;height:60px;margin:0 auto 12px;display:grid;place-items:center;background:transparent;border:none;box-shadow:none;overflow:visible;}
-.lg-top .mark img{width:100%;height:100%;object-fit:contain;display:block;filter:drop-shadow(0 6px 20px rgba(56,189,248,.45));}
-.lg-top h2{margin:0 0 4px;font-size:22px;letter-spacing:.12em;text-transform:uppercase;font-weight:800;color:#fff}
-.lg-top small{color:var(--muted);font-size:12.5px;letter-spacing:.04em;display:block}
-.lg-view{display:flex;flex-direction:column;gap:14px;animation:vIn .35s var(--ease) both;align-items:center;width:100%}
-.lg-view .hint{color:#cbd5e1;font-size:13px;line-height:1.55;text-align:center;margin:0 auto;max-width:360px}
+.lg{position:relative;width:440px;max-width:94%;padding:30px;border-radius:22px;background:rgba(255,255,255,.06);border:1px solid var(--line2);animation:mIn .5s var(--ease) both}
+.lg-top{text-align:center;margin-bottom:20px}
+.lg-top .mark{width:56px;height:56px;margin:0 auto 12px;display:grid;place-items:center;background:transparent;border:none;box-shadow:none;overflow:visible;}
+.lg-top .mark img{width:100%;height:100%;object-fit:contain;display:block;filter:drop-shadow(0 6px 18px rgba(56,189,248,.4));}
+.lg-top h2{margin:0 0 4px;font-size:20px;letter-spacing:.14em;text-transform:uppercase}
+.lg-top small{color:var(--muted)}
+.lg-view{display:flex;flex-direction:column;gap:14px;animation:vIn .35s var(--ease) both}
+.lg-view .hint{color:#b6c3de;font-size:12.5px;line-height:1.6;text-align:center}
 .lg-view .hint b{color:#fff}
-.lg .inp{padding:13px 16px;text-align:center;font-size:15px;width:100%;box-sizing:border-box;border-radius:12px}
-.lg .btn.big{padding:14px 18px;font-size:14px;letter-spacing:.05em;text-transform:uppercase;width:100%;box-sizing:border-box;border-radius:12px;display:flex;align-items:center;justify-content:center;gap:10px;font-weight:800}
-.lg .link{border:0;background:transparent;color:var(--muted);font-size:12.5px;text-decoration:none;padding:4px;transition:.2s;cursor:pointer}.lg .link:hover{color:#fff}
-.lg-err{display:flex;gap:10px;align-items:center;padding:11px 14px;border-radius:12px;background:rgba(239,68,68,.14);border:1px solid rgba(239,68,68,.5);color:#fecaca;font-size:13px;margin-bottom:14px;user-select:text;animation:shake .45s;text-align:left;width:100%;box-sizing:border-box}
+.lg .inp{padding:15px;text-align:center;font-size:16px}
+.lg .btn.big{padding:15px;font-size:14px;letter-spacing:.06em;text-transform:uppercase}
+.lg .link{border:0;background:transparent;color:var(--muted);font-size:12.5px;text-decoration:none;padding:4px;transition:.2s}.lg .link:hover{color:#fff}
+.lg-err{display:flex;gap:10px;align-items:center;padding:11px 14px;border-radius:12px;background:rgba(239,68,68,.12);border:1px solid rgba(239,68,68,.5);color:#fecaca;font-size:13px;margin-bottom:14px;user-select:text;animation:shake .45s}
 @keyframes shake{20%,60%{transform:translateX(-6px)}40%,80%{transform:translateX(6px)}}
-.lg-hwid{margin-top:20px;text-align:center;font-size:11.5px;color:var(--dim);font-family:"Courier New",monospace;user-select:text}
+.lg-hwid{margin-top:18px;text-align:center;font-size:11px;color:var(--dim);font-family:"Courier New",monospace;user-select:text}
 .sendbox{display:flex;flex-direction:column;align-items:center;gap:12px;text-align:center}
 .env{width:80px;height:80px;border-radius:24px;display:grid;place-items:center;font-size:36px;background:rgba(59,130,246,.15);color:var(--blue2);position:relative;animation:bob 3s ease-in-out infinite}
 .env::after{content:"";position:absolute;inset:-10px;border-radius:30px;border:2px solid var(--blue);opacity:.3;animation:ring 2.4s ease-out infinite}
@@ -653,41 +647,6 @@ button.chip.dl:hover{border-color:var(--blue);color:#fff}
 
 .lg-seg{display:flex;width:100%}.lg-seg button{flex:1}
 
-/* Přepínač způsobu přihlášení (Discord DM vs E-mail) */
-.sp-seg{position:relative;display:grid;grid-template-columns:1fr 1fr;padding:4px;margin:0 auto 20px auto;width:100%;box-sizing:border-box;border-radius:999px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.14);user-select:none}
-.sp-seg::before{content:"";position:absolute;top:4px;bottom:4px;left:4px;width:calc(50% - 4px);border-radius:999px;background:linear-gradient(135deg,#5865f2,#7983ff);box-shadow:0 6px 22px rgba(88,101,242,.55);transition:transform .35s cubic-bezier(.16,1,.3,1),background .3s,box-shadow .3s}
-.sp-seg[data-v=email]::before{transform:translateX(100%);background:linear-gradient(135deg,#0284c7,#2563eb);box-shadow:0 6px 22px rgba(37,99,235,.55)}
-.sp-seg button{position:relative;z-index:1;display:flex;align-items:center;justify-content:center;gap:8px;padding:12px 14px;border:none;background:transparent;border-radius:999px;font-weight:800;font-size:14px;color:rgba(255,255,255,.6);cursor:pointer;transition:color .25s ease;white-space:nowrap;line-height:1}
-.sp-seg button:hover{color:rgba(255,255,255,.9)}
-.sp-seg button[aria-selected=true]{color:#fff !important;text-shadow:0 1px 3px rgba(0,0,0,.4)}
-.sp-seg button .seg-ic{width:18px;height:18px;flex:none;display:inline-block;vertical-align:middle;transition:transform .3s cubic-bezier(.16,1,.3,1)}
-.sp-seg button[aria-selected=true] .seg-ic{transform:scale(1.12)}
-
-#btn-dev-build{display:inline-flex;align-items:center;justify-content:center;gap:8px;height:60px;padding:0 22px;font-size:14px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;background:linear-gradient(135deg,rgba(239,68,68,.18) 0%,rgba(185,28,28,.28) 100%);border:1px solid rgba(239,68,68,.55);border-radius:14px;color:#fca5a5;cursor:pointer;transition:all .25s var(--ease)}
-#btn-dev-build:hover{background:linear-gradient(135deg,rgba(239,68,68,.35) 0%,rgba(220,38,38,.45) 100%);border-color:#ef4444;color:#fff;transform:translateY(-2px);box-shadow:0 6px 20px rgba(239,68,68,.4)}
-#btn-dev-build:active{transform:scale(.98)}
-#btn-dev-build[hidden]{display:none !important}
-
-/* Nápověda jak zjistit Discord ID */
-.id-help summary::-webkit-details-marker{display:none}
-
-/* Návrhy podobných přezdívek (Discord fuzzy match) */
-.sug-chip{display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border-radius:999px;background:rgba(88,101,242,.15);border:1px solid rgba(88,101,242,.4);color:#c7d2fe;font-size:12px;font-weight:600;cursor:pointer;transition:all .2s;text-align:left}
-.sug-chip:hover{background:rgba(88,101,242,.35);border-color:#818cf8;color:#fff;transform:translateY(-1px)}
-
-/* Animovaná fajfka po schválení přihlášení */
-.ok-box{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:16px 8px;text-align:center}
-.ok-circle{width:96px;height:96px;border-radius:50%;display:grid;place-items:center;margin:0 auto 16px;background:radial-gradient(circle,rgba(34,197,94,.22) 0%,rgba(34,197,94,.05) 70%,transparent 100%);box-shadow:0 0 35px rgba(34,197,94,.35),inset 0 0 15px rgba(34,197,94,.2);animation:okCircleGlow 2.5s ease-in-out infinite alternate}
-@keyframes okCircleGlow{0%{transform:scale(1);box-shadow:0 0 25px rgba(34,197,94,.3)}100%{transform:scale(1.06);box-shadow:0 0 45px rgba(34,197,94,.55)}}
-.ok-check{width:72px;height:72px;stroke:#22c55e;stroke-width:3.5;stroke-linecap:round;stroke-linejoin:round;filter:drop-shadow(0 2px 8px rgba(34,197,94,.6))}
-.ok-check-circle{stroke-dasharray:166;stroke-dashoffset:166;stroke-width:3;stroke:rgba(34,197,94,.4);animation:okStrokeCircle .7s cubic-bezier(.65,0,.45,1) forwards}
-.ok-check-path{transform-origin:50% 50%;stroke-dasharray:48;stroke-dashoffset:48;animation:okStrokeCheck .5s cubic-bezier(.65,0,.45,1) .55s forwards}
-@keyframes okStrokeCircle{100%{stroke-dashoffset:0}}
-@keyframes okStrokeCheck{100%{stroke-dashoffset:0}}
-.ok-bar{width:220px;height:4px;border-radius:999px;background:rgba(255,255,255,.08);overflow:hidden;position:relative;margin-top:10px}
-.ok-bar-fill{width:0%;height:100%;background:linear-gradient(90deg,#22c55e,#38bdf8);border-radius:999px;animation:okProgress 2s linear forwards}
-@keyframes okProgress{0%{width:0%}100%{width:100%}}
-
 </style></head><body>
 <!-- SVG sprite (náhrada za Font Awesome CDN; v Electronu lze ponechat nebo vrátit FA) -->
 <svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
@@ -716,8 +675,7 @@ button.chip.dl:hover{border-color:var(--blue);color:#fff}
 <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></symbol>
 <symbol id="i-grip" viewBox="0 0 24 24"><path d="M9 6h.01M15 6h.01M9 12h.01M15 12h.01M9 18h.01M15 18h.01" stroke-width="3"/></symbol>
 <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></symbol>
-<symbol id="i-mail" viewBox="0 0 24 24"><path fill="currentColor" stroke="none" d="M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4.25-8 5-8-5V6.75l8 5 8-5v1.5z"/></symbol>
-<symbol id="i-discord" viewBox="0 0 24 24"><path fill="currentColor" stroke="none" d="M19.27 5.33C17.94 4.71 16.5 4.26 15 4a.09.09 0 0 0-.07.03c-.18.33-.39.76-.53 1.09a16.09 16.09 0 0 0-4.8 0c-.14-.34-.35-.76-.54-1.09-.01-.02-.04-.03-.07-.03-1.5.26-2.93.71-4.27 1.33-.01 0-.02.01-.03.02-2.72 4.07-3.47 8.03-3.1 11.95 0 .02.01.04.03.05 1.8 1.32 3.53 2.12 5.24 2.65.03.01.06 0 .07-.02.4-.55.76-1.13 1.07-1.74.02-.04 0-.08-.04-.09-.57-.22-1.11-.48-1.64-.78-.04-.02-.04-.08-.01-.11.11-.08.22-.17.33-.25.02-.02.05-.02.07-.01 3.44 1.57 7.15 1.57 10.55 0 .02-.01.05-.01.07.01.11.09.22.17.33.26.04.03.04.08-.01.11-.52.31-1.07.56-1.64.78-.04.01-.05.06-.04.09.32.61.68 1.19 1.07 1.74.03.01.06.02.09.01 1.72-.53 3.45-1.33 5.25-2.65.02-.01.03-.03.03-.05.44-4.53-.73-8.46-3.1-11.95-.01-.01-.02-.02-.04-.02zM8.52 14.91c-1.03 0-1.89-.95-1.89-2.12s.84-2.12 1.89-2.12c1.06 0 1.9.96 1.89 2.12 0 1.17-.84 2.12-1.89 2.12zm6.97 0c-1.03 0-1.89-.95-1.89-2.12s.84-2.12 1.89-2.12c1.06 0 1.9.96 1.89 2.12 0 1.17-.83 2.12-1.89 2.12z"/></symbol>
+<symbol id="i-mail" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 7 9-7"/></symbol>
 <symbol id="i-user" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0116 0"/></symbol>
 <symbol id="i-box" viewBox="0 0 24 24"><path d="M21 8l-9-5-9 5v8l9 5 9-5zM3 8l9 5 9-5M12 13v8"/></symbol>
 <symbol id="i-lock" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 018 0v4"/></symbol>
@@ -818,7 +776,7 @@ button.chip.dl:hover{border-color:var(--blue);color:#fff}
           <button class="btn-launch" id="btn-launch" data-state="loading">
             <svg class="ic launch-icon"><use href="#i-play"/></svg><span class="launch-text">Načítání…</span>
           </button>
-          <button class="btn" id="btn-dev-build" title="Spustit vývojářský build" hidden><svg class="ic"><use href="#i-flask"/></svg><span>Spustit dev build</span></button>
+          <button class="btn" id="btn-dev-build" title="Vývojářský build" hidden><svg class="ic"><use href="#i-flask"/></svg>Dev build</button>
         </div>
 
         <div class="dl-card" id="download-progress" hidden>
@@ -1129,100 +1087,52 @@ button.chip.dl:hover{border-color:var(--blue);color:#fff}
 <div class="overlay" id="login-overlay" hidden>
   <div class="lg">
     <div class="lg-top"><div class="mark"><img src="assets/img/datacorebot_icon.png" alt="DataCoreBot"></div><h2>Přihlášení</h2><small>Projekt OIS IDPK</small></div>
-
-    <!-- Segmented switch (Discord DM / E-mail) -->
-    <div class="sp-seg" id="login-method-seg" data-v="discord" role="tablist" aria-label="Způsob přihlášení">
-      <button type="button" role="tab" data-v="discord" aria-selected="true"><svg class="seg-ic"><use href="#i-discord"/></svg><span>Discord DM</span></button>
-      <button type="button" role="tab" data-v="email" aria-selected="false"><svg class="seg-ic"><use href="#i-mail"/></svg><span>E-mail</span></button>
-    </div>
-
     <div class="lg-err" id="login-error-message" hidden><svg class="ic"><use href="#i-alert"/></svg><span id="login-error-text">Chyba</span></div>
 
     <div class="lg-view" id="login-discord-view">
-      <p class="hint">Zadejte své <b>Discord uživatelské jméno</b> nebo <b>Discord ID</b>.<br>Bot vám pošle autorizační zprávu do soukromých zpráv (DM).</p>
-      <input class="inp" id="login-identifier-input" placeholder="např. uzivatelske_jmeno nebo 123456789..." autocomplete="off">
-      
-      <!-- Nápověda jak zjistit Discord ID -->
-      <details class="id-help" style="margin-top:-6px;margin-bottom:4px;font-size:12px;color:var(--muted);text-align:left;cursor:pointer;">
-        <summary style="cursor:pointer;color:var(--cyan);font-weight:600;display:inline-flex;align-items:center;gap:5px;list-style:none;user-select:none;">
-          <svg class="ic" style="width:13px;height:13px"><use href="#i-info"/></svg> Jak zjistit své Discord ID?
-        </summary>
-        <div style="margin-top:6px;padding:9px 12px;border-radius:10px;background:rgba(0,0,0,0.35);border:1px solid rgba(255,255,255,0.08);line-height:1.5;color:#cbd5e1;font-size:11.5px;">
-          1. V Discordu otevřete <b>Uživatelská nastavení</b> (ozubené kolečko vlevo dole).<br>
-          2. V sekci <b>Rozšířené</b> zapněte přepínač <b>Vývojářský režim</b>.<br>
-          3. Klikněte pravým tlačítkem na svůj profil a zvolte <b>Kopírovat uživatelské ID</b>.
-        </div>
-      </details>
-
-      <div id="discord-suggestions-box" hidden style="margin-top:-2px;margin-bottom:6px;display:flex;flex-direction:column;gap:8px;">
-        <div style="font-size:12px;color:var(--yellow);font-weight:700;display:flex;align-items:center;gap:6px;">
-          <svg class="ic" style="width:14px;height:14px"><use href="#i-info"/></svg> Mysleli jste tento nick?
-        </div>
-        <div id="discord-suggestions-list" style="display:flex;flex-wrap:wrap;gap:6px;"></div>
-      </div>
-
-      <button class="btn primary big" id="btn-start-auth"><svg class="ic" style="width:18px;height:18px"><use href="#i-discord"/></svg>Poslat autorizaci do Discord DM</button>
+      <p class="hint">Zadejte své <b>Discord uživatelské jméno</b>. Po potvrzení Vám bot pošle ověřovací zprávu.</p>
+      <input class="inp" id="login-identifier-input" placeholder="uzivatelske_jmeno" autocomplete="off">
+      <button class="btn primary big" id="btn-start-auth">Přihlásit přes Discord</button>
+      <button class="link" id="link-show-email-login">Nemám Discord – přihlásit e-mailem</button>
     </div>
 
     <div class="lg-view" id="login-email-view" hidden>
-      <div class="seg lg-seg" id="email-mode"><button type="button" data-m="login" class="on">Přihlásit se</button><button type="button" data-m="signup">Vytvořit účet</button></div>
+      <div class="seg lg-seg" id="email-mode"><button data-m="login" class="on">Přihlásit se</button><button data-m="signup">Vytvořit účet</button></div>
       <p class="hint" id="email-hint">Zadejte e-mail, se kterým jste se registrovali. Pošleme Vám <b>přihlašovací odkaz a kód</b>.</p>
-      <input class="inp" id="login-nick-input" placeholder="Vaše herní přezdívka (3 až 24 znaků)" autocomplete="off" maxlength="24" hidden>
+      <input class="inp" id="login-nick-input" placeholder="Přezdívka (zobrazí se ve hře a u linek)" autocomplete="off" maxlength="24" hidden>
       <input class="inp" id="login-email-input" type="email" placeholder="vas@email.cz" autocomplete="off">
       <button class="btn primary big" id="btn-start-email-auth">Poslat přihlašovací odkaz</button>
+      <button class="link" id="link-email-switch">Nemáte účet? Vytvořit účet</button>
+      <button class="link" id="link-show-discord-login">← Zpět na přihlášení přes Discord</button>
     </div>
 
     <div class="lg-view" id="login-email-code-view" hidden>
       <div class="sendbox"><div class="env"><svg class="ic"><use href="#i-mail"/></svg></div><h3>Zkontrolujte e-mail</h3>
-        <p class="hint" id="email-waiting-status">Klikněte na odkaz v e-mailu, nebo zadejte <b>5místný kód</b>:</p>
+        <p class="hint" id="email-waiting-status">Čekáme na potvrzení odkazu v e-mailu…</p></div>
+      <div id="email-retry-buttons" style="display:flex;flex-direction:column;gap:10px" hidden>
+        <button class="btn" id="btn-resend-email-auth"><svg class="ic"><use href="#i-refresh"/></svg>Poslat znovu</button>
       </div>
-      <div style="display:flex;flex-direction:column;gap:10px;width:100%;align-items:center;">
-        <input class="inp codein" id="login-email-code-input" maxlength="5" placeholder="•••••" inputmode="text" autocomplete="off" style="letter-spacing:6px;font-size:24px;text-align:center;font-weight:800;text-transform:uppercase;height:50px;width:100%;max-width:240px;">
-        <button class="btn green big" id="btn-verify-email-code" style="width:100%;">Ověřit kód</button>
-      </div>
-      <div id="email-retry-buttons" style="display:flex;flex-direction:column;gap:10px;width:100%;margin-top:6px;" hidden>
-        <button class="btn ghost" id="btn-resend-email-auth"><svg class="ic"><use href="#i-refresh"/></svg>Poslat znovu</button>
-      </div>
-      <button class="link" id="btn-cancel-email-auth" style="margin-top:4px;">Zrušit</button>
+      <button class="btn ghost" id="btn-manual-code-input">Mám kód z e-mailu</button>
+      <button class="link" id="btn-cancel-email-auth">Zrušit</button>
     </div>
 
     <div class="lg-view" id="login-email-code-manual-view" hidden>
-      <p class="hint">Opište <b>5místný kód</b> z e-mailu.</p>
-      <input class="inp codein" id="login-email-code-manual-input" maxlength="5" placeholder="•••••" inputmode="text" autocomplete="off">
+      <p class="hint">Opište <b>6místný kód</b> z e-mailu.</p>
+      <input class="inp codein" id="login-email-code-manual-input" maxlength="6" placeholder="••••••" inputmode="numeric" autocomplete="off">
       <button class="btn green big" id="btn-verify-email-code-manual">Ověřit kód</button>
       <button class="link" id="btn-cancel-email-manual">← Zpět</button>
     </div>
 
     <div class="lg-view" id="login-waiting-view" hidden>
-      <div class="sendbox"><div class="env" style="background:rgba(88,101,242,.15);color:#7983ff;"><svg class="ic" style="width:40px;height:40px"><use href="#i-discord"/></svg></div><h3 id="login-waiting-title">Autorizační zpráva odeslána!</h3>
-        <p class="hint" style="margin-top:-4px">Požadavek jsme odeslali na Discord uživateli <b id="login-target-user" style="color:var(--cyan)">uživatel</b>.</p>
-      </div>
-      <div class="tip" style="background:rgba(88,101,242,.1);border-left:4px solid #5865f2;border-radius:10px;padding:14px;text-align:left;width:100%;box-sizing:border-box;">
-        <strong style="color:#7983ff;font-size:13px;display:flex;align-items:center;gap:6px;margin-bottom:8px;">
-          <svg class="ic" style="width:16px;height:16px"><use href="#i-discord"/></svg> Ověření na Discordu
-        </strong>
-        <p style="margin:0 0 10px;line-height:1.55;font-size:13px;color:#e2e8f0;">
-          Ověřte, že jste to vy. Na Discordu zkontrolujte <b>soukromé zprávy (DM)</b> od bota <code>DataCoreBot</code> a v soukromé zprávě klikněte na zelené tlačítko <code>Potvrdit přihlášení</code>.
-        </p>
-        <p style="margin:0;line-height:1.5;font-size:11.5px;color:var(--muted);">
-          Pokud vám zpráva do DM nepřišla, zadejte příkaz <code style="color:#38bdf8;background:rgba(56,189,248,.12);border:1px solid rgba(56,189,248,.3);padding:2px 6px;border-radius:4px;">!auth</code> na našem serveru v místnosti <b>#bot-prikazy</b>.
-        </p>
-      </div>
-      <button class="btn ghost" id="btn-cancel-auth" style="margin-top:4px;">Zrušit přihlášení</button>
+      <div class="sendbox"><div class="env"><svg class="ic"><use href="#i-user"/></svg></div><h3 id="login-waiting-title">Čekání na ověření…</h3></div>
+      <div class="tip"><strong>Co teď?</strong>
+        <ol><li>Otevřete Discord a najděte zprávu od <code>OIS IDPK</code>.</li><li>Klikněte na tlačítko <code>Potvrdit</code>.</li><li>Launcher se přihlásí automaticky.</li></ol></div>
+      <button class="btn ghost" id="btn-cancel-auth">Zrušit přihlášení</button>
     </div>
 
     <div class="lg-view" id="login-success-view" hidden>
-      <div class="ok-box">
-        <div class="ok-circle">
-          <svg class="ok-check" viewBox="0 0 52 52">
-            <circle class="ok-check-circle" cx="26" cy="26" r="23" fill="none"/>
-            <path class="ok-check-path" fill="none" d="M14.1 27.2l7.1 7.2 16.7-16.8"/>
-          </svg>
-        </div>
-        <div class="okt">PŘIHLÁŠENO</div>
-        <p class="hint" style="margin:4px 0 14px">Vítejte zpět v Projektu OIS IDPK!</p>
-        <div class="ok-bar"><div class="ok-bar-fill"></div></div>
-      </div>
+      <div class="okc"><svg class="ic" style="width:1em;height:1em;stroke-width:3"><use href="#i-check"/></svg></div>
+      <div class="okt">Přihlášeno</div>
     </div>
     <div class="lg-hwid">HWID: <span id="login-hwid-text">XXXX-XXXX-XXXX</span></div>
   </div>
@@ -1530,18 +1440,6 @@ const CONFIG = { DEMO: false, REDUCED_FX: false };
       { id: 'v1.5.2', name: 'V1.5.2', tag: 'old', size: '1.1 GB', installed: true },
     ],
     sel: 'v1.6.3', dlTimer: null, dlCancel: false, running: false,
-    lines: [],
-    comm: [],
-    queue: [],
-    mineFilter: 'all',
-    cmFilter: 'all',
-    cmVoice: 'all',
-    _mineActiveVer: {},
-    gtfsCR: false,
-    notifyVia: 'Discord DM',
-    flow: null,
-    cur: null,
-    guideNext: null
   };
 
   /* ---------------- zobrazení ---------------- */
@@ -1554,10 +1452,6 @@ const CONFIG = { DEMO: false, REDUCED_FX: false };
       el.hidden = !on;
       $('sidebar-btn-' + k).classList.toggle('active', on);
     });
-    if (v === 'editor') {
-      if (typeof renderMine === 'function') renderMine();
-      if (typeof renderComm === 'function') renderComm();
-    }
     emit('view', { view: v });
   }
   $('sidebar-btn-game').onclick = () => show('game');
@@ -1588,30 +1482,10 @@ const CONFIG = { DEMO: false, REDUCED_FX: false };
   }
   function setRole(r) {
     S.role = r; const el = $('role-display');
-    if (el) { el.className = 'role-badge ' + r; el.textContent = ROLES[r] || r; }
-    const isDev = ['admin', 'sa', 'dev', 'developer', 'tester'].includes(String(r).toLowerCase()) || (typeof currentUserRole === 'string' && (currentUserRole.includes('SA') || currentUserRole.includes('DEV') || currentUserRole.toLowerCase().includes('admin')));
-    const bDev = $('btn-dev-build');
-    if (bDev) {
-      bDev.hidden = !isDev;
-      if (isDev) {
-        bDev.removeAttribute('hidden');
-        bDev.style.display = 'inline-flex';
-      } else {
-        bDev.setAttribute('hidden', '');
-        bDev.style.display = 'none';
-      }
-    }
-    const sDev = $('settings-dev-card');
-    if (sDev) {
-      sDev.hidden = !isDev;
-      if (isDev) {
-        sDev.removeAttribute('hidden');
-        sDev.style.display = '';
-      } else {
-        sDev.setAttribute('hidden', '');
-        sDev.style.display = 'none';
-      }
-    }
+    el.className = 'role-badge ' + r; el.textContent = ROLES[r] || r;
+    const isDev = ['admin', 'sa', 'dev', 'developer', 'tester'].includes(String(r).toLowerCase());
+    $('btn-dev-build').hidden = !isDev;
+    const sDev = $('settings-dev-card'); if (sDev) sDev.hidden = !isDev;
     if (window.__syncAdmin) window.__syncAdmin(r);
   }
   function setOffline(b) {
@@ -1666,55 +1540,14 @@ const CONFIG = { DEMO: false, REDUCED_FX: false };
   function selectVersion(id) {
     S.sel = id; renderVersions();
     const v = S.versions.find((x) => x.id === id); if (!v || S.launch === 'downloading') return;
-    setLaunchState(v.lock ? 'locked' : (v.installed ? (v.update ? 'update' : 'ready') : 'install'));
-    if (typeof versionSelect !== 'undefined' && versionSelect) {
-      versionSelect.value = id;
-    }
-    if (typeof checkLocalVersion === 'function') {
-      checkLocalVersion(id);
-    }
+    setLaunchState(v.installed ? (v.update ? 'update' : 'ready') : 'install');
     emit('version-change', { version: id });
   }
-  function openSelect() {
-    const cs = $('custom-version-select');
-    if (!cs || cs.classList.contains('disabled')) return;
-    cs.classList.add('open');
-    const box = $('custom-options-container');
-    if (box) {
-      box.hidden = false;
-      box.removeAttribute('hidden');
-      box.style.display = 'block';
-    }
-  }
-  function closeSelect() {
-    const cs = $('custom-version-select');
-    if (cs) cs.classList.remove('open');
-    const box = $('custom-options-container');
-    if (box) {
-      box.hidden = true;
-      box.style.display = 'none';
-    }
-  }
-  $('custom-select-trigger').onclick = (e) => {
-    e.stopPropagation();
-    const box = $('custom-options-container');
-    if (!box) return;
-    if (box.hidden || box.style.display === 'none') openSelect();
-    else closeSelect();
-  };
+  function openSelect() { if ($('custom-version-select').classList.contains('disabled')) return; $('custom-version-select').classList.add('open'); $('custom-options-container').hidden = false; }
+  function closeSelect() { $('custom-version-select').classList.remove('open'); $('custom-options-container').hidden = true; }
+  $('custom-select-trigger').onclick = () => ($('custom-options-container').hidden ? openSelect() : closeSelect());
   document.addEventListener('click', (e) => { if (!e.target.closest('#custom-version-select')) closeSelect(); });
-  function setVersions(list) {
-    S.versions = list || [];
-    if (!S.versions.find((v) => v.id === S.sel)) {
-      const firstPlayable = S.versions.find(v => !v.lock) || S.versions[0];
-      S.sel = firstPlayable && firstPlayable.id;
-    }
-    renderVersions();
-    const cur = S.versions.find((v) => v.id === S.sel);
-    if (cur) {
-      setLaunchState(cur.lock ? 'locked' : (cur.installed ? (cur.update ? 'update' : 'ready') : 'install'));
-    }
-  }
+  function setVersions(list) { S.versions = list; if (!list.find((v) => v.id === S.sel)) S.sel = list[0] && list[0].id; renderVersions(); }
 
   /* ---------------- tlačítko Spustit ---------------- */
   const LBL = {
@@ -1916,45 +1749,7 @@ const CONFIG = { DEMO: false, REDUCED_FX: false };
   /* ---------------- přihlášení ---------------- */
   const LV = ['discord', 'email', 'email-code', 'email-manual', 'waiting', 'success'];
   const LVID = { discord: 'login-discord-view', email: 'login-email-view', 'email-code': 'login-email-code-view', 'email-manual': 'login-email-code-manual-view', waiting: 'login-waiting-view', success: 'login-success-view' };
-  function setLoginView(v) {
-    LV.forEach((k) => {
-      const el = $(LVID[k]);
-      if (el) el.hidden = (k !== v);
-    });
-    $('login-error-message').hidden = true;
-    const seg = $('login-method-seg');
-    if (seg) {
-      if (v === 'discord' || v === 'email') {
-        seg.hidden = false;
-        seg.dataset.v = v;
-        $$('#login-method-seg button').forEach((b) => {
-          b.setAttribute('aria-selected', b.dataset.v === v ? 'true' : 'false');
-        });
-      } else {
-        seg.hidden = true;
-      }
-    }
-    setTimeout(() => {
-      if (v === 'email-code') {
-        const inp = $('login-email-code-input') || $('login-email-code-manual-input');
-        if (inp) { inp.value = ''; inp.focus(); }
-      } else if (v === 'email') {
-        const inp = $('login-email-input');
-        if (inp) inp.focus();
-      } else if (v === 'discord') {
-        const inp = $('login-identifier-input');
-        if (inp) inp.focus();
-      }
-    }, 50);
-  }
-  $$('#login-method-seg button').forEach((b) => {
-    b.onclick = () => {
-      const target = b.dataset.v;
-      if (target === 'discord' || target === 'email') {
-        setLoginView(target);
-      }
-    };
-  });
+  function setLoginView(v) { LV.forEach((k) => ($(LVID[k]).hidden = k !== v)); $('login-error-message').hidden = true; }
   function showLoginError(t) { const e = $('login-error-message'); e.hidden = true; void e.offsetWidth; $('login-error-text').textContent = t; e.hidden = false; }
   function showLogin(on) { $('login-overlay').hidden = !on; if (on) showBoot(false); }
   function showBoot(on) {
@@ -1996,37 +1791,12 @@ const CONFIG = { DEMO: false, REDUCED_FX: false };
     setLoginView('email-code'); $('email-retry-buttons').hidden = true; setTimeout(() => ($('email-retry-buttons').hidden = false), 6000);
     emit('login-email', { mode: emailMode, nick: emailMode === 'signup' ? n : null, email: m });
   };
-  if ($('btn-manual-code-input')) $('btn-manual-code-input').onclick = () => setLoginView('email-manual');
-  if ($('btn-cancel-email-manual')) $('btn-cancel-email-manual').onclick = () => setLoginView('email-code');
-  if ($('btn-cancel-email-auth')) $('btn-cancel-email-auth').onclick = () => setLoginView('email');
-  if ($('btn-cancel-auth')) $('btn-cancel-auth').onclick = () => setLoginView('discord');
-  if ($('btn-resend-email-auth')) $('btn-resend-email-auth').onclick = () => { toast('info', 'E-mail odeslán znovu', 'Zkontrolujte i složku Spam.'); $('email-retry-buttons').hidden = true; };
-  
-  const handleVerifyManualCode = () => {
-    const inp = $('login-email-code-input') || $('login-email-code-manual-input');
-    const c = (inp && inp.value ? inp.value : '').trim().toUpperCase();
-    if (c.length !== 5) return showLoginError('Kód musí mít 5 znaků.');
-    const btnVer = $('btn-verify-email-code') || $('btn-verify-email-code-manual');
-    if (btnVer) { btnVer.disabled = true; btnVer.textContent = 'Ověřuji…'; }
-    emit('verify-code', { code: c, email: ($('login-email-input') ? $('login-email-input').value.trim() : '') });
-  };
-  
-  if ($('btn-verify-email-code')) $('btn-verify-email-code').onclick = handleVerifyManualCode;
-  if ($('btn-verify-email-code-manual')) $('btn-verify-email-code-manual').onclick = handleVerifyManualCode;
-
-  ['login-email-code-input', 'login-email-code-manual-input'].forEach(id => {
-    const el = $(id);
-    if (!el) return;
-    el.addEventListener('input', () => {
-      el.value = el.value.toUpperCase();
-      if (el.value.trim().length === 5) {
-        setTimeout(() => handleVerifyManualCode(), 150);
-      }
-    });
-    el.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') handleVerifyManualCode();
-    });
-  });
+  $('btn-manual-code-input').onclick = () => setLoginView('email-manual');
+  $('btn-cancel-email-manual').onclick = () => setLoginView('email-code');
+  $('btn-cancel-email-auth').onclick = () => setLoginView('email');
+  $('btn-cancel-auth').onclick = () => setLoginView('discord');
+  $('btn-resend-email-auth').onclick = () => { toast('info', 'E-mail odeslán znovu', 'Zkontrolujte i složku Spam.'); $('email-retry-buttons').hidden = true; };
+  $('btn-verify-email-code-manual').onclick = () => { const c = $('login-email-code-manual-input').value.trim(); if (c.length !== 6) return showLoginError('Kód musí mít 6 číslic.'); emit('verify-code', { code: c }); loginOk(); };
   async function loginOk() { setLoginView('success'); await wait(1600); showLogin(false); toast('ok', 'Vítejte zpět!', 'Přihlášení proběhlo úspěšně.'); }
 
   /* =====================================================================
@@ -2132,16 +1902,12 @@ const CONFIG = { DEMO: false, REDUCED_FX: false };
   }
 
   /* ---------- Skutečná data linek (žádné vzory) ---------- */
-  S.gtfsCR = S.gtfsCR || false;
-  S.notifyVia = S.notifyVia || 'Discord DM';
-  S.cmFilter = S.cmFilter || 'all';
-  S.cmVoice = S.cmVoice || 'all';
-  S.mineFilter = S.mineFilter || 'all';
+  S.gtfsCR = false; S.notifyVia = 'Discord DM'; S.cmFilter = 'all'; S.cmVoice = 'all'; S.mineFilter = 'all';
   const snd = (name, dur) => ({ name, dur });
   const withSnd = (arr, all) => { const st = mkStops(arr); st.forEach((s, i) => { if (all || i % 2 === 0) s.snd = snd(norm(s.n).replace(/ /g, '-') + '.mp3', 1.6 + (i % 3) * 0.7); }); return st; };
-  if (!Array.isArray(S.lines)) S.lines = [];
-  if (!Array.isArray(S.comm)) S.comm = [];
-  if (!Array.isArray(S.queue)) S.queue = [];
+  S.lines = [];
+  S.comm = [];
+  S.queue = [];
   S.cur = null; S.flow = null; S.guideNext = null;
   const annOf = (l) => (l && Array.isArray(l.stops) ? l.stops.filter((s) => s && s.snd).length : 0);
 
@@ -2217,18 +1983,15 @@ const CONFIG = { DEMO: false, REDUCED_FX: false };
   }
   $$('#ed-tabs .ed-tab').forEach((b) => (b.onclick = () => selTab(b.dataset.tab)));
   function syncAdminTab(role) {
-    const adm = role === 'admin';
-    if ($('tab-admin')) $('tab-admin').hidden = !adm;
-    if ($('cnt-admin')) $('cnt-admin').textContent = (S.queue || []).length;
-    if (!adm && $('pane-admin') && !$('pane-admin').hidden) selTab('mine');
+    const adm = role === 'admin'; $('tab-admin').hidden = !adm; $('cnt-admin').textContent = (S.queue || []).length;
+    if (!adm && !$('pane-admin').hidden) selTab('mine');
   }
   window.__syncAdmin = syncAdminTab;
 
   S._mineActiveVer = S._mineActiveVer || {};
   function renderMine(flashId) {
-    if (!S.lines || !Array.isArray(S.lines)) S.lines = [];
-    const q = ($('ed-search') ? $('ed-search').value : '').trim().toLowerCase(), f = S.mineFilter || 'all';
-    if ($('cnt-mine')) $('cnt-mine').textContent = S.lines.length;
+    const q = $('ed-search').value.trim().toLowerCase(), f = S.mineFilter;
+    $('cnt-mine').textContent = S.lines.length;
     const arr = S.lines.filter((l) => (!q || (l.num + ' ' + l.name + ' ' + l.dest).toLowerCase().includes(q)) && (
       f === 'all' ||
       (f === 'comm' && (l.source === 'comm' || (l.tags || []).includes('Komunita') || String(l.id).startsWith('comm_'))) ||
@@ -2266,8 +2029,7 @@ const CONFIG = { DEMO: false, REDUCED_FX: false };
       }
 
       const l = activeLine;
-      const stopsCount = (l.stops && Array.isArray(l.stops)) ? l.stops.length : 0;
-      const st = STAT[l.status] || ['Neznámý', ''], a = annOf(l), full = (stopsCount > 0 && a === stopsCount);
+      const st = STAT[l.status] || ['Neznámý', ''], a = annOf(l), full = a === l.stops.length;
       const vBadge = '<span class="badge" style="background:rgba(56,189,248,0.2);color:#38bdf8;font-weight:700;font-size:11px;margin-left:4px;">' + esc(l.version || 'V1') + '</span>';
 
       // Přepínač verzí pokud jich je více
@@ -2305,7 +2067,7 @@ const CONFIG = { DEMO: false, REDUCED_FX: false };
       return '<div class="lcard' + (l.id === flashId ? ' flash' : '') + '" style="animation-delay:' + Math.min(i * 40, 300) + 'ms"><div class="top"><span class="numchip">' + esc(l.num) + '</span><div class="tx"><b title="' + esc(displayName) + '">' + esc(displayName) + '</b><small>→ ' + esc(l.dest || lStop) + '</small></div></div>' +
         '<div class="meta"><span class="badge ' + (l.source === 'comm' ? 'c' : 'b') + '">' + (SRC[l.source] || 'Komunita') + '</span><span class="badge ' + st[1] + '">' + st[0] + '</span>' + vBadge + (l.scope === 'cr' ? '<span class="badge c">Data ČR</span>' : '') + '</div>' +
         verSwitchHtml +
-        '<div class="meta"><span>' + ic('map') + ' ' + stopsCount + ' zastávek</span><span class="' + (full ? 'okt2' : 'warnt2') + '">' + ic('sound') + ' hlášení ' + a + '/' + stopsCount + '</span>' + (l.trips && l.trips.length ? '<span>' + ic('clock') + ' ' + l.trips.length + ' spojů</span>' : '') + '</div>' +
+        '<div class="meta"><span>' + ic('map') + ' ' + l.stops.length + ' zastávek</span><span class="' + (full ? 'okt2' : 'warnt2') + '">' + ic('sound') + ' hlášení ' + a + '/' + l.stops.length + '</span>' + (l.trips && l.trips.length ? '<span>' + ic('clock') + ' ' + l.trips.length + ' spojů</span>' : '') + '</div>' +
         (l.status === 'rejected' ? '<div class="rej"><b>Zpráva od správce:</b> ' + esc(l.reject || '—') + '</div>' : '') +
         '<div class="acts2"><div class="acts2-main">' + main + '</div><div class="acts2-icons"><button class="btn ibx" data-a="export" data-id="' + l.id + '" title="Exportovat balíček (.zip)">' + ic('download') + '</button><button class="btn danger ibx" data-a="del" data-id="' + l.id + '" title="' + (vers.length > 1 ? 'Smazat linku a všechny její verze' : 'Smazat linku') + '">' + ic('trash') + '</button></div></div></div>';
     }).join('') || '<div class="empty"><b>Zatím tu nic není</b>Vytvořte si první linku tlačítkem „Vytvořit vlastní linku“ nebo si stáhněte komunitní linku.</div>';
@@ -2518,9 +2280,8 @@ const CONFIG = { DEMO: false, REDUCED_FX: false };
   /* ---------- komunita ---------- */
   S._cmActiveVer = S._cmActiveVer || {};
   function renderComm() {
-    if (!S.comm || !Array.isArray(S.comm)) S.comm = [];
-    const q = ($('cm-search') ? $('cm-search').value : '').trim().toLowerCase(), f = S.cmFilter || 'all', v = S.cmVoice || 'all';
-    if ($('cnt-comm')) $('cnt-comm').textContent = S.comm.length;
+    const q = $('cm-search').value.trim().toLowerCase(), f = S.cmFilter, v = S.cmVoice;
+    $('cnt-comm').textContent = S.comm.length;
     const arr = S.comm.filter((c) => (!q || (c.num + ' ' + (c.name || '') + ' ' + (c.full_name || '') + ' ' + (c.from || '') + ' ' + c.dest + ' ' + c.author + ' ' + (c.tags || []).join(' ')).toLowerCase().includes(q)) && (f === 'all' || (f === 'inst' ? c.state === 'installed' : c.type === f)) && (v === 'all' || c.voice === v || (v === 'none' && (c.voice === 'none' || (c.tags || []).includes('bez zvuku')))));
     arr.sort((a, b) => {
       const aNo = (a.tags || []).includes('bez zvuku') || a.voice === 'none' || (a.stops && a.stops.length && a.stops.every(s => !s.snd && !s.audio_url));
@@ -3608,15 +3369,12 @@ const CONFIG = { DEMO: false, REDUCED_FX: false };
 
   /* ---------- administrace (jen role admin) ---------- */
   function renderAdmin() {
-    if (!S.queue || !Array.isArray(S.queue)) S.queue = [];
-    if ($('cnt-admin')) $('cnt-admin').textContent = S.queue.length;
+    $('cnt-admin').textContent = S.queue.length;
     $('adm-list').innerHTML = S.queue.map((q) => {
-      const t = TYPES[q.type] || ['Reálná', 'b'], vo = VOICES[q.voice] || ['Syntetický', ''];
-      const qStopsCount = (q.stops && Array.isArray(q.stops)) ? q.stops.length : 0;
-      const qTags = Array.isArray(q.tags) ? q.tags : [];
+      const t = TYPES[q.type], vo = VOICES[q.voice];
       return '<div class="acard" data-id="' + q.id + '"><div class="top"><span class="numchip">' + esc(q.num) + '</span><div class="tx"><b>' + esc(q.name) + '</b><small>od ' + esc(q.author) + ' · účet ověřen ✓</small></div></div>' +
-        '<div class="meta"><span class="badge ' + t[1] + '">' + t[0] + '</span><span class="badge">' + ic('sound') + vo[0] + '</span>' + (q.scope === 'cr' ? '<span class="badge c">Data ČR</span>' : '') + '<span>' + ic('map') + ' ' + qStopsCount + ' zastávek</span></div>' +
-        (qTags.length ? '<div class="tags">' + qTags.map((x) => '<span class="tag">' + esc(x) + '</span>').join('') + '</div>' : '') + (q.desc ? '<div class="adesc">' + esc(q.desc) + '</div>' : '') +
+        '<div class="meta"><span class="badge ' + t[1] + '">' + t[0] + '</span><span class="badge">' + ic('sound') + vo[0] + '</span>' + (q.scope === 'cr' ? '<span class="badge c">Data ČR</span>' : '') + '<span>' + ic('map') + ' ' + q.stops.length + ' zastávek</span></div>' +
+        (q.tags.length ? '<div class="tags">' + q.tags.map((x) => '<span class="tag">' + esc(x) + '</span>').join('') + '</div>' : '') + (q.desc ? '<div class="adesc">' + esc(q.desc) + '</div>' : '') +
         '<div class="alist">' + (q.stops || []).map((s, i) => '<div class="ar"><span class="no">' + (i + 1) + '</span><span class="an">' + esc((s && s.n) || '') + '</span>' + (s.snd ? '<span class="aud' + (s.snd._p ? ' play' : '') + '"><button data-p="' + q.id + ':' + i + '" title="Přehrát">' + ic(s.snd._p ? 'min' : 'play') + '</button><em>' + esc(s.snd.name) + '</em><small>' + fmtDur(s.snd.dur) + '</small></span>' : '<span class="badge r">bez hlášení</span>') + '</div>').join('') + '</div>' +
         '<div class="acts2"><button class="btn danger" data-d="no" data-id="' + q.id + '">' + ic('x') + 'Zamítnout</button><button class="btn green" data-d="ok" data-id="' + q.id + '">' + ic('check') + 'Schválit</button></div></div>';
     }).join('') || '<div class="empty"><b>Nic ke schválení</b>Všechny odeslané linky jsou vyřízeny.</div>';
