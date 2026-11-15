@@ -809,16 +809,26 @@ function showAuthView(viewName) {
     loginWaitingView.style.display = 'none';
     loginEmailView.style.display = 'none';
     loginEmailCodeView.style.display = 'none';
-    const vSucc = document.getElementById('login-success-view'); if (vSucc) vSucc.style.display = 'none';
-    const titleElT = document.querySelector('#login-overlay > div > div:first-child'); if (titleElT && viewName !== 'success') titleElT.style.display = 'block';
+    const vSucc = document.getElementById('login-success-view');
+    if (vSucc) {
+        vSucc.style.display = 'none';
+        vSucc.hidden = true;
+    }
+    const titleElT = document.querySelector('#login-overlay > div > div:first-child');
+    if (titleElT && viewName !== 'success') titleElT.style.display = 'block';
+
     if (viewName === 'discord') loginDiscordView.style.display = 'flex';
     if (viewName === 'waiting') loginWaitingView.style.display = 'flex';
     if (viewName === 'email') loginEmailView.style.display = 'flex';
     if (viewName === 'emailCode') loginEmailCodeView.style.display = 'flex';
     if (viewName === 'success') {
         const v = document.getElementById('login-success-view');
-        if (v) v.style.display = 'flex';
-        document.querySelector('#login-overlay > div > div:first-child').style.display = 'none'; // hide title PŘIHLÁŠENÍ DO SYSTÉMU
+        if (v) {
+            v.hidden = false;
+            v.style.display = 'flex';
+        }
+        if (titleElT) titleElT.style.display = 'none'; // hide title PŘIHLÁŠENÍ DO SYSTÉMU
+        if (window.LC && window.LC.setLoginView) window.LC.setLoginView('success');
     }
     if (viewName === 'emailCodeManual') {
         const v = document.getElementById('login-email-code-manual-view');
@@ -930,10 +940,11 @@ function pollAuthEmail(email) {
                 config.discord_nick = pollData.nick || pollData.email;
                 config.email = pollData.email;
                 saveConfig(config);
+                showAuthView('success');
                 setTimeout(() => {
                     loginOverlay.style.display = 'none';
                     initLauncher(config);
-                }, 1500);
+                }, 1800);
             }
         } catch(_) {}
     }, 4000);
@@ -980,8 +991,11 @@ if (btnVerifyEmailCodeManual) {
                 config.discord_nick = data.nick || data.email;
                 config.email = data.email;
                 saveConfig(config);
-                loginOverlay.style.display = 'none';
-                initLauncher(config);
+                showAuthView('success');
+                setTimeout(() => {
+                    loginOverlay.style.display = 'none';
+                    initLauncher(config);
+                }, 1800);
             } else {
                 showLoginError("Neplatný kód nebo vypršela platnost.");
                 if (inputCode) inputCode.value = '';
@@ -2474,21 +2488,11 @@ if (btnCleanCache) {
 }
 
 
-// Custom select – přímá inicializace (DOM je již připraven)
+// Custom select – otevírání a zavírání řídí launcher.html (openSelect/closeSelect)
+// Zde pouze pojistka zavření při kliknutí mimo, pokud by nebylo zachyceno
 (function initCustomSelect() {
     const customSelect = document.getElementById('custom-version-select');
-    const customTrigger = document.getElementById('custom-select-trigger');
-
-    if (!customSelect || !customTrigger) return;
-
-    customTrigger.addEventListener('click', (e) => {
-        e.stopPropagation();
-        if (!customSelect.classList.contains('disabled')) {
-            const isOpen = customSelect.classList.toggle('open');
-            const customOptions = document.getElementById('custom-options-container');
-            if (customOptions) customOptions.hidden = !isOpen;
-        }
-    });
+    if (!customSelect) return;
 
     document.addEventListener('click', (e) => {
         if (!customSelect.contains(e.target)) {
@@ -2919,6 +2923,11 @@ async function loadLocalEditorLines(syncDb = true) {
             'gtfs_version.json', 'build_info.json', '_sablona_vlastni_linky.json',
             'cached_launcher_state.json', 'config.json'
         ]);
+        const curCfg = loadConfig();
+        const currentUserId = String(curCfg.discord_id || curCfg.email || '').trim().toLowerCase();
+        const currentUserNick = String(curCfg.discord_nick || '').trim().toLowerCase();
+        const currentEmail = String(curCfg.email || '').trim().toLowerCase();
+
         const files = fs.readdirSync(customDataPath).filter(f => f.endsWith('.json'));
         const lines = [];
         const seenKeys = new Set();
@@ -2930,6 +2939,27 @@ async function loadLocalEditorLines(syncDb = true) {
                 const raw = fs.readFileSync(path.join(customDataPath, f), 'utf8');
                 const parsed = JSON.parse(raw);
                 if (parsed && typeof parsed === 'object') {
+                    // Izolace vlastních linek podle přihlášeného účtu na stejném PC (bod 4)
+                    const isCustomFile = f.startsWith('user_') || parsed.is_custom;
+                    if (isCustomFile && currentUserId) {
+                        if (parsed.author_id) {
+                            const aId = String(parsed.author_id).trim().toLowerCase();
+                            const aName = String(parsed.author_name || '').trim().toLowerCase();
+                            const matchesId = (aId === currentUserId) || (currentEmail && aId === currentEmail);
+                            const matchesName = (currentUserNick && aName === currentUserNick) || (currentEmail && aName === currentEmail);
+                            if (!matchesId && !matchesName) {
+                                // Vlastní linka patřící jinému účtu na tomto PC
+                                continue;
+                            }
+                        } else {
+                            // Starší lokální linka bez author_id - přiřadíme k aktuálnímu účtu
+                            parsed.author_id = curCfg.discord_id || curCfg.email || currentHWID;
+                            parsed.author_name = curCfg.discord_nick || curCfg.email || 'Autor';
+                            try {
+                                fs.writeFileSync(path.join(customDataPath, f), JSON.stringify(parsed, null, 2), 'utf8');
+                            } catch (_) {}
+                        }
+                    }
                     if (!parsed.id) parsed.id = f.replace('.json', '');
                     if (!parsed.num) parsed.num = parsed.cislo || parsed.line || f.replace('.json', '');
                     if (!parsed.name) parsed.name = parsed.nazev || parsed.smer || `Linka ${parsed.num}`;
@@ -3545,6 +3575,9 @@ document.addEventListener('lc:line-save', (e) => {
             line.id = `user_${line.num}_${Date.now()}`;
         }
         line.is_custom = true;
+        const curCfg = loadConfig();
+        if (!line.author_id) line.author_id = curCfg.discord_id || curCfg.email || currentHWID;
+        if (!line.author_name) line.author_name = curCfg.discord_nick || curCfg.email || 'Autor';
         const filePath = path.join(customDataPath, `${line.id}.json`);
         fs.writeFileSync(filePath, JSON.stringify(line, null, 2), 'utf8');
         syncRouteFileToLinky(line);
@@ -3981,22 +4014,16 @@ document.addEventListener('lc:line-publish', async (e) => {
         });
         const respData = await res.json();
         if (respData.success) {
-            const isApproved = (respData.status === 'approved' || isNoSound80);
-            line.status = isApproved ? 'published' : 'pending';
+            line.status = 'pending';
             line.tags = finalTags;
             const customDataPath = path.join(centralUserDataPath, 'data');
             fs.writeFileSync(path.join(customDataPath, `${line.id}.json`), JSON.stringify(line, null, 2), 'utf8');
             if (window.LC) {
                 window.LC.renderMine(line.id);
-                if (isApproved) {
-                    window.LC.toast('ok', 'Linka bez zvuku zveřejněna', 'Linka byla automaticky schválena a zařazena do komunitních linek s uzamčeným štítkem „bez zvuku“.');
-                    loadCommunityEditorLines().then(comm => {
-                        window.LC.S.comm = comm;
-                        if (window.LC.renderComm) window.LC.renderComm();
-                    });
-                } else {
-                    window.LC.toast('ok', 'Linka odeslána ke kontrole', 'Správci si poslechnou hlášení. O výsledku budete informováni přes Discord DM.');
-                }
+                window.LC.toast('ok', 'Linka odeslána ke schválení', 'Linka byla odeslána správcům ke kontrole. Po schválení v dashboardu nebo launcheru se objeví v komunitních linkách.');
+                loadPendingAdminQueue().then(queue => {
+                    if (window.LC.setQueue) window.LC.setQueue(queue);
+                });
             }
         } else {
             if (window.LC) window.LC.toast('err', 'Chyba odeslání', respData.error || 'Server odmítl linku.');

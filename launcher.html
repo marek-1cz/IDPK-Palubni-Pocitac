@@ -694,7 +694,7 @@ button.chip.dl:hover{border-color:var(--blue);color:#fff}
 
 <!-- ===== Titulní lišta ===== -->
 <div class="titlebar">
-  <div class="drag-region"><span class="tdot"></span>LANCHER OIS IDPK <span id="launcher-title-version" class="tver">v1.0.6</span></div>
+  <div class="drag-region"><span class="tdot"></span>LANCHER OIS IDPK <span id="launcher-title-version" class="tver">v1.0.7</span></div>
   <div class="window-controls">
     <button id="btn-minimize" title="Minimalizovat"><svg class="ic"><use href="#i-min"/></svg></button>
     <button id="btn-close" title="Zavřít"><svg class="ic"><use href="#i-x"/></svg></button>
@@ -1068,7 +1068,7 @@ button.chip.dl:hover{border-color:var(--blue);color:#fff}
 
         <div class="card">
           <div class="card-h"><svg class="ic"><use href="#i-info"/></svg>O aplikaci</div>
-          <div class="row"><div class="ri"><svg class="ic"><use href="#i-rocket"/></svg></div><div class="rt"><b>Launcher <span id="settings-launcher-version">Verze Launcheru: v1.0.6</span></b><small>Hra <span id="settings-app-version">V1.6.3</span> · OIS IDPK © 2026 · CC BY 4.0</small></div>
+          <div class="row"><div class="ri"><svg class="ic"><use href="#i-rocket"/></svg></div><div class="rt"><b>Launcher <span id="settings-launcher-version">Verze Launcheru: v1.0.7</span></b><small>Hra <span id="settings-app-version">V1.6.3</span> · OIS IDPK © 2026 · CC BY 4.0</small></div>
             <button class="btn sm" id="btn-check-launcher-update"><svg class="ic" id="btn-check-launcher-icon"><use href="#i-refresh"/></svg><span id="btn-check-launcher-text">Zkontrolovat launcher</span></button></div>
           <div class="row"><div class="ri"><svg class="ic"><use href="#i-users"/></svg></div><div class="rt"><b>Komunita na Discordu</b><small>Novinky, podpora a sdílení linek</small></div><a class="btn sm" id="settings-discord-link" href="https://discord.com/invite/vmTagbC9mF" target="_blank" rel="noopener">Připojit se</a></div>
         </div>
@@ -1545,7 +1545,10 @@ const CONFIG = { DEMO: false, REDUCED_FX: false };
   }
   function openSelect() { if ($('custom-version-select').classList.contains('disabled')) return; $('custom-version-select').classList.add('open'); $('custom-options-container').hidden = false; }
   function closeSelect() { $('custom-version-select').classList.remove('open'); $('custom-options-container').hidden = true; }
-  $('custom-select-trigger').onclick = () => ($('custom-options-container').hidden ? openSelect() : closeSelect());
+  $('custom-select-trigger').onclick = (e) => {
+    if (e) e.stopPropagation();
+    ($('custom-options-container').hidden ? openSelect() : closeSelect());
+  };
   document.addEventListener('click', (e) => { if (!e.target.closest('#custom-version-select')) closeSelect(); });
   function setVersions(list) { S.versions = list; if (!list.find((v) => v.id === S.sel)) S.sel = list[0] && list[0].id; renderVersions(); }
 
@@ -3121,6 +3124,7 @@ const CONFIG = { DEMO: false, REDUCED_FX: false };
     }
     return null;
   }
+  window.cleanValidTime = cleanValidTime;
   function openTrip(t) {
     if ((E.stops || []).filter((s) => s && (s.n || '').trim()).length < 2) return toast('warn', 'Nejdřív přidejte zastávky', 'Pro spoj potřebujete alespoň dvě pojmenované zastávky.');
     T = t ? JSON.parse(JSON.stringify(t)) : { id: null, no: nextNo(), items: [] };
