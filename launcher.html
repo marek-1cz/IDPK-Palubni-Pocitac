@@ -2094,13 +2094,13 @@ const CONFIG = { DEMO: false, REDUCED_FX: false };
       if (a === 'pv') {
         linePreview(l);
       } else if (a === 'edit') {
-        if (l.status === 'published') {
+        if (l.status === 'published' || l.status === 'pending') {
           const curV = l.version || 'V1';
           const vNum = parseInt(curV.replace(/\D/g, ''), 10) || 1;
           const nextV = `V${vNum + 1}`;
           confirmBox({
-            title: `Upravit zveřejněnou linku ${l.num}?`,
-            desc: `Linka ${l.num} je již zveřejněna v komunitě jako ${curV}. Přejete si vytvořit novou verzi (${nextV}), která bude po úpravě znovu odeslána ke schválení administrátorem, nebo chcete linku pouze lokálně upravit pro sebe?`,
+            title: `Upravit linku ${l.num}?`,
+            desc: `Linka ${l.num} je již ${l.status === 'published' ? 'zveřejněna v komunitě' : 'odeslána ke schválení'} jako ${curV}. Přejete si vytvořit novou verzi (${nextV}), která bude po úpravě připravena ke schválení administrátorem, nebo chcete linku pouze lokálně upravit pro sebe?`,
             yes: `Vytvořit a upravit novou verzi (${nextV})`
           }, () => {
             const newId = `user_${l.num}_${Date.now()}`;
@@ -2705,8 +2705,12 @@ const CONFIG = { DEMO: false, REDUCED_FX: false };
   ['ag-num', 'ag-from', 'ag-to', 'ag-extra'].forEach((id) => ($(id).oninput = () => ($('ag-prompt').textContent = buildPrompt())));
   $('ag-close').onclick = () => closeModal('ai-guide-modal');
   $('ag-go').onclick = () => { closeModal('ai-guide-modal'); if (S.guideNext === 'doc') flowShow('doc'); };
-  $('ag-template').onclick = () => { dlFile('vzor-linka.txt', TEMPLATE); toast('ok', 'Vzor stažen', 'vzor-linka.txt'); };
-  $('doc-template').onclick = $('ag-template').onclick; $('doc-guide').onclick = () => openGuide(null);
+  const saveTemplateAction = () => {
+    emit('save-template', { filename: 'vzor-linka.txt', content: TEMPLATE });
+    dlFile('vzor-linka.txt', TEMPLATE);
+  };
+  $('ag-template').onclick = saveTemplateAction;
+  $('doc-template').onclick = saveTemplateAction; $('doc-guide').onclick = () => openGuide(null);
   $('ag-copy').onclick = async () => { try { await navigator.clipboard.writeText(buildPrompt()); toast('ok', 'Prompt zkopírován', 'Vložte ho do AI a přidejte jízdní řád.'); } catch (e) { const r = document.createRange(); r.selectNodeContents($('ag-prompt')); const s = getSelection(); s.removeAllRanges(); s.addRange(r); toast('info', 'Prompt označen', 'Zkopírujte ho pomocí Ctrl+C.'); } };
 
   const normTime = (s) => { const m = String(s || '').match(/(\d{1,2})[:.](\d{2})/); return m ? m[1].padStart(2, '0') + ':' + m[2] : ''; };
@@ -2754,7 +2758,7 @@ const CONFIG = { DEMO: false, REDUCED_FX: false };
     const r = parseDoc($('doc-text').value); if (r.stops.length < 2) return toast('warn', 'V dokumentu jsem našel málo zastávek', 'Potřebuji alespoň dvě. Zkontrolujte formát podle vzoru.');
     const ok = r.stops.filter((s) => s.hint === 'ok').length, mb = r.stops.filter((s) => s.hint === 'maybe').length;
     const lastStopName = (r.stops && r.stops.length) ? (r.stops[r.stops.length - 1].n || '') : '';
-    openEdit({ id: null, num: r.num, name: r.name, dest: r.dest || lastStopName, source: 'doc', scope: null, stops: r.stops, trips: r.trips, type: r.type, voice: 'synt', tags: r.tags, status: 'local' }, true);
+    openEdit({ id: null, num: r.num, name: r.name, dest: r.dest || lastStopName, source: 'manual', scope: null, stops: r.stops, trips: r.trips, type: r.type || 'fiktivni', voice: 'own', tags: (r.tags || []).concat(['AI / Dokument']), status: 'local' }, true);
     toast(ok === r.stops.length ? 'ok' : 'info', 'Rozpoznáno ' + ok + ' z ' + r.stops.length + ' zastávek', (mb ? mb + ' je nejistých (modře, kliknutím přijmete návrh). ' : '') + 'Nezapomeňte nahrát hlášení.', 6500);
   };
 
@@ -2868,6 +2872,8 @@ const CONFIG = { DEMO: false, REDUCED_FX: false };
     E.mode = (l && (l.source === 'gtfs' || l.source === 'comm')) ? 'gtfs' : 'manual';
     E.id = isNew ? null : (l ? l.id : null);
     E.existing = !isNew;
+    E.version = l ? (l.version || 'V1') : 'V1';
+    E.parent_version = l ? (l.parent_version || null) : null;
     E.dirty = false;
 
     const firstStopN = E.stops.length ? (E.stops[0].n || E.stops[0].name || '') : '';
@@ -2917,7 +2923,7 @@ const CONFIG = { DEMO: false, REDUCED_FX: false };
       $('eg-scope').className = 'badge ' + (E.scope === 'cr' ? 'c' : 'g');
       $('eg-count').textContent = (E.stops ? E.stops.length : 0);
     }
-    else { $('e-title').textContent = E.existing ? 'Úprava linky ' + (E.num || '') : (E.source === 'doc' ? 'Linka z dokumentu' : 'Fiktivní linka'); $('e-src').textContent = SRC[E.source] || 'Ruční'; $('e-num').value = E.num; $('e-name').value = E.name; $('e-dest').value = E.dest; }
+    else { $('e-title').textContent = E.existing ? 'Úprava linky ' + (E.num || '') + (E.version ? ' (' + E.version + ')' : '') : (E.source === 'doc' ? 'Linka z dokumentu' : 'Fiktivní linka'); $('e-src').textContent = SRC[E.source] || 'Ruční'; $('e-num').value = E.num; $('e-name').value = E.name; $('e-dest').value = E.dest; }
     $('stop-count').textContent = E.stops.length + ' zastávek'; $('trip-count').textContent = (E.trips || []).length + ' spojů';
     $('stop-head').className = 'stop-head ' + (g ? 'g' : 'm');
     $('stop-head').innerHTML = g ? '<span>#</span><span>Zastávka</span><span class="hot">Hlášení</span><span></span>' : '<span></span><span>#</span><span>Název zastávky</span><span>Pásmo</span><span>Znamení</span><span class="hot">Hlášení</span><span></span>';
@@ -3191,6 +3197,8 @@ const CONFIG = { DEMO: false, REDUCED_FX: false };
       scope: E.scope || null,
       type: E.type || 'fiktivni',
       voice: E.voice || 'synt',
+      version: E.version || (prev && prev.version) || 'V1',
+      parent_version: E.parent_version || (prev && prev.parent_version) || null,
       tags: E.tags || [],
       general_sounds: E.general_sounds || {},
       ann_next: (E.general_sounds && E.general_sounds.next && E.general_sounds.next.snd) || null,

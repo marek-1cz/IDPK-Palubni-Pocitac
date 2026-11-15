@@ -739,7 +739,7 @@ function loadGlobalStopCatalog() {
                         const rParts = right.split('|');
                         let rawAudio = rParts[0].trim().replace(/"/g, '');
                         if (!rawAudio) continue;
-                        if (!rawAudio.toLowerCase().endsWith('.wav')) rawAudio += '.wav';
+                        if (!/\.(wav|mp3|ogg|m4a|aac|flac)$/i.test(rawAudio)) rawAudio += '.wav';
                         
                         const canon = canonicalizeStopName(stopName);
                         if (!_GLOBAL_STOP_CATALOG.has(canon)) {
@@ -763,9 +763,9 @@ function loadAudioFilesIndex() {
     ];
     for (const dir of dirs) {
         try {
-            const files = fs.readdirSync(dir).filter(f => f.toLowerCase().endsWith('.wav'));
+            const files = fs.readdirSync(dir).filter(f => /\.(wav|mp3|ogg|m4a|aac|flac)$/i.test(f));
             for (const file of files) {
-                const base = file.replace(/\.wav$/i, '');
+                const base = file.replace(/\.(wav|mp3|ogg|m4a|aac|flac)$/i, '');
                 const canon = canonicalizeStopName(base.replace(/_/g, ' '));
                 if (!_AUDIO_FILES_INDEX.has(canon)) _AUDIO_FILES_INDEX.set(canon, file);
                 const noSpace = canon.replace(/\s+/g, '');
@@ -799,12 +799,14 @@ function resolveStopAudio(stopName, localStopMap = null) {
             if (localStopMap[testCanon]) {
                 const val = localStopMap[testCanon];
                 const audio = val.split('|')[0].trim().replace(/"/g, '');
-                return { source: 'local_exact', audio: audio.endsWith('.wav') ? audio : audio + '.wav', lineData: val };
+                const finalAudio = /\.(wav|mp3|ogg|m4a|aac|flac)$/i.test(audio) ? audio : audio + '.wav';
+                return { source: 'local_exact', audio: finalAudio, lineData: val };
             }
             for (const [k, v] of Object.entries(localStopMap)) {
                 if (matchCanonicalStops(testCanon, canonicalizeStopName(k))) {
                     const audio = v.split('|')[0].trim().replace(/"/g, '');
-                    return { source: 'local_canon', audio: audio.endsWith('.wav') ? audio : audio + '.wav', lineData: v };
+                    const finalAudio = /\.(wav|mp3|ogg|m4a|aac|flac)$/i.test(audio) ? audio : audio + '.wav';
+                    return { source: 'local_canon', audio: finalAudio, lineData: v };
                 }
             }
         }
@@ -1315,7 +1317,8 @@ ipcMain.handle('process-hybrid-file', async (event, fileContent) => {
         if (jsonId) {
             const rawJson = typeof loadRawJsonRoute === 'function' ? loadRawJsonRoute(jsonId) : null;
             if (rawJson && rawJson.name) routeName = rawJson.name;
-            if (rawJson && (rawJson.source === 'gtfs' || rawJson.license || rawJson.gtfs_route_id)) {
+            const isPureCustom = Boolean(rawJson && (rawJson.is_custom || rawJson.source === 'manual' || rawJson.type === 'fiktivni' || rawJson.source === 'doc'));
+            if (!isPureCustom && rawJson && (rawJson.source === 'gtfs' || rawJson.license || rawJson.gtfs_route_id)) {
                 const cand = rawJson.license || rawJson.gtfs_route_id || rawJson.num || linkaNum;
                 const foundGId = await findRouteId(rawJson.num || linkaNum, cand);
                 if (foundGId && !foundGId.startsWith('user_') && !foundGId.startsWith('comm_')) {
@@ -1335,14 +1338,21 @@ ipcMain.handle('process-hybrid-file', async (event, fileContent) => {
         } else if (forcedRouteId) {
             routeId = forcedRouteId;
         } else {
-            routeId = await findRouteId(linkaNum, exactRouteId);
+            const isCustomTextFile = Boolean(
+                rawRoutePart.startsWith('user_') ||
+                rawRoutePart.startsWith('comm_') ||
+                rawRoutePart.includes('_custom')
+            );
+            if (!isCustomTextFile) {
+                routeId = await findRouteId(linkaNum, exactRouteId);
+            }
             if (!routeId) {
                 if (textFileStops.length > 0) {
                     const parsedStops = textFileStops.map(line => {
                         let parts = line.split('|');
                         let soundPart = parts[0].trim();
-                        let audio = soundPart.includes('=') ? soundPart.split('=')[0].trim() : soundPart;
-                        let stopName = soundPart.includes('=') ? soundPart.split('=')[1].trim() : soundPart;
+                        let stopName = soundPart.includes('=') ? soundPart.split('=')[0].trim() : soundPart;
+                        let audio = soundPart.includes('=') ? soundPart.split('=')[1].trim() : soundPart;
                         let display = stopName;
                         let zone = "1";
                         let time = "";
@@ -2572,6 +2582,22 @@ ipcMain.on('open-custom-routes-folder', () => {
     const crPath = path.join(process.env.APPDATA || os.homedir(), 'idpk-palubni-pocitac', 'userdata', 'linky');
     if (!fs.existsSync(crPath)) fs.mkdirSync(crPath, { recursive: true });
     require('electron').shell.openPath(crPath);
+});
+
+ipcMain.handle('save-text-file', async (event, { defaultName, content }) => {
+    try {
+        const win = BrowserWindow.fromWebContents(event.sender);
+        const { canceled, filePath } = await dialog.showSaveDialog(win, {
+            title: 'Uložit vzorový soubor linky (.txt)',
+            defaultPath: defaultName || 'vzor-linka.txt',
+            filters: [{ name: 'Textový soubor (*.txt)', extensions: ['txt'] }]
+        });
+        if (canceled || !filePath) return { success: false, canceled: true };
+        fs.writeFileSync(filePath, content || '', 'utf8');
+        return { success: true, path: filePath };
+    } catch(err) {
+        return { success: false, error: err.message };
+    }
 });
 
 ipcMain.handle('export-line-zip', async (event, line) => {

@@ -3773,6 +3773,20 @@ document.addEventListener('lc:line-export', async (e) => {
     }
 });
 
+document.addEventListener('lc:save-template', async (e) => {
+    const { filename, content } = e.detail || {};
+    try {
+        const res = await ipcRenderer.invoke('save-text-file', { defaultName: filename || 'vzor-linka.txt', content: content || '' });
+        if (res && res.success) {
+            if (window.LC) window.LC.toast('ok', 'Vzor uložen', `Soubor uložen: ${path.basename(res.path)}`);
+        } else if (res && !res.canceled && res.error) {
+            if (window.LC) window.LC.toast('err', 'Uložení selhalo', res.error);
+        }
+    } catch(err) {
+        if (window.LC) window.LC.toast('err', 'Chyba', err.message);
+    }
+});
+
 document.addEventListener('lc:community-download', async (e) => {
     const id = e.detail && e.detail.id;
     const commItem = (window.LC && window.LC.S && window.LC.S.comm || []).find(x => x.id === id);

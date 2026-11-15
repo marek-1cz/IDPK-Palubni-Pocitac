@@ -4309,10 +4309,18 @@ function resolveAudioFilePath(relPath) {
     const baseName = path.basename(cleanRel);
     const baseWithoutExt = baseName.replace(/\.[^.]+$/, '');
     const candidateNames = [baseName];
-    if (!/\.(wav|mp3|ogg|m4a|flac)$/i.test(baseName)) {
-        candidateNames.push(baseName + '.wav', baseName + '.mp3');
+    // Automatická záchrana pro případ zdvojené přípony (např. .m4a.wav -> .m4a nebo .mp3.wav -> .mp3)
+    const strippedDoubleExt = baseName.replace(/\.(mp3|m4a|ogg|flac|aac)\.wav$/i, '.$1');
+    if (strippedDoubleExt !== baseName) {
+        candidateNames.push(strippedDoubleExt);
     }
-    candidateNames.push(baseWithoutExt + '.wav', baseWithoutExt + '.mp3');
+    if (!/\.(wav|mp3|ogg|m4a|flac|aac)$/i.test(baseName)) {
+        candidateNames.push(baseName + '.wav', baseName + '.mp3', baseName + '.m4a');
+    }
+    candidateNames.push(baseWithoutExt + '.wav', baseWithoutExt + '.mp3', baseWithoutExt + '.m4a');
+    if (/\.(mp3|m4a|ogg|flac|aac)$/i.test(baseWithoutExt)) {
+        candidateNames.push(baseWithoutExt);
+    }
 
     const uData = (typeof PATH_USERDATA !== 'undefined' && PATH_USERDATA) ? PATH_USERDATA : (window.PATH_USERDATA || path.join(process.env.APPDATA || os.homedir(), 'idpk-palubni-pocitac', 'userdata'));
     const uPath = (typeof userDataPath !== 'undefined' && userDataPath) ? userDataPath : (window.userDataPath || path.join(process.env.APPDATA || os.homedir(), 'idpk-palubni-pocitac'));
