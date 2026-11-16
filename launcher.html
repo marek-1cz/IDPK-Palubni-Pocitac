@@ -1141,7 +1141,10 @@ button.chip.dl:hover{border-color:var(--blue);color:#fff}
       <div class="errc"><svg class="ic" style="width:1em;height:1em;stroke-width:3"><use href="#i-x"/></svg></div>
       <div class="errt" id="login-failure-title">Ověření se nezdařilo</div>
       <p class="hint" id="login-failure-desc" style="margin-top:10px;font-size:14px;color:var(--text);line-height:1.5;">Došlo k chybě při ověření.</p>
-      <button class="btn primary big" id="btn-retry-auth" style="margin-top:14px;">Zkusit znovu</button>
+      <div style="display:flex;flex-direction:column;gap:8px;margin-top:14px;width:100%;">
+        <button class="btn primary big" id="btn-retry-auth">Zkusit znovu</button>
+        <button class="btn big" id="btn-failure-create-account" style="background:rgba(255,255,255,0.08);border:1px solid var(--line2);color:var(--text);font-weight:700;" hidden>Vytvořit nový účet</button>
+      </div>
     </div>
     <div class="lg-hwid">HWID: <span id="login-hwid-text">XXXX-XXXX-XXXX</span></div>
   </div>
@@ -1763,10 +1766,13 @@ const CONFIG = { DEMO: false, REDUCED_FX: false };
   const LVID = { discord: 'login-discord-view', email: 'login-email-view', 'email-code': 'login-email-code-view', 'email-manual': 'login-email-code-manual-view', waiting: 'login-waiting-view', success: 'login-success-view', failure: 'login-failure-view' };
   function setLoginView(v) { LV.forEach((k) => ($(LVID[k]).hidden = k !== v)); $('login-error-message').hidden = true; }
   function showLoginError(t) { const e = $('login-error-message'); e.hidden = true; void e.offsetWidth; $('login-error-text').textContent = t; e.hidden = false; }
-  function showLoginFailure(title, desc, authType) {
+  function showLoginFailure(title, desc, authType, isNotFound) {
     if (authType) window._lastAuthType = authType;
     if ($('login-failure-title')) $('login-failure-title').textContent = title || 'Ověření se nezdařilo';
     if ($('login-failure-desc')) $('login-failure-desc').textContent = desc || 'Zkontrolujte údaje a zkuste to znovu.';
+    if ($('btn-failure-create-account')) {
+      $('btn-failure-create-account').hidden = !isNotFound;
+    }
     setLoginView('failure');
   }
   function showLogin(on) { $('login-overlay').hidden = !on; if (on) showBoot(false); }
@@ -1838,6 +1844,13 @@ const CONFIG = { DEMO: false, REDUCED_FX: false };
       } else {
         setLoginView('discord');
       }
+    };
+  }
+  if ($('btn-failure-create-account')) {
+    $('btn-failure-create-account').onclick = () => {
+      window._lastAuthType = 'email';
+      setEmailMode('signup');
+      setLoginView('email');
     };
   }
   async function loginOk() { setLoginView('success'); await wait(1800); showLogin(false); toast('ok', 'Vítejte zpět!', 'Přihlášení proběhlo úspěšně.'); }

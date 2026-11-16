@@ -853,7 +853,7 @@ function showAuthView(viewName) {
     }
 }
 
-function showLoginFailure(title, desc, authType = 'discord') {
+function showLoginFailure(title, desc, authType = 'discord', isNotFound = false) {
     if (authPollInterval) { clearInterval(authPollInterval); authPollInterval = null; }
     if (window.emailPollInterval) { clearInterval(window.emailPollInterval); window.emailPollInterval = null; }
     window._lastAuthType = authType;
@@ -864,7 +864,14 @@ function showLoginFailure(title, desc, authType = 'discord') {
     const descEl = document.getElementById('login-failure-desc');
     if (descEl) descEl.textContent = desc || 'Došlo k chybě při ověření.';
 
-    showAuthView('failure');
+    const btnCreate = document.getElementById('btn-failure-create-account');
+    if (btnCreate) btnCreate.hidden = !isNotFound;
+
+    if (window.LC && window.LC.showLoginFailure) {
+        window.LC.showLoginFailure(title, desc, authType, isNotFound);
+    } else {
+        showAuthView('failure');
+    }
 }
 
 const btnRetryAuthEl = document.getElementById('btn-retry-auth');
@@ -949,7 +956,14 @@ async function performEmailAuth(email, nick, mode = 'login') {
                 }
                 pollAuthEmail(email);
             } else {
-                showLoginFailure("Nepodařilo se odeslat e-mail", data.message || data.error || "Zkontrolujte zadanou adresu a zkuste to znovu.", "email");
+                const msg = data.message || data.error || "Zkontrolujte zadanou adresu a zkuste to znovu.";
+                const isNotFound = res.status === 404 || data.status === 'not_found' || data.error_type === 'account_not_found';
+                showLoginFailure(
+                    isNotFound ? "Účet nebyl nalezen" : "Nepodařilo se odeslat e-mail",
+                    isNotFound ? (data.message || "Účet s tímto e-mailem nebyl nalezen. Zkontrolujte prosím správnost vašeho e-mailu, nebo si níže vytvořte nový účet.") : msg,
+                    "email",
+                    isNotFound
+                );
             }
         } catch (e) {
             showLoginFailure("Chyba spojení", "Nepodařilo se spojit se serverem pro odeslání e-mailu.", "email");
@@ -964,12 +978,17 @@ async function performEmailAuth(email, nick, mode = 'login') {
     }
 }
 
-btnStartEmailAuth.addEventListener('click', () => {
-    const inputNick = document.getElementById('login-nick-input');
-    const nick = inputNick ? inputNick.value.trim() : '';
-    const email = inputEmail ? inputEmail.value.trim() : '';
-    performEmailAuth(email, nick, 'login');
-});
+const btnFailureCreateAccountEl = document.getElementById('btn-failure-create-account');
+if (btnFailureCreateAccountEl) {
+    btnFailureCreateAccountEl.addEventListener('click', () => {
+        if (window.LC && window.LC.setEmailMode) {
+            window.LC.setEmailMode('signup');
+            window.LC.setLoginView('email');
+        } else {
+            showAuthView('email');
+        }
+    });
+}
 
 function pollAuthEmail(email) {
     if (window.emailPollInterval) clearInterval(window.emailPollInterval);
