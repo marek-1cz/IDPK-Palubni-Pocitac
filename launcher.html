@@ -376,6 +376,8 @@ button.chip{cursor:pointer;transition:.2s}button.chip:hover{color:#fff;border-co
 .okc{width:92px;height:92px;border-radius:50%;margin:10px auto;display:grid;place-items:center;font-size:44px;background:var(--green);color:#ffffff;animation:popIn .55s cubic-bezier(.175,.885,.32,1.275) both}
 @keyframes popIn{from{transform:scale(0)}to{transform:scale(1)}}
 .okt{text-align:center;font-weight:900;font-size:20px;letter-spacing:.18em;text-transform:uppercase;animation:vIn .5s .2s both}
+.errc{width:92px;height:92px;border-radius:50%;margin:10px auto;display:grid;place-items:center;font-size:44px;background:#ef4444;color:#ffffff;animation:popIn .55s cubic-bezier(.175,.885,.32,1.275) both}
+.errt{text-align:center;font-weight:900;font-size:20px;letter-spacing:.12em;text-transform:uppercase;color:#f87171;animation:vIn .5s .2s both}
 
 /* ---------- testovací panel ---------- */
 .demo{position:fixed;left:14px;bottom:14px;z-index:990;font-size:12px}
@@ -1134,6 +1136,13 @@ button.chip.dl:hover{border-color:var(--blue);color:#fff}
       <div class="okc"><svg class="ic" style="width:1em;height:1em;stroke-width:3"><use href="#i-check"/></svg></div>
       <div class="okt">Přihlášeno</div>
     </div>
+
+    <div class="lg-view" id="login-failure-view" hidden>
+      <div class="errc"><svg class="ic" style="width:1em;height:1em;stroke-width:3"><use href="#i-x"/></svg></div>
+      <div class="errt" id="login-failure-title">Ověření se nezdařilo</div>
+      <p class="hint" id="login-failure-desc" style="margin-top:10px;font-size:14px;color:var(--text);line-height:1.5;">Došlo k chybě při ověření.</p>
+      <button class="btn primary big" id="btn-retry-auth" style="margin-top:14px;">Zkusit znovu</button>
+    </div>
     <div class="lg-hwid">HWID: <span id="login-hwid-text">XXXX-XXXX-XXXX</span></div>
   </div>
 </div>
@@ -1750,10 +1759,16 @@ const CONFIG = { DEMO: false, REDUCED_FX: false };
   $('settings-btn-download-cr').onclick = gtfsRun;
 
   /* ---------------- přihlášení ---------------- */
-  const LV = ['discord', 'email', 'email-code', 'email-manual', 'waiting', 'success'];
-  const LVID = { discord: 'login-discord-view', email: 'login-email-view', 'email-code': 'login-email-code-view', 'email-manual': 'login-email-code-manual-view', waiting: 'login-waiting-view', success: 'login-success-view' };
+  const LV = ['discord', 'email', 'email-code', 'email-manual', 'waiting', 'success', 'failure'];
+  const LVID = { discord: 'login-discord-view', email: 'login-email-view', 'email-code': 'login-email-code-view', 'email-manual': 'login-email-code-manual-view', waiting: 'login-waiting-view', success: 'login-success-view', failure: 'login-failure-view' };
   function setLoginView(v) { LV.forEach((k) => ($(LVID[k]).hidden = k !== v)); $('login-error-message').hidden = true; }
   function showLoginError(t) { const e = $('login-error-message'); e.hidden = true; void e.offsetWidth; $('login-error-text').textContent = t; e.hidden = false; }
+  function showLoginFailure(title, desc, authType) {
+    if (authType) window._lastAuthType = authType;
+    if ($('login-failure-title')) $('login-failure-title').textContent = title || 'Ověření se nezdařilo';
+    if ($('login-failure-desc')) $('login-failure-desc').textContent = desc || 'Zkontrolujte údaje a zkuste to znovu.';
+    setLoginView('failure');
+  }
   function showLogin(on) { $('login-overlay').hidden = !on; if (on) showBoot(false); }
   function showBoot(on) {
     const el = $('initial-loading-overlay');
@@ -1771,9 +1786,16 @@ const CONFIG = { DEMO: false, REDUCED_FX: false };
       }, 250);
     }
   }
-  $('link-show-email-login').onclick = () => setLoginView('email');
-  $('link-show-discord-login').onclick = () => setLoginView('discord');
-  $('btn-start-auth').onclick = () => { const v = $('login-identifier-input').value.trim(); if (!v) return showLoginError('Zadejte své Discord uživatelské jméno.'); $('login-waiting-title').textContent = 'Čekání na ověření…'; setLoginView('waiting'); emit('login', { identifier: v }); };
+  $('link-show-email-login').onclick = () => { window._lastAuthType = 'email'; setLoginView('email'); };
+  $('link-show-discord-login').onclick = () => { window._lastAuthType = 'discord'; setLoginView('discord'); };
+  $('btn-start-auth').onclick = () => {
+    const v = $('login-identifier-input').value.trim();
+    if (!v) return showLoginError('Zadejte své Discord uživatelské jméno.');
+    window._lastAuthType = 'discord';
+    $('login-waiting-title').textContent = 'Čekání na ověření…';
+    setLoginView('waiting');
+    emit('login', { identifier: v });
+  };
   /* e-mail: režim "login" = jen e-mail, "signup" = přezdívka + e-mail (jen při první registraci) */
   let emailMode = 'login';
   function setEmailMode(m) {
@@ -1791,16 +1813,34 @@ const CONFIG = { DEMO: false, REDUCED_FX: false };
     const n = $('login-nick-input').value.trim(), m = $('login-email-input').value.trim();
     if (!/^\S+@\S+\.\S+$/.test(m)) return showLoginError('Zadejte platný e-mail.');
     if (emailMode === 'signup' && n.length < 3) return showLoginError('Přezdívka musí mít alespoň 3 znaky.');
-    setLoginView('email-code'); $('email-retry-buttons').hidden = true; setTimeout(() => ($('email-retry-buttons').hidden = false), 6000);
+    window._lastAuthType = 'email';
+    setLoginView('email-code');
+    $('email-retry-buttons').hidden = true;
+    setTimeout(() => ($('email-retry-buttons').hidden = false), 6000);
     emit('login-email', { mode: emailMode, nick: emailMode === 'signup' ? n : null, email: m });
   };
   $('btn-manual-code-input').onclick = () => setLoginView('email-manual');
   $('btn-cancel-email-manual').onclick = () => setLoginView('email-code');
   $('btn-cancel-email-auth').onclick = () => setLoginView('email');
   $('btn-cancel-auth').onclick = () => setLoginView('discord');
-  $('btn-resend-email-auth').onclick = () => { toast('info', 'E-mail odeslán znovu', 'Zkontrolujte i složku Spam.'); $('email-retry-buttons').hidden = true; };
-  $('btn-verify-email-code-manual').onclick = () => { const c = $('login-email-code-manual-input').value.trim(); if (c.length !== 6) return showLoginError('Kód musí mít 6 číslic.'); emit('verify-code', { code: c }); loginOk(); };
-  async function loginOk() { setLoginView('success'); await wait(1600); showLogin(false); toast('ok', 'Vítejte zpět!', 'Přihlášení proběhlo úspěšně.'); }
+  $('btn-resend-email-auth').onclick = () => {
+    emit('resend-email-auth');
+  };
+  $('btn-verify-email-code-manual').onclick = () => {
+    const c = $('login-email-code-manual-input').value.trim();
+    if (c.length < 5) return showLoginError('Zadejte ověřovací kód z e-mailu.');
+    emit('verify-code', { code: c });
+  };
+  if ($('btn-retry-auth')) {
+    $('btn-retry-auth').onclick = () => {
+      if (window._lastAuthType === 'email') {
+        setLoginView('email');
+      } else {
+        setLoginView('discord');
+      }
+    };
+  }
+  async function loginOk() { setLoginView('success'); await wait(1800); showLogin(false); toast('ok', 'Vítejte zpět!', 'Přihlášení proběhlo úspěšně.'); }
 
   /* =====================================================================
      EDITOR LINEK v2
@@ -3553,7 +3593,7 @@ const CONFIG = { DEMO: false, REDUCED_FX: false };
     't-warn': () => toast('warn', 'Varování', 'Na disku zbývá méně než 2 GB.'), 't-err': () => toast('err', 'Chyba', 'Soubor se nepodařilo uložit.'),
     'l-discord': () => { showLogin(true); setLoginView('discord'); }, 'l-email': () => { showLogin(true); setEmailMode('login'); setLoginView('email'); }, 'l-signup': () => { showLogin(true); setEmailMode('signup'); setLoginView('email'); }, 'l-nf': () => { showLogin(true); setEmailMode('login'); setLoginView('email'); showLoginError('Tento e-mail nemá účet. Vytvořte si ho záložkou Vytvořit účet.'); }, 'l-code': () => { showLogin(true); setLoginView('email-code'); $('email-retry-buttons').hidden = false; },
     'l-manual': () => { showLogin(true); setLoginView('email-manual'); }, 'l-wait': () => { showLogin(true); setLoginView('waiting'); }, 'l-ok': () => { showLogin(true); loginOk(); },
-    'l-err': () => { showLogin(true); setLoginView('discord'); showLoginError('Uživatel nebyl nalezen na Discord serveru.'); }, 'l-hide': () => showLogin(false),
+    'l-err': () => { showLogin(true); showLoginFailure('Ověření se nezdařilo', 'Uživatel nebyl nalezen na Discord serveru nebo platnost vypršela.', 'discord'); }, 'l-hide': () => showLogin(false),
     boot: () => { showBoot(true); setTimeout(() => showBoot(false), 2400); }, gtfs: () => { show('settings'); gtfsRun(); },
     'del-all': () => { show('settings'); $('btn-delete-all-data').click(); }, 'del-ver': () => { show('settings'); openDeleteVersions(); },
     'r-user': () => setRole('user'), 'r-supporter': () => setRole('supporter'), 'r-tester': () => setRole('tester'), 'r-admin': () => setRole('admin'),
@@ -3587,6 +3627,8 @@ const CONFIG = { DEMO: false, REDUCED_FX: false };
     setLoginView,
     setEmailMode,
     showLoginError,
+    showLoginFailure,
+    loginOk,
     showLogin,
     showBoot,
     setLauncherUpdate,

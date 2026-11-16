@@ -1,44 +1,44 @@
 let activeDownloadCleanup = null;
 let currentPendingEmail = '';
 // Vlastní moderní alert (nahrazuje nativní ošklivý alert)
-window.alert = function(msg) {
+window.alert = function (msg) {
     let modal = document.getElementById('custom-alert-modal');
     if (!modal) {
         modal = document.createElement('div');
         modal.id = 'custom-alert-modal';
         modal.style.cssText = 'position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.85); display:flex; align-items:center; justify-content:center; z-index:999999; backdrop-filter: blur(4px); font-family: "Inter", sans-serif; opacity: 0; transition: opacity 0.2s ease;';
-        
+
         let box = document.createElement('div');
         box.style.cssText = 'background:#18181b; border:1px solid #3f3f46; border-radius:12px; padding:24px; max-width:400px; width:90%; color:#f4f4f5; text-align:center; box-shadow:0 20px 40px rgba(0,0,0,0.6); transform: scale(0.95); transition: transform 0.2s ease; display:flex; flex-direction:column; gap: 16px;';
-        
+
         let icon = document.createElement('div');
         icon.innerHTML = '<i class="fas fa-exclamation-circle" style="font-size: 32px; color: #facc15;"></i>';
-        
+
         let text = document.createElement('div');
         text.id = 'custom-alert-text';
         text.style.cssText = 'font-size:15px; line-height:1.5; word-wrap:break-word; color: #e4e4e7; font-weight: 500;';
-        
+
         let btn = document.createElement('button');
         btn.innerText = 'Rozumím';
         btn.style.cssText = 'background:#3b82f6; border:none; color:white; padding:10px 24px; border-radius:6px; cursor:pointer; font-size:14px; font-weight: bold; align-self: center; transition: background 0.2s;';
         btn.onmouseover = () => btn.style.background = '#2563eb';
         btn.onmouseout = () => btn.style.background = '#3b82f6';
-        btn.onclick = () => { 
-            modal.style.opacity = '0'; 
+        btn.onclick = () => {
+            modal.style.opacity = '0';
             box.style.transform = 'scale(0.95)';
-            setTimeout(() => modal.style.display = 'none', 200); 
+            setTimeout(() => modal.style.display = 'none', 200);
         };
-        
+
         box.appendChild(icon);
         box.appendChild(text);
         box.appendChild(btn);
         modal.appendChild(box);
         document.body.appendChild(modal);
     }
-    
+
     document.getElementById('custom-alert-text').innerText = msg;
     modal.style.display = 'flex';
-    
+
     // Animate in
     setTimeout(() => {
         modal.style.opacity = '1';
@@ -56,12 +56,12 @@ const extract = require('extract-zip');
 const { exec, spawn } = require('child_process');
 const os = require('os');
 
-window.onerror = function(msg, url, lineNo, columnNo, error) {
+window.onerror = function (msg, url, lineNo, columnNo, error) {
     alert("Error: " + msg + "\nLine: " + lineNo + "\n" + error);
     return false;
 };
 
-window.addEventListener('unhandledrejection', function(event) {
+window.addEventListener('unhandledrejection', function (event) {
     alert("Unhandled promise rejection: " + event.reason);
 });
 
@@ -89,7 +89,7 @@ const configPath = path.join(userDataPath, 'config.json');
 
 function loadConfig() {
     if (fs.existsSync(configPath)) {
-        try { return JSON.parse(fs.readFileSync(configPath, 'utf8')); } catch(e){}
+        try { return JSON.parse(fs.readFileSync(configPath, 'utf8')); } catch (e) { }
     }
     return {};
 }
@@ -106,7 +106,7 @@ function saveLauncherCache(payload) {
     try {
         if (!fs.existsSync(userDataPath)) fs.mkdirSync(userDataPath, { recursive: true });
         fs.writeFileSync(launcherCachePath, JSON.stringify(payload, null, 2), 'utf8');
-    } catch (_) {}
+    } catch (_) { }
 }
 
 function loadLauncherCache() {
@@ -114,7 +114,7 @@ function loadLauncherCache() {
         if (fs.existsSync(launcherCachePath)) {
             return JSON.parse(fs.readFileSync(launcherCachePath, 'utf8'));
         }
-    } catch (_) {}
+    } catch (_) { }
     return null;
 }
 
@@ -188,9 +188,9 @@ function backupUserRoutesFromVersion(versionFolder) {
                         fs.copyFileSync(srcPath, destPath);
                         copiedCount++;
                     }
-                } catch (_) {}
+                } catch (_) { }
             });
-        } catch (_) {}
+        } catch (_) { }
     });
 
     const targetDataDir = path.join(centralUserDataPath, 'data');
@@ -206,9 +206,9 @@ function backupUserRoutesFromVersion(versionFolder) {
                     if (!fs.existsSync(destPath)) {
                         fs.copyFileSync(srcPath, destPath);
                     }
-                } catch (_) {}
+                } catch (_) { }
             });
-        } catch (_) {}
+        } catch (_) { }
     });
 
     return copiedCount;
@@ -234,10 +234,10 @@ function syncUserRoutesToVersion(targetVersionFolder) {
                     if (!fs.existsSync(dest)) {
                         fs.copyFileSync(src, dest);
                     }
-                } catch (_) {}
+                } catch (_) { }
             });
         });
-    } catch (_) {}
+    } catch (_) { }
 }
 
 function showNewVersionCleanupPrompt(newVersionName, otherVersions, targetExePath, canLaunch) {
@@ -283,7 +283,7 @@ function showNewVersionCleanupPrompt(newVersionName, otherVersions, targetExePat
                 const dirs = fs.readdirSync(versionsDir);
                 dirs.forEach(d => backupUserRoutesFromVersion(path.join(versionsDir, d)));
             }
-        } catch (_) {}
+        } catch (_) { }
 
         await loadAvailableVersions();
         versionSelect.value = newVersionName;
@@ -375,7 +375,7 @@ try {
             }
         }
     }
-} catch(e) {}
+} catch (e) { }
 
 function isNewerVersion(remoteVer, currentVer) {
     if (!remoteVer || !currentVer) return false;
@@ -462,15 +462,15 @@ function downloadFileWithProgress({
             isCleanedUp = true;
             if (timer) { clearTimeout(timer); timer = null; }
             if (activeReq) {
-                try { activeReq.destroy(); } catch (_) {}
+                try { activeReq.destroy(); } catch (_) { }
                 activeReq = null;
             }
             if (activeStream) {
-                try { activeStream.close(); } catch (_) {}
+                try { activeStream.close(); } catch (_) { }
                 activeStream = null;
             }
             if (deleteFile && fs.existsSync(destPath)) {
-                try { fs.unlinkSync(destPath); } catch (_) {}
+                try { fs.unlinkSync(destPath); } catch (_) { }
             }
         }
 
@@ -593,7 +593,7 @@ function downloadFileWithProgress({
                     targetUrl = assetUrl;
                     startHeaders['Accept'] = 'application/octet-stream';
                 }
-            } catch (_) {}
+            } catch (_) { }
         }
         attempt(targetUrl, startHeaders);
     });
@@ -613,7 +613,7 @@ function isValidZipFile(filePath) {
             if (preview.startsWith('<') || preview.includes('<html>') || preview.includes('504')) {
                 return { valid: false, reason: `Server vrátil HTML chybovou stránku namísto ZIP archivu (${preview.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').slice(0, 100)}).` };
             }
-        } catch (_) {}
+        } catch (_) { }
         return { valid: false, reason: `Stažený soubor je poškozený nebo neúplný (má pouze ${size} bajtů).` };
     }
     try {
@@ -670,7 +670,7 @@ function downloadAndInstallLauncherUpdate(url, newVersion) {
             }
             const st = fs.statSync(tempExePath);
             if (st.size < 5000000) {
-                try { fs.unlinkSync(tempExePath); } catch (_) {}
+                try { fs.unlinkSync(tempExePath); } catch (_) { }
                 throw new Error(`Stažený instalátor je neúplný nebo poškozený (velikost: ${st.size} B).`);
             }
 
@@ -691,7 +691,7 @@ function downloadAndInstallLauncherUpdate(url, newVersion) {
         } catch (err) {
             console.error("[LauncherUpdate] Download error:", err);
             if (modal) modal.style.display = 'none';
-            try { if (fs.existsSync(tempExePath)) fs.unlinkSync(tempExePath); } catch (_) {}
+            try { if (fs.existsSync(tempExePath)) fs.unlinkSync(tempExePath); } catch (_) { }
             alert(`Nepodařilo se stáhnout aktualizaci Launcheru:\n${err.message}`);
             resolve(false);
         }
@@ -701,11 +701,11 @@ function downloadAndInstallLauncherUpdate(url, newVersion) {
 
 function startLockoutTimer() {
     if (lockoutTimerInterval) clearInterval(lockoutTimerInterval);
-    
+
     // Disable inputs
     inputIdentifier.disabled = true;
     btnStartAuth.disabled = true;
-    
+
     lockoutTimerInterval = setInterval(() => {
         let remainingMs = lockoutEndTime - Date.now();
         if (remainingMs <= 0) {
@@ -759,7 +759,7 @@ async function checkAuthAndInit() {
             if (cachedState.user_role) currentUserRole = cachedState.user_role;
             if (typeof updateCustomSelectUI === 'function') updateCustomSelectUI(availableVersions);
         }
-    } catch(_) {}
+    } catch (_) { }
 
     // Rychlá paralelní kontrola aktualizace launcheru
     const updateCheckPromise = checkForLauncherUpdate().catch(e => {
@@ -805,43 +805,77 @@ async function checkAuthAndInit() {
 
 function showAuthView(viewName) {
     hideLoginError();
-    loginDiscordView.style.display = 'none';
-    loginWaitingView.style.display = 'none';
-    loginEmailView.style.display = 'none';
-    loginEmailCodeView.style.display = 'none';
-    const vSucc = document.getElementById('login-success-view');
-    if (vSucc) {
-        vSucc.style.display = 'none';
-        vSucc.hidden = true;
-    }
-    const titleElT = document.querySelector('#login-overlay > div > div:first-child');
-    if (titleElT && viewName !== 'success') titleElT.style.display = 'block';
+    const views = {
+        discord: loginDiscordView,
+        waiting: loginWaitingView,
+        email: loginEmailView,
+        emailCode: loginEmailCodeView,
+        emailCodeManual: document.getElementById('login-email-code-manual-view'),
+        success: document.getElementById('login-success-view'),
+        failure: document.getElementById('login-failure-view')
+    };
 
-    if (viewName === 'discord') loginDiscordView.style.display = 'flex';
-    if (viewName === 'waiting') loginWaitingView.style.display = 'flex';
-    if (viewName === 'email') loginEmailView.style.display = 'flex';
-    if (viewName === 'emailCode') loginEmailCodeView.style.display = 'flex';
-    if (viewName === 'success') {
-        const v = document.getElementById('login-success-view');
-        if (v) {
-            v.hidden = false;
-            v.style.display = 'flex';
+    Object.keys(views).forEach(k => {
+        const el = views[k];
+        if (el) {
+            const isMatch = (k === viewName);
+            el.hidden = !isMatch;
+            el.style.display = isMatch ? 'flex' : 'none';
         }
-        if (titleElT) titleElT.style.display = 'none'; // hide title PŘIHLÁŠENÍ DO SYSTÉMU
-        if (window.LC && window.LC.setLoginView) window.LC.setLoginView('success');
+    });
+
+    const titleElT = document.querySelector('#login-overlay > div > div:first-child');
+    if (titleElT) {
+        titleElT.style.display = (viewName === 'success' || viewName === 'failure') ? 'none' : 'block';
     }
-    if (viewName === 'emailCodeManual') {
-        const v = document.getElementById('login-email-code-manual-view');
-        if (v) v.style.display = 'flex';
+
+    if (window.LC && window.LC.setLoginView) {
+        const lcKeyMap = {
+            discord: 'discord',
+            waiting: 'waiting',
+            email: 'email',
+            emailCode: 'email-code',
+            emailCodeManual: 'email-manual',
+            success: 'success',
+            failure: 'failure'
+        };
+        if (lcKeyMap[viewName]) window.LC.setLoginView(lcKeyMap[viewName]);
     }
-    
+
     // Zajištění, že se nezasekne disabled stav (např. při reloadu stránky)
     let isLocked = (lockoutEndTime > Date.now());
-    inputIdentifier.disabled = isLocked;
-    inputEmail.disabled = false; // email is separate
-    btnStartAuth.disabled = isLocked;
-    btnStartEmailAuth.disabled = false;
-    btnStartEmailAuth.innerText = 'Odeslat přihlašovací odkaz';
+    if (inputIdentifier) inputIdentifier.disabled = isLocked;
+    if (inputEmail) inputEmail.disabled = false; // email is separate
+    if (btnStartAuth) btnStartAuth.disabled = isLocked;
+    if (btnStartEmailAuth) {
+        btnStartEmailAuth.disabled = false;
+        btnStartEmailAuth.innerText = 'Poslat přihlašovací odkaz';
+    }
+}
+
+function showLoginFailure(title, desc, authType = 'discord') {
+    if (authPollInterval) { clearInterval(authPollInterval); authPollInterval = null; }
+    if (window.emailPollInterval) { clearInterval(window.emailPollInterval); window.emailPollInterval = null; }
+    window._lastAuthType = authType;
+
+    const titleEl = document.getElementById('login-failure-title');
+    if (titleEl) titleEl.textContent = title || 'Ověření se nezdařilo';
+
+    const descEl = document.getElementById('login-failure-desc');
+    if (descEl) descEl.textContent = desc || 'Došlo k chybě při ověření.';
+
+    showAuthView('failure');
+}
+
+const btnRetryAuthEl = document.getElementById('btn-retry-auth');
+if (btnRetryAuthEl) {
+    btnRetryAuthEl.addEventListener('click', () => {
+        if (window._lastAuthType === 'email') {
+            showAuthView('email');
+        } else {
+            showAuthView('discord');
+        }
+    });
 }
 
 linkShowEmailLogin.addEventListener('click', (e) => {
@@ -854,65 +888,87 @@ linkShowDiscordLogin.addEventListener('click', (e) => {
     showAuthView('discord');
 });
 
-btnStartEmailAuth.addEventListener('click', async () => {
+let isEmailAuthInProgress = false;
+
+async function performEmailAuth(email, nick, mode = 'login') {
+    if (isEmailAuthInProgress) return;
+    isEmailAuthInProgress = true;
+    try {
+        email = (email || (inputEmail ? inputEmail.value : '')).trim();
+        const inputNick = document.getElementById('login-nick-input');
+        nick = (nick || (inputNick ? inputNick.value : '')).trim();
+
+        if (mode === 'signup' && (!nick || nick.length < 2)) {
+            showLoginError("Zadejte prosím svou přezdívku (alespoň 2 znaky)!");
+            return;
+        }
+        if (!email || !email.includes('@')) {
+            showLoginError("Zadejte platný e-mail!");
+            return;
+        }
+
+        window._lastAuthType = 'email';
+        currentPendingEmail = email;
+        if (window.emailPollInterval) { clearInterval(window.emailPollInterval); window.emailPollInterval = null; }
+        if (window.emailAuthTimeoutTimer) { clearTimeout(window.emailAuthTimeoutTimer); window.emailAuthTimeoutTimer = null; }
+        window.lastEmailSentAt = Date.now();
+
+        if (btnStartEmailAuth) {
+            btnStartEmailAuth.disabled = true;
+            btnStartEmailAuth.innerText = 'ODESÍLÁM...';
+        }
+
+        showAuthView('emailCode');
+        const statusEl = document.getElementById('email-waiting-status');
+        if (statusEl) {
+            statusEl.style.display = 'block';
+            statusEl.innerHTML = '<i class="fas fa-paper-plane" style="margin-right: 6px;"></i>Odesílám odkaz na e-mail...';
+        }
+
+        try {
+            const res = await fetch(`${API_BASE}/api/auth/email/request`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email: email, nick: nick, intent: mode === 'signup' ? 'app_signup' : 'app_login', source: 'launcher' })
+            });
+
+            const data = await res.json().catch(() => ({}));
+            if (data.success || data.status === 'success' || res.ok) {
+                window.emailAuthTimeoutTimer = setTimeout(() => {
+                    if (window.emailPollInterval) { clearInterval(window.emailPollInterval); window.emailPollInterval = null; }
+                    showLoginFailure("Čas vypršel", "Čas na ověření e-mailu vypršel (10 minut). Zkuste to prosím znovu.", "email");
+                }, 600000);
+
+                const retryBtns = document.getElementById('email-retry-buttons');
+                if (retryBtns) {
+                    retryBtns.style.display = 'none';
+                    if (window.retryBtnsTimeout) clearTimeout(window.retryBtnsTimeout);
+                    window.retryBtnsTimeout = setTimeout(() => {
+                        retryBtns.style.display = 'flex';
+                    }, 6000);
+                }
+                pollAuthEmail(email);
+            } else {
+                showLoginFailure("Nepodařilo se odeslat e-mail", data.message || data.error || "Zkontrolujte zadanou adresu a zkuste to znovu.", "email");
+            }
+        } catch (e) {
+            showLoginFailure("Chyba spojení", "Nepodařilo se spojit se serverem pro odeslání e-mailu.", "email");
+        } finally {
+            if (btnStartEmailAuth) {
+                btnStartEmailAuth.disabled = false;
+                btnStartEmailAuth.innerText = 'Poslat přihlašovací odkaz';
+            }
+        }
+    } finally {
+        isEmailAuthInProgress = false;
+    }
+}
+
+btnStartEmailAuth.addEventListener('click', () => {
     const inputNick = document.getElementById('login-nick-input');
     const nick = inputNick ? inputNick.value.trim() : '';
-    const email = inputEmail.value.trim();
-    if (!nick || nick.length < 2) {
-        showLoginError("Zadejte prosím svou přezdívku (alespoň 2 znaky)!");
-        return;
-    }
-    if (!email || !email.includes('@')) {
-        showLoginError("Zadejte platný e-mail!");
-        return;
-    }
-    
-    btnStartEmailAuth.disabled = true;
-    btnStartEmailAuth.innerText = 'ODESÍLÁM...';
-    
-    let emailAuthOldToken = null;
-    try {
-        const pollInitRes = await fetch(`${API_BASE}/api/launcher/email_poll`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email }) }); const pollInitData = await pollInitRes.json(); emailAuthOldToken = pollInitData.status === 'success' ? pollInitData.web_session_token : null;
-    } catch(e) {}
-    
-    try {
-        const res = await fetch(`${API_BASE}/api/auth/email/request`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ email: email, nick: nick, intent: 'app_login' })
-        });
-        
-        const data = await res.json();
-        if (data.success || res.ok) {
-            window.lastEmailSentAt = Date.now();
-            if (window.emailAuthTimeoutTimer) clearTimeout(window.emailAuthTimeoutTimer);
-            window.emailAuthTimeoutTimer = setTimeout(() => {
-                if (window.emailPollInterval) clearInterval(window.emailPollInterval);
-                showAuthView('email');
-                showLoginError("Čas na ověření e-mailu vypršel (10 minut). Zkuste to prosím znovu.");
-            }, 600000); // 10 minut
-            showAuthView('emailCode');
-            
-            const retryBtns = document.getElementById('email-retry-buttons');
-            const statusEl = document.getElementById('email-waiting-status');
-            
-            if (retryBtns) {
-                retryBtns.style.display = 'none';
-                if (window.retryBtnsTimeout) clearTimeout(window.retryBtnsTimeout);
-                window.retryBtnsTimeout = setTimeout(() => {
-                    retryBtns.style.display = 'flex';
-                }, 20000);
-            }
-            pollAuthEmail(email);
-        } else {
-            showLoginError(data.message || "Nepodařilo se odeslat odkaz na e-mail.");
-        }
-    } catch (e) {
-        showLoginError("Chyba spojení s API.");
-    }
-    
-    btnStartEmailAuth.disabled = false;
-    btnStartEmailAuth.innerText = 'Odeslat přihlašovací odkaz';
+    const email = inputEmail ? inputEmail.value.trim() : '';
+    performEmailAuth(email, nick, 'login');
 });
 
 function pollAuthEmail(email) {
@@ -920,7 +976,7 @@ function pollAuthEmail(email) {
     const statusEl = document.getElementById('email-waiting-status');
     if (statusEl) {
         statusEl.style.display = 'block';
-        statusEl.innerHTML = '<i class="fas fa-hourglass-half" style="margin-right: 5px;"></i>Čekám na kliknutí v e-mailu...';
+        statusEl.innerHTML = '<i class="fas fa-hourglass-half" style="margin-right: 5px;"></i>Čekám na potvrzení v e-mailu...';
     }
     window.emailPollInterval = setInterval(async () => {
         try {
@@ -929,12 +985,11 @@ function pollAuthEmail(email) {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ email })
             });
-            const pollData = await pollRes.json();
+            const pollData = await pollRes.json().catch(() => ({}));
             if (pollData.status === 'success') {
-                pollData.id = pollData.discord_id;
-                if (window.emailAuthTimeoutTimer) clearTimeout(window.emailAuthTimeoutTimer);
-                clearInterval(window.emailPollInterval);
-                if (statusEl) statusEl.innerHTML = '<i class="fas fa-check-circle" style="color: #22c55e; margin-right: 5px;"></i>Schváleno! Přihlašuji...';
+                if (window.emailAuthTimeoutTimer) { clearTimeout(window.emailAuthTimeoutTimer); window.emailAuthTimeoutTimer = null; }
+                if (window.emailPollInterval) { clearInterval(window.emailPollInterval); window.emailPollInterval = null; }
+                if (statusEl) statusEl.innerHTML = '<i class="fas fa-check-circle" style="color: #22c55e; margin-right: 5px;"></i>Ověřeno! Přihlašuji...';
                 let config = loadConfig();
                 config.discord_id = pollData.discord_id || "email-" + (pollData.id || pollData.email);
                 config.discord_nick = pollData.nick || pollData.email;
@@ -943,73 +998,105 @@ function pollAuthEmail(email) {
                 showAuthView('success');
                 setTimeout(() => {
                     loginOverlay.style.display = 'none';
+                    loginOverlay.hidden = true;
                     initLauncher(config);
                 }, 1800);
+            } else if (pollData.status === 'timeout') {
+                if (window.emailAuthTimeoutTimer) { clearTimeout(window.emailAuthTimeoutTimer); window.emailAuthTimeoutTimer = null; }
+                if (window.emailPollInterval) { clearInterval(window.emailPollInterval); window.emailPollInterval = null; }
+                showLoginFailure("Platnost odkazu vypršela", pollData.message || "Platnost přihlašovacího odkazu a kódu vypršela. Zkuste to prosím znovu.", "email");
+            } else if (pollData.status === 'error') {
+                if (window.emailAuthTimeoutTimer) { clearTimeout(window.emailAuthTimeoutTimer); window.emailAuthTimeoutTimer = null; }
+                if (window.emailPollInterval) { clearInterval(window.emailPollInterval); window.emailPollInterval = null; }
+                showLoginFailure("Chyba ověření", pollData.message || "Při ověření e-mailu došlo k chybě.", "email");
             }
-        } catch(_) {}
+        } catch (_) { }
     }, 4000);
 }
 
+function handleResendEmail() {
+    const elapsed = Date.now() - (window.lastEmailSentAt || 0);
+    const cooldown = 30000;
+    if (elapsed < cooldown) {
+        const remSec = Math.ceil((cooldown - elapsed) / 1000);
+        if (window.LC) window.LC.toast('warn', 'Počkejte chvíli', `Další e-mail můžete odeslat za ${remSec} s.`);
+        return;
+    }
+    const email = currentPendingEmail || (inputEmail && inputEmail.value.trim());
+    if (!email) return;
+    performEmailAuth(email, '', 'login');
+    if (window.LC) window.LC.toast('info', 'E-mail odeslán znovu', 'Byl odeslán nový přihlašovací odkaz. Zkontrolujte i složku Spam.');
+}
+
 if (btnResendEmailAuth) {
-    btnResendEmailAuth.addEventListener('click', () => {
-        const elapsed = Date.now() - (window.lastEmailSentAt || 0);
-        if (elapsed < 300000) {
-            showLoginError("Počkejte prosím chvíli. Další e-mail můžeme odeslat až za 5 minut. Pokud se vám nechce čekat, můžete se přihlásit přes Discord.");
-            return;
-        }
-        btnStartEmailAuth.click();
+    btnResendEmailAuth.addEventListener('click', (e) => {
+        e.stopPropagation();
+        handleResendEmail();
     });
 }
+document.addEventListener('lc:resend-email-auth', handleResendEmail);
 
 const btnManualCode = document.getElementById('btn-manual-code-input');
 if (btnManualCode) {
     btnManualCode.addEventListener('click', () => {
-        if (window.emailPollInterval) clearInterval(window.emailPollInterval);
+        if (window.emailPollInterval) { clearInterval(window.emailPollInterval); window.emailPollInterval = null; }
         showAuthView('emailCodeManual');
     });
 }
 
-const btnVerifyEmailCodeManual = document.getElementById('btn-verify-email-code-manual');
-if (btnVerifyEmailCodeManual) {
-    btnVerifyEmailCodeManual.addEventListener('click', async () => {
-        const inputCode = document.getElementById('login-email-code-manual-input');
-        const code = inputCode ? inputCode.value.trim() : '';
-        const email = inputEmail.value.trim();
-        
-        if (code.length !== 5) {
-            showLoginError("Zadejte platný 5místný kód.");
-            return;
-        }
-        
+async function performVerifyCode(code) {
+    code = String(code || '').trim().toUpperCase();
+    const email = currentPendingEmail || (inputEmail && inputEmail.value.trim());
+
+    if (!code || code.length < 5) {
+        showLoginError("Zadejte platný ověřovací kód.");
+        return;
+    }
+
+    if (btnVerifyEmailCodeManual) {
         btnVerifyEmailCodeManual.disabled = true;
         btnVerifyEmailCodeManual.innerText = 'OVĚŘUJI...';
-        
-        try {
-            const verifyRes = await fetch(`${API_BASE}/api/launcher/email_verify`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, code }) }); const verifyData = await verifyRes.json(); if (verifyData.status === 'success') { let data = verifyData; data.id = verifyData.discord_id;
-                let config = loadConfig();
-                config.discord_id = data.discord_id || "email-" + data.id;
-                config.discord_nick = data.nick || data.email;
-                config.email = data.email;
-                saveConfig(config);
-                showAuthView('success');
-                setTimeout(() => {
-                    loginOverlay.style.display = 'none';
-                    initLauncher(config);
-                }, 1800);
-            } else {
-                showLoginError("Neplatný kód nebo vypršela platnost.");
-                if (inputCode) inputCode.value = '';
-                showAuthView('emailCode');
-                pollAuthEmail(email);
-            }
-        } catch(e) {
-            showLoginError("Chyba při ověřování kódu.");
-            if (inputCode) inputCode.value = '';
-            showAuthView('emailCode');
-            pollAuthEmail(email);
+    }
+
+    try {
+        const verifyRes = await fetch(`${API_BASE}/api/launcher/email_verify`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email, code, hwid: currentHWID })
+        });
+        const verifyData = await verifyRes.json().catch(() => ({}));
+        if (verifyData.status === 'success') {
+            if (window.emailPollInterval) { clearInterval(window.emailPollInterval); window.emailPollInterval = null; }
+            let config = loadConfig();
+            config.discord_id = verifyData.discord_id || "email-" + (verifyData.id || verifyData.email || email);
+            config.discord_nick = verifyData.nick || verifyData.email || email;
+            config.email = verifyData.email || email;
+            saveConfig(config);
+            showAuthView('success');
+            setTimeout(() => {
+                loginOverlay.style.display = 'none';
+                loginOverlay.hidden = true;
+                initLauncher(config);
+            }, 1800);
+        } else {
+            showLoginFailure("Neplatný kód", verifyData.message || "Zadaný kód je neplatný nebo již vypršel.", "email");
         }
-        btnVerifyEmailCodeManual.disabled = false;
-        btnVerifyEmailCodeManual.innerText = 'OVĚŘIT KÓD';
+    } catch (e) {
+        showLoginFailure("Chyba ověření", "Nepodařilo se ověřit kód se serverem.", "email");
+    } finally {
+        if (btnVerifyEmailCodeManual) {
+            btnVerifyEmailCodeManual.disabled = false;
+            btnVerifyEmailCodeManual.innerText = 'OVĚŘIT KÓD';
+        }
+    }
+}
+
+const btnVerifyEmailCodeManual = document.getElementById('btn-verify-email-code-manual');
+if (btnVerifyEmailCodeManual) {
+    btnVerifyEmailCodeManual.addEventListener('click', () => {
+        const inputCode = document.getElementById('login-email-code-manual-input');
+        const code = inputCode ? inputCode.value.trim() : '';
+        performVerifyCode(code);
     });
 }
 
@@ -1025,7 +1112,7 @@ if (btnCancelEmailManual) {
 }
 
 btnCancelEmailAuth.addEventListener('click', () => {
-    if (window.emailPollInterval) clearInterval(window.emailPollInterval);
+    if (window.emailPollInterval) { clearInterval(window.emailPollInterval); window.emailPollInterval = null; }
     showAuthView('discord');
 });
 
@@ -1036,120 +1123,122 @@ document.getElementById('btn-logout').addEventListener('click', () => {
         config.discord_nick = "";
         config.email = "";
         saveConfig(config);
-        
+
         ipcRenderer.send('relaunch-app');
     }
 });
 
 btnCancelAuth.addEventListener('click', () => {
-    if (authPollInterval) clearInterval(authPollInterval);
+    if (authPollInterval) { clearInterval(authPollInterval); authPollInterval = null; }
     showAuthView('discord');
-    inputIdentifier.disabled = false;
+    if (inputIdentifier) inputIdentifier.disabled = false;
 });
 
-btnStartAuth.addEventListener('click', async () => {
-    const val = inputIdentifier.value.trim();
-    if (!val) { showLoginError("Zadejte ID nebo Nick!"); return; }
-    
-    inputIdentifier.disabled = true;
-    let titleEl = document.getElementById('login-waiting-title');
-    if (titleEl) titleEl.innerHTML = '<i class="fas fa-paper-plane" style="margin-right: 8px;"></i>Odesílám požadavek...';
-    showAuthView('waiting');
+let isDiscordAuthInProgress = false;
 
+async function performDiscordAuth(val) {
+    if (isDiscordAuthInProgress) return;
+    isDiscordAuthInProgress = true;
     try {
-        const fetchTimeout = (url, options, timeout = 20000) => {
-            return Promise.race([
-                fetch(url, options),
-                new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), timeout))
-            ]);
-        };
+        val = (val || (inputIdentifier ? inputIdentifier.value : '')).trim();
+        if (!val) {
+            showLoginError("Zadejte své Discord uživatelské jméno nebo ID!");
+            return;
+        }
 
-        const res = await fetchTimeout(`${API_BASE}/api/app_login`, {
-            method: 'POST', 
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ identifier: val, hwid: currentHWID, is_launcher: true, client_type: 'launcher', launcher_version: LAUNCHER_VERSION })
-        });
-        
-        const textData = await res.text();
-        const fixedText = textData.replace(/"discord_id":\s*(\d+)/g, '"discord_id": "$1"');
-        const data = JSON.parse(fixedText);
+        window._lastAuthType = 'discord';
+        if (authPollInterval) { clearInterval(authPollInterval); authPollInterval = null; }
+        if (inputIdentifier) inputIdentifier.disabled = true;
 
-        const isDevMode = false; // !__dirname.includes('app.asar');
-        
         let titleEl = document.getElementById('login-waiting-title');
+        if (titleEl) titleEl.innerHTML = '<i class="fas fa-paper-plane" style="margin-right: 8px;"></i>Odesílám požadavek...';
+        showAuthView('waiting');
 
-        if (data.status === 'waiting' || isDevMode) {
-            if (titleEl) titleEl.innerHTML = '<i class="fas fa-hourglass-half" style="margin-right: 8px; color: #facc15;"></i>Čekám na Vaši reakci...';
-            if (isDevMode && data.status !== 'waiting') {
-                data.discord_id = val;
+        try {
+            const fetchTimeout = (url, options, timeout = 20000) => {
+                return Promise.race([
+                    fetch(url, options),
+                    new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), timeout))
+                ]);
+            };
+
+            const res = await fetchTimeout(`${API_BASE}/api/app_login`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ identifier: val, hwid: currentHWID, is_launcher: true, client_type: 'launcher', launcher_version: LAUNCHER_VERSION })
+            });
+
+            const textData = await res.text();
+            const fixedText = textData.replace(/"discord_id":\s*(\d+)/g, '"discord_id": "$1"');
+            const data = JSON.parse(fixedText);
+
+            if (data.status === 'waiting') {
+                if (titleEl) titleEl.innerHTML = '<i class="fas fa-hourglass-half" style="margin-right: 8px; color: #facc15;"></i>Čekám na Vaši reakci...';
+                authPollInterval = setInterval(() => pollAuth(data.discord_id), 6000);
+            } else {
+                if (inputIdentifier) inputIdentifier.disabled = false;
+                let errMsg = data.message || "Toto uživatelské jméno ani Discord ID nebylo nalezeno.";
+                showLoginFailure("Uživatel nenalezen", errMsg, "discord");
             }
-            authPollInterval = setInterval(() => pollAuth(data.discord_id), 8000);
-        } else {
-            showAuthView('discord');
-            let errMsg = data.message ? data.message : "Toto ID neexistuje. Jestli problém přetrvává, jděte na náš Discord.";
-            showLoginError(errMsg);
-            inputIdentifier.disabled = false;
+        } catch (e) {
+            if (inputIdentifier) inputIdentifier.disabled = false;
+            let errMsg = e.message === 'timeout'
+                ? "Ověřování trvá déle než obvykle. Server se probouzí, zkuste to prosím znovu."
+                : "Chyba spojení se serverem nebo neplatná data.";
+            showLoginFailure("Chyba spojení", errMsg, "discord");
         }
-    } catch(e) {
-        showAuthView('discord');
-        if (e.message === 'timeout') {
-            showLoginError("Ověřování trvá déle než obvykle. Server se zřejmě probouzí ze spánku, zkuste to prosím znovu.");
-        } else {
-            showLoginError("Chyba spojení se serverem nebo neplatná data.");
-        }
-        inputIdentifier.disabled = false;
+    } finally {
+        isDiscordAuthInProgress = false;
     }
+}
+
+btnStartAuth.addEventListener('click', () => {
+    performDiscordAuth();
 });
 
 async function pollAuth(discordId) {
     try {
-        const isDevMode = false; // !__dirname.includes('app.asar');
         const res = await fetch(`${API_BASE}/api/app_check`, {
-            method: 'POST', 
+            method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ discord_id: discordId, hwid: currentHWID })
         });
-        const data = await res.json();
-        
-        if (data.status === 'success' || isDevMode) {
+        const data = await res.json().catch(() => ({}));
+
+        if (data.status === 'success') {
+            if (authPollInterval) { clearInterval(authPollInterval); authPollInterval = null; }
             let titleEl = document.getElementById('login-waiting-title');
             if (titleEl) titleEl.innerHTML = '<i class="fas fa-check-circle" style="margin-right: 8px; color: #22c55e;"></i>Schváleno! Přihlašuji...';
-            if (isDevMode) {
-                console.log("⚠️ VSC REŽIM: Ignoruji chybu Discord Pollingu.");
-            }
-            clearInterval(authPollInterval);
+
             let config = loadConfig();
             config.discord_id = discordId;
-            config.discord_nick = data.display_name || (isDevMode ? "VSC-DEV" : "Neznámý");
+            config.discord_nick = data.display_name || "Uživatel";
             saveConfig(config);
-            
+
             showAuthView('success');
             setTimeout(() => {
                 loginOverlay.style.display = 'none';
+                loginOverlay.hidden = true;
                 initLauncher(config);
-            }, 2000);
+            }, 1800);
         } else if (data.status === 'timeout') {
-            clearInterval(authPollInterval);
-            showAuthView('discord');
-            showLoginError(data.message || "Čas vypršel (nedostatečná reakce). Zkuste to prosím znovu.");
-            inputIdentifier.disabled = false;
-        } else if (data.status === 'error') {
-            clearInterval(authPollInterval);
-            denialCount++;
-            let lockoutMinutes = (denialCount === 1) ? 1 : 10;
-            lockoutEndTime = Date.now() + (lockoutMinutes * 60 * 1000);
-            localStorage.setItem('authDenialCount', denialCount);
-            localStorage.setItem('authLockoutEndTime', lockoutEndTime);
-            showAuthView('discord');
-            startLockoutTimer();
+            if (authPollInterval) { clearInterval(authPollInterval); authPollInterval = null; }
+            showLoginFailure("Čas vypršel", data.message || "Čas pro ověření na Discordu vypršel. Zkuste to prosím znovu.", "discord");
+            if (inputIdentifier) inputIdentifier.disabled = false;
+        } else if (data.status === 'error' || data.status === 'rejected') {
+            if (authPollInterval) { clearInterval(authPollInterval); authPollInterval = null; }
+            showLoginFailure("Přihlášení zamítnuto", data.message || "Požadavek na přihlášení byl zamítnut.", "discord");
+            if (inputIdentifier) inputIdentifier.disabled = false;
         }
-    } catch(e) {}
+    } catch (e) {
+        // Ignorovat dočasný výpadek sítě během pollingu
+    }
 }
 
 async function initLauncher(config) {
     try {
         if (hwidDisplay) hwidDisplay.innerText = config.discord_nick || currentHWID;
-        
+
         // Získat roli z users tabulky s timeoutem
         try {
             const roleRes = await safeFetch(`${API_BASE}/api/launcher/user_info`, {
@@ -1200,15 +1289,15 @@ async function initLauncher(config) {
             } else {
                 currentUserRole = config.user_role || 'User';
             }
-        } catch(eRole) {
+        } catch (eRole) {
             console.warn('[initLauncher] Nelze načíst roli ze serveru, použita uložená role:', eRole.message || eRole);
             currentUserRole = config.user_role || 'User';
         }
-        
+
         let color = '#64748b'; // public
         if (currentUserRole.includes('DEV') || currentUserRole.includes('SA')) color = '#ef4444';
         else if (currentUserRole.includes('BT')) color = '#3b82f6';
-        
+
         if (roleDisplay) {
             roleDisplay.innerText = currentUserRole.toUpperCase();
             roleDisplay.style.backgroundColor = color;
@@ -1221,10 +1310,10 @@ async function initLauncher(config) {
                 const dirs = fs.readdirSync(versionsDir);
                 dirs.forEach(d => backupUserRoutesFromVersion(path.join(versionsDir, d)));
             }
-        } catch (_) {}
+        } catch (_) { }
 
         await loadAvailableVersions();
-    } catch(e) {
+    } catch (e) {
         console.error("Chyba při startu launcheru:", e);
         const overlay = document.getElementById('initial-loading-overlay');
         if (overlay) overlay.style.display = 'none';
@@ -1235,7 +1324,7 @@ async function initLauncher(config) {
                 const dirs = fs.readdirSync(versionsDir);
                 dirs.forEach(d => backupUserRoutesFromVersion(path.join(versionsDir, d)));
             }
-        } catch (_) {}
+        } catch (_) { }
 
         await loadAvailableVersions();
     }
@@ -1322,7 +1411,7 @@ async function loadAvailableVersions() {
                     console.error("Chyba při načítání verzí z API:", data.message);
                 }
             }
-        } catch(e) {
+        } catch (e) {
             console.warn("Síťová chyba při načítání verzí z API, přecházím na offline režim:", e.message || e);
         }
     }
@@ -1362,7 +1451,7 @@ async function loadAvailableVersions() {
                         });
                     }
                 }
-            } catch (_) {}
+            } catch (_) { }
         }
     }
 
@@ -1402,7 +1491,7 @@ async function loadAvailableVersions() {
     });
 
     versionSelect.innerHTML = '';
-    
+
     if (finalVersions.length === 0) {
         const opt = document.createElement('option');
         opt.innerText = "Žádné verze k dispozici";
@@ -1434,7 +1523,7 @@ async function loadAvailableVersions() {
     }
 
     versionSelect.disabled = false;
-    const cs2 = document.getElementById('custom-version-select'); if(cs2) cs2.classList.remove('disabled');
+    const cs2 = document.getElementById('custom-version-select'); if (cs2) cs2.classList.remove('disabled');
     updateCustomSelectUI(finalVersions);
     checkLocalVersion(versionSelect.value);
 }
@@ -1453,13 +1542,13 @@ function getVersionFolder(versionName) {
 function findExeInFolder(folder) {
     if (!folder || !fs.existsSync(folder)) return null;
     let files = [];
-    try { files = fs.readdirSync(folder); } catch (_) {}
+    try { files = fs.readdirSync(folder); } catch (_) { }
     let exeFile = files.find(f => f.endsWith('.exe') && !f.toLowerCase().includes('uninstall'));
     if (exeFile) return path.join(folder, exeFile);
     let subFolder = path.join(folder, 'win-unpacked');
     if (fs.existsSync(subFolder)) {
         let subFiles = [];
-        try { subFiles = fs.readdirSync(subFolder); } catch (_) {}
+        try { subFiles = fs.readdirSync(subFolder); } catch (_) { }
         let subExe = subFiles.find(f => f.endsWith('.exe') && !f.toLowerCase().includes('uninstall'));
         if (subExe) return path.join(subFolder, subExe);
     }
@@ -1612,7 +1701,7 @@ btnLaunch.addEventListener('click', async () => {
         lockedClickCount++;
         clearTimeout(lockedClickTimer);
         lockedClickTimer = setTimeout(() => { lockedClickCount = 0; }, 2000);
-        
+
         if (lockedClickCount >= 1) {
             alert('Spuštění nebo stažení této verze máte aktuálně zablokované.\nPokud si myslíte, že je to chyba, obraťte se prosím na náš Discord.');
             lockedClickCount = 0;
@@ -1676,7 +1765,7 @@ btnLaunch.addEventListener('click', async () => {
             console.error("Nepodařilo se ověřit oprávnění po síti:", e);
         }
     }
-        
+
     const selectedVersion = availableVersions.find(v => v.db_version === versionName);
 
     // Pokud uživatel klikl na AKTUALIZOVAT (rychlý opravný patch)
@@ -1694,12 +1783,12 @@ btnLaunch.addEventListener('click', async () => {
     }
 
     // Budeme hledat jakýkoliv .exe soubor v adresáři
-    
+
     if (fs.existsSync(folder)) {
         let files = [];
-        try { files = fs.readdirSync(folder); } catch(e){}
+        try { files = fs.readdirSync(folder); } catch (e) { }
         let exeFile = files.find(f => f.endsWith('.exe') && !f.toLowerCase().includes('uninstall'));
-        
+
         if (exeFile) {
             const vInfo1 = availableVersions.find(v => v.db_version === versionName);
             if (vInfo1 && !vInfo1.can_launch) {
@@ -1716,7 +1805,7 @@ btnLaunch.addEventListener('click', async () => {
         let subFolder = path.join(folder, 'win-unpacked');
         if (fs.existsSync(subFolder)) {
             let subFiles = [];
-            try { subFiles = fs.readdirSync(subFolder); } catch(e){}
+            try { subFiles = fs.readdirSync(subFolder); } catch (e) { }
             let subExe = subFiles.find(f => f.endsWith('.exe') && !f.toLowerCase().includes('uninstall'));
             if (subExe) {
                 const vInfo2 = availableVersions.find(v => v.db_version === versionName);
@@ -1746,7 +1835,7 @@ btnLaunch.addEventListener('click', async () => {
 async function downloadVersion(versionName, folder) {
     btnLaunch.classList.add('btn-locked');
     versionSelect.disabled = true;
-const cs1 = document.getElementById('custom-version-select'); if(cs1) cs1.classList.add('disabled');
+    const cs1 = document.getElementById('custom-version-select'); if (cs1) cs1.classList.add('disabled');
     launchText.innerText = "STAHOVÁNÍ...";
     launchIcon.className = "fas fa-spinner fa-spin";
     progressContainer.style.display = 'block';
@@ -1761,21 +1850,21 @@ const cs1 = document.getElementById('custom-version-select'); if(cs1) cs1.classL
     try {
         // Najít vybranou verzi v seznamu stažených dat
         const selectedVersion = availableVersions.find(v => v.db_version === versionName);
-        
+
         if (!selectedVersion || !selectedVersion.file_url) {
             showError(`Verze ${versionName} nemá nastavený odkaz ke stažení v databázi!`);
             return;
         }
 
         const downloadUrl = selectedVersion.file_url.split(',')[0].trim(); // V případě více odkazů vezmeme první
-        
+
         if (!downloadUrl) {
             showError(`Neplatný odkaz ke stažení pro verzi ${versionName}.`);
             return;
         }
 
         downloadAndExtract(downloadUrl, folder, versionName);
-    } catch(e) {
+    } catch (e) {
         showError(e.message);
     }
 }
@@ -1829,7 +1918,7 @@ async function downloadAndExtract(url, folder, versionName) {
         // 1. Ověřit platnost ZIPu před jakoukoliv operací
         const zipCheck = isValidZipFile(zipPath);
         if (!zipCheck.valid) {
-            try { if (fs.existsSync(zipPath)) fs.unlinkSync(zipPath); } catch (_) {}
+            try { if (fs.existsSync(zipPath)) fs.unlinkSync(zipPath); } catch (_) { }
             throw new Error(`Stažený soubor je neplatný: ${zipCheck.reason}`);
         }
 
@@ -1861,7 +1950,7 @@ async function downloadAndExtract(url, folder, versionName) {
             await extract(zipPath, { dir: folder });
         } finally {
             process.noAsar = originalNoAsar;
-            try { if (fs.existsSync(zipPath)) await fs.promises.unlink(zipPath); } catch (_) {}
+            try { if (fs.existsSync(zipPath)) await fs.promises.unlink(zipPath); } catch (_) { }
         }
 
         // 4. Uložit výchozí build_info.json po plném stažení
@@ -1915,7 +2004,7 @@ async function downloadAndExtract(url, folder, versionName) {
             try {
                 const allDirs = fs.readdirSync(versionsDir);
                 otherVersions = allDirs.filter(d => d !== versionName && findExeInFolder(path.join(versionsDir, d)));
-            } catch (_) {}
+            } catch (_) { }
         }
 
         otherVersions.forEach(oldV => {
@@ -1952,7 +2041,7 @@ async function downloadAndExtract(url, folder, versionName) {
             }
         }
     } catch (e) {
-        try { if (fs.existsSync(zipPath)) fs.unlinkSync(zipPath); } catch (_) {}
+        try { if (fs.existsSync(zipPath)) fs.unlinkSync(zipPath); } catch (_) { }
         progressContainer.style.display = 'none';
         btnLaunch.classList.remove('btn-locked');
         btnLaunch.disabled = false;
@@ -2010,7 +2099,7 @@ async function downloadAndApplyPatch(versionName, folder, patchUrl, targetBuild)
         // Ověřit platnost archivu před rozbalením
         const zipCheck = isValidZipFile(patchZipPath);
         if (!zipCheck.valid) {
-            try { if (fs.existsSync(patchZipPath)) fs.unlinkSync(patchZipPath); } catch (_) {}
+            try { if (fs.existsSync(patchZipPath)) fs.unlinkSync(patchZipPath); } catch (_) { }
             throw new Error(`Stažený patch balíček je neplatný: ${zipCheck.reason}`);
         }
 
@@ -2029,7 +2118,7 @@ async function downloadAndApplyPatch(versionName, folder, patchUrl, targetBuild)
             await extract(patchZipPath, { dir: extractDir });
         } finally {
             process.noAsar = originalNoAsar;
-            try { if (fs.existsSync(patchZipPath)) await fs.promises.unlink(patchZipPath); } catch (_) {}
+            try { if (fs.existsSync(patchZipPath)) await fs.promises.unlink(patchZipPath); } catch (_) { }
         }
 
         // Uložit build_info.json s novým číslem buildu
@@ -2040,13 +2129,13 @@ async function downloadAndApplyPatch(versionName, folder, patchUrl, targetBuild)
             updated_at: new Date().toLocaleString('cs-CZ')
         };
         const buildJsonStr = JSON.stringify(buildData, null, 2);
-        try { fs.writeFileSync(path.join(folder, 'build_info.json'), buildJsonStr, 'utf8'); } catch (_) {}
+        try { fs.writeFileSync(path.join(folder, 'build_info.json'), buildJsonStr, 'utf8'); } catch (_) { }
         try {
             const subF = path.join(folder, 'win-unpacked');
             if (fs.existsSync(subF)) {
                 fs.writeFileSync(path.join(subF, 'build_info.json'), buildJsonStr, 'utf8');
             }
-        } catch (_) {}
+        } catch (_) { }
 
         progressFill.style.width = '100%';
         progressText.innerText = `Aktualizace na ${targetBuild} byla úspěšně dokončena!`;
@@ -2061,7 +2150,7 @@ async function downloadAndApplyPatch(versionName, folder, patchUrl, targetBuild)
         checkLocalVersion(versionName);
         alert(`✅ Aktualizace na build ${targetBuild} byla úspěšně nainstalována!\nNyní můžete spustit hru tlačítkem HRÁT.`);
     } catch (err) {
-        try { if (fs.existsSync(patchZipPath)) fs.unlinkSync(patchZipPath); } catch (_) {}
+        try { if (fs.existsSync(patchZipPath)) fs.unlinkSync(patchZipPath); } catch (_) { }
         progressContainer.style.display = 'none';
         btnLaunch.classList.remove('btn-locked');
         btnLaunch.disabled = false;
@@ -2080,19 +2169,19 @@ function launchApp(exePath) {
     // Uložíme konfiguraci
     let config = loadConfig();
     config.last_version = versionSelect.value;
-        
+
     // Získáme cestu k aktuálnímu Launcheru (pokud není balen, tak použijeme process.execPath electronu,
     // ale pokud chceme spouštět zástupce, udržíme process.execPath)
     config.launcher_path = process.execPath;
     saveConfig(config);
-    
+
     // Spustit s parametrem --no-launcher, aby neotevřel znovu launcher!
     const proc = spawn(exePath, ['--no-launcher'], {
         detached: true,
         stdio: 'ignore'
     });
     proc.unref();
-    
+
     // Ukončit Launcher
     setTimeout(() => {
         ipcRenderer.send('quit-app');
@@ -2125,7 +2214,7 @@ if (btnCheckLauncherUpdate) {
             } else {
                 alert('Nepodařilo se ověřit aktualizace: ' + (data?.message || 'Neznámá chyba'));
             }
-        } catch(e) {
+        } catch (e) {
             alert('Chyba spojení se serverem: ' + e.message);
         } finally {
             if (icon) icon.className = 'fas fa-sync-alt';
@@ -2146,16 +2235,16 @@ function showError(msg) {
     } else {
         alert(msg);
     }
-    
+
     isLaunchingApp = false;
     btnLaunch.classList.remove('btn-locked'); btnLaunch.disabled = false;
     versionSelect.disabled = false;
-const cs2 = document.getElementById('custom-version-select'); if(cs2) cs2.classList.remove('disabled');
+    const cs2 = document.getElementById('custom-version-select'); if (cs2) cs2.classList.remove('disabled');
     launchText.innerText = "CHYBA";
     launchIcon.className = "fas fa-exclamation-triangle";
     progressContainer.style.display = 'none';
     checkLocalVersion(versionSelect.value);
-    
+
     // Odeslání logu o chybě do Discordu
     let config = loadConfig();
     if (config && config.discord_id) {
@@ -2168,7 +2257,7 @@ const cs2 = document.getElementById('custom-version-select'); if(cs2) cs2.classL
                 type: "LAUNCHER ERROR",
                 message: msg
             })
-        }).catch(() => {});
+        }).catch(() => { });
     }
 }
 
@@ -2233,7 +2322,7 @@ function updateSettingsVersionList() {
     const listEl = document.getElementById('settings-versions-list');
     const appVerEl = document.getElementById('settings-app-version');
     if (!listEl) return;
-    
+
     // Zjistit nejnovější verzi z načtených (největší ID, pole je už seřazené od nejnovější v loadAvailableVersions)
     if (appVerEl && availableVersions && availableVersions.length > 0) {
         const latest = availableVersions[0];
@@ -2246,7 +2335,7 @@ function updateSettingsVersionList() {
         listEl.textContent = 'Přihlaste se pro zobrazení dostupných verzí.';
         return;
     }
-    listEl.innerHTML = availableVersions.map(v => 
+    listEl.innerHTML = availableVersions.map(v =>
         `<div style="padding:3px 0;">• <b style="color:white;">${v.version_name}</b> <span style="color:#64748b;">(${v.target_role || 'User'})</span></div>`
     ).join('');
 }
@@ -2259,18 +2348,18 @@ if (btnCheckUpdate) {
         btnCheckUpdate.innerHTML = '<i class="fas fa-spinner fa-spin" style="margin-right:10px; color:#3b82f6;"></i>Kontroluji...';
         try {
             ensureCentralUserDataFolders();
-        try {
-            const versionsDir = path.join(userDataPath, 'versions');
-            if (fs.existsSync(versionsDir)) {
-                const dirs = fs.readdirSync(versionsDir);
-                dirs.forEach(d => backupUserRoutesFromVersion(path.join(versionsDir, d)));
-            }
-        } catch (_) {}
+            try {
+                const versionsDir = path.join(userDataPath, 'versions');
+                if (fs.existsSync(versionsDir)) {
+                    const dirs = fs.readdirSync(versionsDir);
+                    dirs.forEach(d => backupUserRoutesFromVersion(path.join(versionsDir, d)));
+                }
+            } catch (_) { }
 
-        await loadAvailableVersions();
+            await loadAvailableVersions();
             updateSettingsVersionList();
             alert('Aktualizace zkontrolovány! Seznam verzí byl obnoven.');
-        } catch(e) {
+        } catch (e) {
             alert('Chyba při kontrole aktualizací: ' + e.message);
         } finally {
             btnCheckUpdate.disabled = false;
@@ -2298,7 +2387,7 @@ function safeOpenFolder(dirPath) {
         if (!fs.existsSync(dirPath)) fs.mkdirSync(dirPath, { recursive: true });
         const { shell } = require('electron');
         shell.openPath(dirPath);
-    } catch(err) {
+    } catch (err) {
         console.warn('Chyba při otevírání složky:', err);
     }
 }
@@ -2327,7 +2416,7 @@ async function forceDeleteFolderAsync(folderPath) {
                 });
             });
         }
-        
+
         console.error("Failed to delete folder:", folderPath, error);
         throw new Error(`Nepodařilo se smazat složku: ${error.message}`);
     }
@@ -2345,7 +2434,7 @@ if (btnCleanOldVersions && deleteModal) {
             alert('Složka verzí je prázdná.');
             return;
         }
-        
+
         let htmlContent = '';
         dirs.forEach(d => {
             const isCurrent = (d === versionSelect.value);
@@ -2369,22 +2458,22 @@ if (btnCleanOldVersions && deleteModal) {
     btnConfirmDelete.addEventListener('click', () => {
         const checkboxes = document.querySelectorAll('.del-ver-chk:checked');
         const toDelete = Array.from(checkboxes).map(chk => chk.value);
-        
+
         if (toDelete.length === 0) {
             alert("Nebyly vybrány žádné verze ke smazání.");
             return;
         }
-        
+
         const confirmed = confirm(`Opravdu chcete smazat ${toDelete.length} verzí?`);
         if (!confirmed) return;
-        
+
         btnConfirmDelete.disabled = true;
         btnConfirmDelete.innerHTML = '<i class="fas fa-spinner fa-spin" style="margin-right:8px;"></i>Mažu...';
-        
+
         setTimeout(async () => {
             const versionsDir = path.join(process.env.APPDATA || os.homedir(), 'idpk-palubni-pocitac', 'versions');
             let success = 0;
-            
+
             try {
                 for (const d of toDelete) {
                     const fullPath = path.join(versionsDir, d);
@@ -2394,16 +2483,16 @@ if (btnCleanOldVersions && deleteModal) {
                     await forceDeleteFolderAsync(fullPath);
                     success++;
                 }
-                
+
                 alert(`Smazáno (nebo promazáno) ${success} vybraných verzí.`);
-            } catch(e) {
+            } catch (e) {
                 console.error(e);
                 alert("Došlo k nečekané chybě: " + e.message);
             } finally {
                 btnConfirmDelete.disabled = false;
                 btnConfirmDelete.innerHTML = "Smazat vybrané";
                 deleteModal.style.display = 'none';
-                
+
                 // Re-render the dropdown
                 const val = versionSelect.value;
                 versionSelect.innerHTML = '';
@@ -2435,11 +2524,11 @@ if (btnDeleteAllData) {
                 // Smažeme přímo přes cmd, aby nedošlo k zamrznutí nebo ENOTEMPTY
                 const { execSync } = require('child_process');
                 execSync(`rmdir /s /q "${versionsDir}"`);
-                fs.mkdirSync(versionsDir, {recursive: true});
+                fs.mkdirSync(versionsDir, { recursive: true });
             }
             alert('Hotovo! Všechna stažená data byla smazána. Při příštím spuštění se hra stáhne znovu.');
             checkLocalVersion(versionSelect.value);
-        } catch(e) {
+        } catch (e) {
             alert('Chyba při mazání: ' + e.message);
         }
     });
@@ -2454,10 +2543,10 @@ if (btnCleanCache) {
     btnCleanCache.addEventListener('click', () => {
         const confirmed = confirm('Tato akce smaže dočasné soubory prohlížeče (Cache, mezipaměť), aby se uvolnilo místo.\n\nVaše nastavení, uživatelská data ani samotná hra se nesmažou.\n\nPokračovat?');
         if (!confirmed) return;
-        
+
         const appData = path.join(process.env.APPDATA || os.homedir(), 'idpk-palubni-pocitac');
         const foldersToClean = ['Cache', 'Code Cache', 'GPUCache', 'DawnCache', 'blob_storage', 'Network', 'logs'];
-        
+
         btnCleanCache.disabled = true;
         let oldText = btnCleanCache.innerHTML;
         btnCleanCache.innerHTML = '<i class="fas fa-spinner fa-spin" style="margin-right:8px;"></i>Čištění...';
@@ -2465,7 +2554,7 @@ if (btnCleanCache) {
         setTimeout(async () => {
             let deleted = 0;
             let errors = [];
-            
+
             for (const f of foldersToClean) {
                 const fPath = path.join(appData, f);
                 if (fs.existsSync(fPath)) {
@@ -2478,7 +2567,7 @@ if (btnCleanCache) {
                     }
                 }
             }
-            
+
             btnCleanCache.disabled = false;
             btnCleanCache.innerHTML = oldText;
 
@@ -2510,11 +2599,11 @@ function updateCustomSelectUI(versions) {
     const customSelect = document.getElementById('custom-version-select');
     if (!customOptions) return;
     customOptions.innerHTML = '';
-    
+
     versions.forEach(v => {
         const div = document.createElement('div');
         div.className = 'custom-option';
-        
+
         let txt = v.db_version;
         if (v.current_build && v.current_build !== v.db_version) {
             txt = `${v.db_version} (${v.current_build})`;
@@ -2530,16 +2619,16 @@ function updateCustomSelectUI(versions) {
                 desc = "(Nedostupné pro tvojí roli)";
             }
         }
-        
+
         const tDiv = document.createElement('div');
         tDiv.className = 'custom-option-title';
         tDiv.innerHTML = `<svg class="ic" style="width:13px;height:13px;margin-right:8px;"><use href="#i-box"/></svg><span>${txt}</span>`;
         div.appendChild(tDiv);
-        
+
         if (desc) {
             const dDiv = document.createElement('div');
             dDiv.className = 'custom-option-desc';
-            
+
             if (isBeta) {
                 dDiv.innerHTML = '(Pouze pro předplatitele a Beta testery) <a href="#" class="coffee-link" style="color: #fbbf24; text-decoration: underline; margin-left: 5px; font-weight: bold;">Získat přístup</a>';
                 const link = dDiv.querySelector('.coffee-link');
@@ -2552,34 +2641,34 @@ function updateCustomSelectUI(versions) {
             } else {
                 dDiv.innerText = desc;
             }
-            
+
             div.appendChild(dDiv);
         }
-        
+
         div.addEventListener('click', () => {
             versionSelect.value = v.db_version;
             customText.innerText = v.db_version;
             customSelect.classList.remove('open');
             if (customOptions) customOptions.hidden = true;
-            
+
             const badge = document.getElementById('hero-version-badge');
             if (badge) {
                 const bldTag = (v.current_build && v.current_build !== v.db_version) ? ` • ${v.current_build}` : '';
                 badge.innerText = `${v.db_version}${bldTag}`;
             }
-            
+
             // Highlight selected
             Array.from(customOptions.children).forEach(c => c.classList.remove('selected'));
             div.classList.add('selected');
-            
+
             // Trigger change
             const event = new Event('change');
             versionSelect.dispatchEvent(event);
         });
-        
+
         customOptions.appendChild(div);
     });
-    
+
     // Set active
     if (versionSelect.value) {
         customText.innerText = versionSelect.value;
@@ -2587,7 +2676,7 @@ function updateCustomSelectUI(versions) {
         const bldTag = (curV && curV.current_build && curV.current_build !== curV.db_version) ? ` • ${curV.current_build}` : '';
         const badge = document.getElementById('hero-version-badge');
         if (badge) badge.innerText = `${versionSelect.value}${bldTag}`;
-        
+
         const opts = Array.from(customOptions.children);
         const idx = versionSelect.selectedIndex;
         if (idx >= 0 && opts[idx]) {
@@ -2601,8 +2690,8 @@ function updateCustomSelectUI(versions) {
     try {
         const setLauncherVerEl = document.getElementById('settings-launcher-version');
         if (setLauncherVerEl) setLauncherVerEl.innerText = `Verze Launcheru: v${LAUNCHER_VERSION}`;
-    } catch(e) {}
-    
+    } catch (e) { }
+
     const discLink = document.getElementById('settings-discord-link');
     if (discLink) {
         discLink.addEventListener('click', (e) => {
@@ -2659,7 +2748,7 @@ async function doLauncherOfflineLogin() {
         } else {
             if (errEl) errEl.textContent = data.message || 'Nesprávné jméno nebo heslo.';
         }
-    } catch(e) {
+    } catch (e) {
         if (errEl) errEl.textContent = 'Chyba spojení se serverem (' + (e.message || e) + ').';
     }
 }
@@ -2742,11 +2831,11 @@ function syncRouteFileToLinky(line) {
     try {
         const linkyDir = path.join(centralUserDataPath, 'linky');
         if (!fs.existsSync(linkyDir)) fs.mkdirSync(linkyDir, { recursive: true });
-        
+
         const safeNum = String(line.num).trim().replace(/[^a-zA-Z0-9_-]/g, '_');
         const filename = `${safeNum}_custom.txt`;
         const filePath = path.join(linkyDir, filename);
-        
+
         let targetLineKey = '';
         if (line.source === 'gtfs' || line.license || line.gtfs_route_id) {
             targetLineKey = line.license || line.gtfs_route_id || line.num;
@@ -2767,7 +2856,7 @@ function syncRouteFileToLinky(line) {
         if (termSnd) txt += `Zvuk_Konecna_Zastavka: ${termSnd}\n`;
 
         txt += `Zastávky:\n`;
-        
+
         const stops = Array.isArray(line.stops) ? line.stops : [];
         for (const s of stops) {
             const stopName = (s.n || s.name || '').trim();
@@ -2784,7 +2873,7 @@ function syncRouteFileToLinky(line) {
             const reqFlag = s.req ? ' Další znaky: ZZ' : '';
             txt += `${stopName} = ${audioFile || stopName} | Display: ${stopName} | Tarifní zona: ${zone} | Čas: |${reqFlag}\n`;
         }
-        
+
         fs.writeFileSync(filePath, txt, 'utf-8');
 
         // Také synchronizovat do všech existujících složek verzí a dev prostředí
@@ -2795,21 +2884,21 @@ function syncRouteFileToLinky(line) {
                 vFolders.forEach(vf => {
                     const vLinky1 = path.join(versionsDir, vf, 'linky');
                     if (fs.existsSync(vLinky1)) {
-                        try { fs.writeFileSync(path.join(vLinky1, filename), txt, 'utf-8'); } catch (_) {}
+                        try { fs.writeFileSync(path.join(vLinky1, filename), txt, 'utf-8'); } catch (_) { }
                     }
                     const vLinky2 = path.join(versionsDir, vf, 'resources', 'linky');
                     if (fs.existsSync(vLinky2)) {
-                        try { fs.writeFileSync(path.join(vLinky2, filename), txt, 'utf-8'); } catch (_) {}
+                        try { fs.writeFileSync(path.join(vLinky2, filename), txt, 'utf-8'); } catch (_) { }
                     }
                 });
             }
             if (typeof devPath !== 'undefined' && devPath) {
                 const devLinky = path.join(devPath, 'linky');
                 if (fs.existsSync(devLinky)) {
-                    try { fs.writeFileSync(path.join(devLinky, filename), txt, 'utf-8'); } catch (_) {}
+                    try { fs.writeFileSync(path.join(devLinky, filename), txt, 'utf-8'); } catch (_) { }
                 }
             }
-        } catch (_) {}
+        } catch (_) { }
     } catch (e) {
         console.error('[syncRouteFileToLinky] Chyba:', e);
     }
@@ -2849,7 +2938,7 @@ function reconcileLinesWithGameApplication(lines) {
                     linkDirs.push(path.join(versionsDir, vf, 'linky'));
                     linkDirs.push(path.join(versionsDir, vf, 'resources', 'linky'));
                 });
-            } catch (_) {}
+            } catch (_) { }
         }
 
         linkDirs.forEach(dir => {
@@ -2863,11 +2952,11 @@ function reconcileLinesWithGameApplication(lines) {
                             try {
                                 fs.unlinkSync(path.join(dir, f));
                                 console.log(`[Reconcile] Odstraněna osiřelá linka ze hry: ${path.join(dir, f)}`);
-                            } catch (_) {}
+                            } catch (_) { }
                         }
                     }
                 });
-            } catch (_) {}
+            } catch (_) { }
         });
 
         // 2. Projít centralUserDataPath/data a odstranit osiřelé JSON soubory
@@ -2887,9 +2976,9 @@ function reconcileLinesWithGameApplication(lines) {
                             fs.unlinkSync(fp);
                             console.log(`[Reconcile] Odstraněn osiřelý JSON linky: ${fp}`);
                         }
-                    } catch (_) {}
+                    } catch (_) { }
                 });
-            } catch (_) {}
+            } catch (_) { }
         }
 
         // 3. Pro všechny aktivní linky zajistit aktuální *_custom.txt soubor
@@ -2897,13 +2986,13 @@ function reconcileLinesWithGameApplication(lines) {
             if (l && l.num) {
                 try {
                     syncRouteFileToLinky(l);
-                } catch (_) {}
+                } catch (_) { }
             }
         });
 
         // 4. Pročistit mezipaměť v hlavním procesu Electronu
         if (typeof ipcRenderer !== 'undefined' && ipcRenderer.invoke) {
-            ipcRenderer.invoke('purge-custom-route-cache').catch(() => {});
+            ipcRenderer.invoke('purge-custom-route-cache').catch(() => { });
         }
     } catch (err) {
         console.warn('[reconcileLinesWithGameApplication] Chyba synchronizace:', err);
@@ -2957,7 +3046,7 @@ async function loadLocalEditorLines(syncDb = true) {
                             parsed.author_name = curCfg.discord_nick || curCfg.email || 'Autor';
                             try {
                                 fs.writeFileSync(path.join(customDataPath, f), JSON.stringify(parsed, null, 2), 'utf8');
-                            } catch (_) {}
+                            } catch (_) { }
                         }
                     }
                     if (!parsed.id) parsed.id = f.replace('.json', '');
@@ -2999,7 +3088,7 @@ async function loadLocalEditorLines(syncDb = true) {
                     }
                     lines.push(parsed);
                 }
-            } catch (err) {}
+            } catch (err) { }
         }
         if (syncDb) {
             await syncLocalLinesWithDatabase(lines);
@@ -3029,7 +3118,7 @@ async function syncLocalLinesWithDatabase(lines) {
                     serverRoutes = data.routes;
                 }
             }
-        } catch(e) {}
+        } catch (e) { }
 
         // Fallback: také zkusit veřejný seznam schválených komunitních linek
         try {
@@ -3044,23 +3133,23 @@ async function syncLocalLinesWithDatabase(lines) {
                     }
                 }
             }
-        } catch(e) {}
+        } catch (e) { }
 
         if (serverRoutes.length > 0) {
             for (const line of lines) {
                 if (line.source === 'comm' || String(line.id).startsWith('comm_')) continue;
-                
+
                 // Filtrujeme aktivní serverové záznamy
                 const activeServerRoutes = serverRoutes.filter(r => r.is_deleted_by_author !== 1 && r.status !== 'deleted_by_user');
-                
+
                 // 1. Zkusit shodu čísla linky A verze
-                let match = activeServerRoutes.find(r => 
+                let match = activeServerRoutes.find(r =>
                     String(r.route_number).trim() === String(line.num).trim() &&
                     String(r.version || 'V1').toUpperCase() === String(line.version || 'V1').toUpperCase()
                 );
                 // 2. Pokud není přesná shoda verze, zkusit shodu čísla linky
                 if (!match) {
-                    match = activeServerRoutes.find(r => 
+                    match = activeServerRoutes.find(r =>
                         String(r.route_number).trim() === String(line.num).trim()
                     );
                 }
@@ -3105,12 +3194,12 @@ async function syncLocalLinesWithDatabase(lines) {
                             if (fs.existsSync(fp)) {
                                 fs.writeFileSync(fp, JSON.stringify(line, null, 2), 'utf8');
                             }
-                        } catch(e) {}
+                        } catch (e) { }
                     }
                 }
             }
         }
-    } catch(err) {
+    } catch (err) {
         console.warn('Chyba při synchronizaci linek s databází:', err);
     }
     return lines;
@@ -3136,7 +3225,7 @@ async function loadCommunityEditorLines(preloadedLocalLines) {
                 let stops = [];
                 try {
                     stops = typeof r.stops_json === 'string' ? JSON.parse(r.stops_json) : (r.stops || []);
-                } catch(e) {}
+                } catch (e) { }
                 const firstStop = (stops && stops.length) ? (stops[0].name || stops[0].n || (Array.isArray(stops[0]) ? stops[0][0] : '')) : '';
                 const lastStop = (stops && stops.length) ? (stops[stops.length - 1].name || stops[stops.length - 1].n || (Array.isArray(stops[stops.length - 1]) ? stops[stops.length - 1][0] : '')) : '';
                 const autoJrName = (firstStop && lastStop && firstStop !== lastStop) ? `${firstStop} – ${lastStop}` : (r.route_name || lastStop || `Linka ${r.route_number}`);
@@ -3258,7 +3347,7 @@ async function loadPendingAdminQueue() {
             });
             return queue;
         }
-    } catch(e) {
+    } catch (e) {
         console.warn('Nelze načíst frontu ke schválení:', e);
     }
     return [];
@@ -3269,7 +3358,7 @@ async function initLCBridgeData() {
     try {
         ensureCentralUserDataFolders();
         syncWithLCVersions();
-        
+
         // Synchronizace přihlášeného uživatele a role do rozhraní
         const cfg = loadConfig();
         if (window.LC.setUser) {
@@ -3280,7 +3369,7 @@ async function initLCBridgeData() {
                 avatar_url: cfg.avatar_url || (typeof currentUserAvatarUrl !== 'undefined' ? currentUserAvatarUrl : null)
             });
         }
-        
+
         // 1. Rychlé načtení lokálních linek z disku (okamžité zobrazení v UI)
         const myLines = await loadLocalEditorLines(false);
         if (window.LC.setLines) window.LC.setLines(myLines);
@@ -3297,14 +3386,14 @@ async function initLCBridgeData() {
         // 3. Na pozadí ověřit stavy se serverem bez zdržení startu aplikace
         syncLocalLinesWithDatabase(myLines).then(() => {
             if (window.LC && window.LC.renderMine) window.LC.renderMine();
-        }).catch(() => {});
+        }).catch(() => { });
 
         // GTFS vyhledávání
         window.LC.setGtfsSearch(async (q) => {
             try {
                 const res = await ipcRenderer.invoke('gtfs-editor-search', q);
                 return Array.isArray(res) ? res : [];
-            } catch(e) {
+            } catch (e) {
                 console.error('Chyba při vyhledávání v GTFS:', e);
                 return [];
             }
@@ -3314,7 +3403,7 @@ async function initLCBridgeData() {
         const matchFn = async (stops) => {
             try {
                 return await ipcRenderer.invoke('auto-match-stops-audio', stops);
-            } catch(e) {
+            } catch (e) {
                 console.error('Chyba při párování zvuků:', e);
                 return [];
             }
@@ -3330,7 +3419,7 @@ async function initLCBridgeData() {
             if (hasCr && window.LC && window.LC.setCrDownloaded) {
                 window.LC.setCrDownloaded(true);
             }
-        } catch(e) {}
+        } catch (e) { }
 
         if (window.LC.setGtfsDownload) {
             window.LC.setGtfsDownload(async (cb) => {
@@ -3344,7 +3433,7 @@ async function initLCBridgeData() {
                     if (!res || !res.success) throw new Error(res ? res.error : 'Chyba stahování');
                     if (window.LC.setCrDownloaded) window.LC.setCrDownloaded(true);
                     return true;
-                } catch(err) {
+                } catch (err) {
                     ipcRenderer.removeListener('gtfs-cr-progress', onProgress);
                     throw err;
                 }
@@ -3357,8 +3446,8 @@ async function initLCBridgeData() {
             if (stops && stops.length && window.LC.setStopDb) {
                 window.LC.setStopDb(stops);
             }
-        } catch(e) {}
-    } catch(e) {
+        } catch (e) { }
+    } catch (e) {
         console.warn('[initLCBridgeData] Chyba:', e);
     }
 }
@@ -3395,7 +3484,7 @@ document.addEventListener('lc:launch', (e) => {
             stdio: 'ignore'
         });
         proc.unref();
-    } catch(err) {
+    } catch (err) {
         if (window.LC) {
             window.LC.setLaunchState('error');
             window.LC.showError('Hru se nepodařilo spustit', err.message);
@@ -3424,7 +3513,7 @@ document.addEventListener('lc:download', async (e) => {
 
 document.addEventListener('lc:cancel-download', () => {
     if (activeDownloadCleanup) {
-        try { activeDownloadCleanup(true); } catch(e) {}
+        try { activeDownloadCleanup(true); } catch (e) { }
         activeDownloadCleanup = null;
     }
     if (window.LC) {
@@ -3445,108 +3534,21 @@ document.addEventListener('lc:version-change', (e) => {
     }
 });
 
-document.addEventListener('lc:login', async (e) => {
+document.addEventListener('lc:login', (e) => {
     const identifier = e.detail && e.detail.identifier;
     if (!identifier) return;
-    if (window.LC) window.LC.setLoginView('waiting');
-    try {
-        const res = await safeFetch(`${API_BASE}/login_request`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ identifier: identifier, hwid: currentHWID })
-        }, 10000);
-        const data = await res.json();
-        if (data.status === 'success') {
-            pollAuth(data.discord_id || identifier);
-        } else {
-            if (window.LC) {
-                window.LC.setLoginView('discord');
-                window.LC.showLoginError(data.message || 'Uživatel nebyl nalezen na Discord serveru.');
-            }
-        }
-    } catch(err) {
-        if (window.LC) {
-            window.LC.setLoginView('discord');
-            window.LC.showLoginError('Chyba spojení se serverem nebo neplatná data.');
-        }
-    }
+    performDiscordAuth(identifier);
 });
 
-document.addEventListener('lc:login-email', async (e) => {
-    const { mode, nick, email } = e.detail;
-    currentPendingEmail = email;
-    if (mode === 'signup' && (!nick || nick.length < 3)) {
-        if (window.LC) window.LC.showLoginError('Přezdívka musí mít alespoň 3 znaky.');
-        return;
-    }
-    if (!email || !email.includes('@')) {
-        if (window.LC) window.LC.showLoginError('Zadejte platný e-mail.');
-        return;
-    }
-    try {
-        const res = await fetch(`${API_BASE}/api/auth/email/request`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ email, nick: nick || '', intent: mode === 'signup' ? 'app_signup' : 'app_login' })
-        });
-        const data = await res.json();
-        if (data.success || res.ok) {
-            if (window.LC) {
-                window.LC.setLoginView('email-code');
-                pollAuthEmail(email);
-            }
-        } else {
-            if (window.LC) {
-                if (data.error && data.error.includes('nemá účet')) {
-                    window.LC.setLoginView('email');
-                    window.LC.setEmailMode('signup');
-                    window.LC.showLoginError('Tento e-mail nemá účet. Vytvořte si ho záložkou Vytvořit účet.');
-                } else if (data.error && data.error.includes('již existuje')) {
-                    window.LC.setLoginView('email');
-                    window.LC.setEmailMode('login');
-                    window.LC.showLoginError('Tento e-mail už má účet. Přihlaste se.');
-                } else {
-                    window.LC.showLoginError(data.error || 'Nepodařilo se odeslat e-mail.');
-                }
-            }
-        }
-    } catch(err) {
-        if (window.LC) window.LC.showLoginError('Chyba spojení se serverem.');
-    }
+document.addEventListener('lc:login-email', (e) => {
+    const { mode, nick, email } = e.detail || {};
+    performEmailAuth(email, nick, mode || 'login');
 });
 
-document.addEventListener('lc:verify-code', async (e) => {
+document.addEventListener('lc:verify-code', (e) => {
     const code = e.detail && e.detail.code;
-    if (!code || code.length !== 6) return;
-    try {
-        const res = await fetch(`${API_BASE}/api/launcher/email_verify`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ email: currentPendingEmail, code: code, hwid: currentHWID })
-        });
-        const data = await res.json();
-        if (data.status === 'success') {
-            let config = loadConfig();
-            config.discord_id = data.discord_id || `email_${currentPendingEmail}`;
-            config.discord_nick = data.display_name || currentPendingEmail.split('@')[0];
-            config.email = currentPendingEmail;
-            saveConfig(config);
-            
-            if (window.LC) {
-                window.LC.setUser({ name: config.discord_nick, hwid: currentHWID, role: mapRoleToLC(data.role) });
-                window.LC.setLoginView('success');
-            }
-            setTimeout(async () => {
-                if (window.LC) window.LC.showLogin(false);
-                await initLauncher(config);
-                await initLCBridgeData();
-            }, 1600);
-        } else {
-            if (window.LC) window.LC.showLoginError(data.message || 'Neplatný kód z e-mailu.');
-        }
-    } catch(err) {
-        if (window.LC) window.LC.showLoginError('Chyba ověření kódu: ' + err.message);
-    }
+    if (!code) return;
+    performVerifyCode(code);
 });
 
 document.addEventListener('lc:logout', () => {
@@ -3569,7 +3571,7 @@ document.addEventListener('lc:line-save', (e) => {
     try {
         const customDataPath = path.join(centralUserDataPath, 'data');
         if (!fs.existsSync(customDataPath)) fs.mkdirSync(customDataPath, { recursive: true });
-        
+
         // Zajištění unikátního ID pro duplikaci linky (pravidlo #3)
         if (!line.id || line.id.startsWith('n') || line.id.startsWith('l')) {
             line.id = `user_${line.num}_${Date.now()}`;
@@ -3585,7 +3587,7 @@ document.addEventListener('lc:line-save', (e) => {
         if (window.LC) {
             window.LC.toast('ok', `Linka ${line.num} uložena`, 'Linka byla uložena do vašich linek.');
         }
-    } catch(err) {
+    } catch (err) {
         if (window.LC) window.LC.toast('err', 'Chyba ukládání linky', err.message);
     }
 });
@@ -3601,9 +3603,9 @@ function getFolderSize(dirPath) {
                 const stat = fs.statSync(fp);
                 if (stat.isFile()) size += stat.size;
                 else if (stat.isDirectory()) size += getFolderSize(fp);
-            } catch(_) {}
+            } catch (_) { }
         }
-    } catch(_) {}
+    } catch (_) { }
     return size;
 }
 
@@ -3648,7 +3650,7 @@ document.addEventListener('lc:storage-manager-open', async () => {
                 lines: lines
             });
         }
-    } catch(err) {
+    } catch (err) {
         console.warn('[storage-manager-open]', err);
     }
 });
@@ -3680,7 +3682,7 @@ document.addEventListener('lc:storage-clean-orphans', async () => {
                         const snd = st.audio || st.audio_file || (st.snd && st.snd.name);
                         if (snd) referencedSounds.add(path.basename(String(snd)).toLowerCase());
                     });
-                } catch(_) {}
+                } catch (_) { }
             });
         }
 
@@ -3696,7 +3698,7 @@ document.addEventListener('lc:storage-clean-orphans', async () => {
                     fs.unlinkSync(fp);
                     deletedCount++;
                     deletedBytes += sz;
-                } catch(_) {}
+                } catch (_) { }
             }
         });
 
@@ -3709,7 +3711,7 @@ document.addEventListener('lc:storage-clean-orphans', async () => {
         }
 
         document.dispatchEvent(new CustomEvent('lc:storage-manager-open'));
-    } catch(err) {
+    } catch (err) {
         if (window.LC) window.LC.toast('err', 'Chyba čištění', err.message);
     }
 });
@@ -3763,13 +3765,13 @@ document.addEventListener('lc:line-delete', async (e) => {
                                 });
                                 fs.unlinkSync(fp);
                             }
-                        } catch(_) {
+                        } catch (_) {
                             if (shouldDel) {
-                                try { fs.unlinkSync(fp); } catch(__) {}
+                                try { fs.unlinkSync(fp); } catch (__) { }
                             }
                         }
                     });
-                } catch(_) {}
+                } catch (_) { }
             }
 
             // B. Smazat soubory z centralUserDataPath/linky
@@ -3787,10 +3789,10 @@ document.addEventListener('lc:line-delete', async (e) => {
                             }
                         }
                         if (shouldDel) {
-                            try { fs.unlinkSync(path.join(linkyDir, tf)); } catch(_) {}
+                            try { fs.unlinkSync(path.join(linkyDir, tf)); } catch (_) { }
                         }
                     });
-                } catch(_) {}
+                } catch (_) { }
             }
 
             // C. Smazat z VŠECH nainstalovaných verzí hry (userDataPath/versions/*) a jejich podsložek!
@@ -3813,10 +3815,10 @@ document.addEventListener('lc:line-delete', async (e) => {
                                             shouldDel = true;
                                         }
                                         if (shouldDel) {
-                                            try { fs.unlinkSync(path.join(dir, vf)); } catch(_) {}
+                                            try { fs.unlinkSync(path.join(dir, vf)); } catch (_) { }
                                         }
                                     });
-                                } catch(_) {}
+                                } catch (_) { }
                             }
                         });
                         // Data složky ve verzi
@@ -3832,14 +3834,14 @@ document.addEventListener('lc:line-delete', async (e) => {
                                             shouldDel = true;
                                         }
                                         if (shouldDel) {
-                                            try { fs.unlinkSync(path.join(dir, vf)); } catch(_) {}
+                                            try { fs.unlinkSync(path.join(dir, vf)); } catch (_) { }
                                         }
                                     });
-                                } catch(_) {}
+                                } catch (_) { }
                             }
                         });
                     });
-                } catch(_) {}
+                } catch (_) { }
             }
 
             // D. Smazat z DEV a lokálních adresářů
@@ -3855,10 +3857,10 @@ document.addEventListener('lc:line-delete', async (e) => {
                         const dFiles = fs.readdirSync(d);
                         dFiles.forEach(df => {
                             if (safeNum && (df === `${safeNum}_custom.txt` || df === `${safeNum}.json`)) {
-                                try { fs.unlinkSync(path.join(d, df)); } catch(_) {}
+                                try { fs.unlinkSync(path.join(d, df)); } catch (_) { }
                             }
                         });
-                    } catch(_) {}
+                    } catch (_) { }
                 }
             });
 
@@ -3867,14 +3869,14 @@ document.addEventListener('lc:line-delete', async (e) => {
                 if (typeof ipcRenderer !== 'undefined' && ipcRenderer.invoke) {
                     ipcRenderer.invoke('purge-custom-route-cache', { lineNum: num, id: id });
                 }
-            } catch(_) {}
+            } catch (_) { }
 
             // F. Úklid osiřelých zvuků
             if (lineSounds.size > 0) {
                 setTimeout(() => {
                     try {
                         document.dispatchEvent(new CustomEvent('lc:storage-clean-orphans'));
-                    } catch(_) {}
+                    } catch (_) { }
                 }, 300);
             }
         }
@@ -3904,10 +3906,10 @@ document.addEventListener('lc:line-delete', async (e) => {
                     if (window.LC.renderComm) window.LC.renderComm();
                     if (window.LC.renderMine) window.LC.renderMine();
                 }
-            }).catch(()=>{});
+            }).catch(() => { });
         }
         reconcileLinesWithGameApplication();
-    } catch(err) {
+    } catch (err) {
         console.warn('Chyba při mazání souboru linky:', err);
     }
 });
@@ -3934,7 +3936,7 @@ document.addEventListener('lc:sound-add', (e) => {
             if (stopRef && stopRef.snd) {
                 stopRef.snd.url = localFileUrl;
             }
-        } catch(err) {
+        } catch (err) {
             console.error('Chyba při kopírování zvuku:', err);
         }
     }
@@ -3956,7 +3958,7 @@ document.addEventListener('lc:launch-dev-build', async () => {
                 }
             }
         }
-    } catch (_) {}
+    } catch (_) { }
     isDevBuildLaunching = true;
     reconcileLinesWithGameApplication();
     ipcRenderer.send('launch-dev-build');
@@ -3994,7 +3996,7 @@ document.addEventListener('lc:line-publish', async (e) => {
         formData.append('author_id', cfg.discord_id || currentHWID);
         formData.append('author_name', cfg.discord_nick || 'Hráč');
         formData.append('stops_json', JSON.stringify(line.stops || []));
-        
+
         // Zvukové soubory z userdata/sounds
         const soundsDir = path.join(centralUserDataPath, 'sounds');
         (line.stops || []).forEach((st, idx) => {
@@ -4028,7 +4030,7 @@ document.addEventListener('lc:line-publish', async (e) => {
         } else {
             if (window.LC) window.LC.toast('err', 'Chyba odeslání', respData.error || 'Server odmítl linku.');
         }
-    } catch(err) {
+    } catch (err) {
         if (window.LC) window.LC.toast('err', 'Chyba spojení', err.message);
     }
 });
@@ -4053,7 +4055,7 @@ document.addEventListener('lc:line-decision', async (e) => {
         } else {
             if (window.LC) window.LC.toast('err', 'Chyba', data.error || 'Operace selhala.');
         }
-    } catch(err) {
+    } catch (err) {
         if (window.LC) window.LC.toast('err', 'Chyba spojení', err.message);
     }
 });
@@ -4069,7 +4071,7 @@ document.addEventListener('lc:line-export', async (e) => {
         } else if (!res.canceled) {
             if (window.LC) window.LC.toast('err', 'Export selhal', res.error || 'Neznámá chyba.');
         }
-    } catch(err) {
+    } catch (err) {
         if (window.LC) window.LC.toast('err', 'Chyba', err.message);
     }
 });
@@ -4083,7 +4085,7 @@ document.addEventListener('lc:save-template', async (e) => {
         } else if (res && !res.canceled && res.error) {
             if (window.LC) window.LC.toast('err', 'Uložení selhalo', res.error);
         }
-    } catch(err) {
+    } catch (err) {
         if (window.LC) window.LC.toast('err', 'Chyba', err.message);
     }
 });
@@ -4092,10 +4094,10 @@ document.addEventListener('lc:community-download', async (e) => {
     const id = e.detail && e.detail.id;
     const commItem = (window.LC && window.LC.S && window.LC.S.comm || []).find(x => x.id === id);
     if (!commItem) return;
-    
+
     const customDataPath = path.join(centralUserDataPath, 'data');
     if (!fs.existsSync(customDataPath)) fs.mkdirSync(customDataPath, { recursive: true });
-    
+
     if (commItem.packageUrl) {
         const tempZip = path.join(os.tmpdir(), `comm_pkg_${id}.zip`);
         try {
@@ -4110,12 +4112,12 @@ document.addEventListener('lc:community-download', async (e) => {
             const soundsDir = path.join(centralUserDataPath, 'sounds');
             if (!fs.existsSync(soundsDir)) fs.mkdirSync(soundsDir, { recursive: true });
             await extract(tempZip, { dir: soundsDir });
-            try { fs.unlinkSync(tempZip); } catch(e) {}
-        } catch(err) {
+            try { fs.unlinkSync(tempZip); } catch (e) { }
+        } catch (err) {
             console.warn('Chyba při stahování zvuků balíčku:', err);
         }
     }
-    
+
     // Uložit linku do dat
     // Smazání starších stažených verzí stejné linky (čistá instalace bez duplicit)
     try {
@@ -4130,9 +4132,9 @@ document.addEventListener('lc:community-download', async (e) => {
                         window.LC.S.lines = window.LC.S.lines.filter(x => x.id !== cData.id);
                     }
                 }
-            } catch(_) {}
+            } catch (_) { }
         }
-    } catch(_) {}
+    } catch (_) { }
 
     const firstStop = (commItem.stops && commItem.stops.length) ? (commItem.stops[0].name || commItem.stops[0].n || (Array.isArray(commItem.stops[0]) ? commItem.stops[0][0] : '')) : (commItem.from || '');
     const lastStop = (commItem.stops && commItem.stops.length) ? (commItem.stops[commItem.stops.length - 1].name || commItem.stops[commItem.stops.length - 1].n || (Array.isArray(commItem.stops[commItem.stops.length - 1]) ? commItem.stops[commItem.stops.length - 1][0] : '')) : (commItem.dest || '');
@@ -4178,8 +4180,8 @@ document.addEventListener('lc:community-download', async (e) => {
                 commItem.dl = dlData.download_count;
                 if (window.LC && window.LC.renderComm) window.LC.renderComm();
             }
-        }).catch(() => {});
-    } catch(_) {}
+        }).catch(() => { });
+    } catch (_) { }
 
     if (window.LC) {
         if (window.LC.S && window.LC.S.lines) {
@@ -4213,7 +4215,7 @@ document.addEventListener('lc:open-url', (e) => {
 document.addEventListener('lc:delete-all', () => {
     const versionsDir = path.join(userDataPath, 'versions');
     if (fs.existsSync(versionsDir)) {
-        try { fs.rmSync(versionsDir, { recursive: true, force: true }); } catch(e) {}
+        try { fs.rmSync(versionsDir, { recursive: true, force: true }); } catch (e) { }
     }
     if (window.LC) {
         window.LC.toast('ok', 'Data smazána', 'Všechny stažené verze byly odstraněny.');
@@ -4246,7 +4248,7 @@ document.addEventListener('lc:gtfs-download', async () => {
             window.LC.setGtfsCR(true);
             window.LC.toast('ok', 'GTFS data aktualizována', 'Byla stažena aktuální data zastávek a linek celé ČR.');
         }
-    } catch(e) {
+    } catch (e) {
         if (window.LC) window.LC.toast('err', 'Chyba GTFS', e.message || 'Nepodařilo se stáhnout GTFS data');
     }
 });
@@ -4257,7 +4259,7 @@ document.addEventListener('lc:launcher-update', async () => {
         if (!hasUpdate && window.LC) {
             window.LC.toast('ok', 'Launcher je aktuální', `Používáte nejnovější verzi v${LAUNCHER_VERSION}.`);
         }
-    } catch(e) {
+    } catch (e) {
         if (window.LC) window.LC.toast('err', 'Chyba aktualizace', e.message);
     }
 });
