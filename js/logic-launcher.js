@@ -1376,6 +1376,31 @@ function showLockedScreen(msg) {
     `;
 }
 
+function compareVersionsDesc(a, b) {
+    if (!a && !b) return 0;
+    if (!a) return 1;
+    if (!b) return -1;
+    const parseVer = (v) => {
+        const str = String(v.db_version || v.version_name || v.id || v.name || '').trim();
+        const m = str.match(/(\d+)(?:\.(\d+))?(?:\.(\d+))?/);
+        if (m) {
+            const major = parseInt(m[1], 10) || 0;
+            const minor = parseInt(m[2], 10) || 0;
+            const patch = parseInt(m[3], 10) || 0;
+            return major * 1000000 + minor * 1000 + patch;
+        }
+        return Number(v.id) || 0;
+    };
+    const scoreA = parseVer(a);
+    const scoreB = parseVer(b);
+    if (scoreB !== scoreA) {
+        return scoreB - scoreA;
+    }
+    const idA = Number(a.id) || 0;
+    const idB = Number(b.id) || 0;
+    return idB - idA;
+}
+
 async function loadAvailableVersions() {
     let dbVersions = [];
     isOfflineMode = false;
@@ -1521,6 +1546,7 @@ async function loadAvailableVersions() {
         return;
     }
 
+    finalVersions.sort(compareVersionsDesc);
     availableVersions = finalVersions;
     finalVersions.forEach(v => {
         const opt = document.createElement('option');
@@ -2788,6 +2814,7 @@ function mapRoleToLC(r) {
 
 function syncWithLCVersions() {
     if (!window.LC || !window.LC.setVersions || !Array.isArray(availableVersions)) return;
+    availableVersions.sort(compareVersionsDesc);
     const lcList = availableVersions.map(v => {
         const folder = getVersionFolder(v.db_version);
         const exePath = findExeInFolder(folder);
@@ -2814,6 +2841,7 @@ function syncWithLCVersions() {
             lock: !v.has_access || !v.can_launch
         };
     });
+    lcList.sort(compareVersionsDesc);
     window.LC.setVersions(lcList);
 }
 
@@ -2960,44 +2988,24 @@ function reconcileLinesWithGameApplication(lines) {
             } catch (_) { }
         }
 
-        linkDirs.forEach(dir => {
-            if (!fs.existsSync(dir)) return;
-            try {
-                const files = fs.readdirSync(dir);
-                files.forEach(f => {
-                    if (f.toLowerCase().endsWith('_custom.txt')) {
-                        const nameNoCustom = f.replace(/_custom\.txt$/i, '');
-                        if (!allowedSafeNums.has(nameNoCustom)) {
-                            try {
-                                fs.unlinkSync(path.join(dir, f));
-                                console.log(`[Reconcile] Odstraněna osiřelá linka ze hry: ${path.join(dir, f)}`);
-                            } catch (_) { }
+        if (lines.length > 0) {
+            linkDirs.forEach(dir => {
+                if (!fs.existsSync(dir)) return;
+                try {
+                    const files = fs.readdirSync(dir);
+                    files.forEach(f => {
+                        if (f.toLowerCase().endsWith('_custom.txt')) {
+                            const nameNoCustom = f.replace(/_custom\.txt$/i, '');
+                            if (!allowedSafeNums.has(nameNoCustom)) {
+                                try {
+                                    fs.unlinkSync(path.join(dir, f));
+                                    console.log(`[Reconcile] Odstraněna osiřelá linka ze hry: ${path.join(dir, f)}`);
+                                } catch (_) { }
+                            }
                         }
-                    }
-                });
-            } catch (_) { }
-        });
-
-        // 2. Projít centralUserDataPath/data a odstranit osiřelé JSON soubory
-        const customDataPath = path.join(centralUserDataPath, 'data');
-        if (fs.existsSync(customDataPath)) {
-            try {
-                const jFiles = fs.readdirSync(customDataPath).filter(f => f.endsWith('.json'));
-                jFiles.forEach(jf => {
-                    if (!jf.startsWith('user_') && !jf.startsWith('comm_')) return;
-                    const fp = path.join(customDataPath, jf);
-                    try {
-                        const parsed = JSON.parse(fs.readFileSync(fp, 'utf8'));
-                        const parsedSafeNum = parsed.num ? String(parsed.num).trim().replace(/[^a-zA-Z0-9_-]/g, '_') : null;
-                        const parsedId = String(parsed.id || jf.replace('.json', ''));
-                        // Pokud ID ani číslo linky není mezi platnými linkami profilu
-                        if (!allowedIds.has(parsedId) && (!parsedSafeNum || !allowedSafeNums.has(parsedSafeNum))) {
-                            fs.unlinkSync(fp);
-                            console.log(`[Reconcile] Odstraněn osiřelý JSON linky: ${fp}`);
-                        }
-                    } catch (_) { }
-                });
-            } catch (_) { }
+                    });
+                } catch (_) { }
+            });
         }
 
         // 3. Pro všechny aktivní linky zajistit aktuální *_custom.txt soubor
@@ -3053,8 +3061,9 @@ async function loadLocalEditorLines(syncDb = true) {
                         if (parsed.author_id) {
                             const aId = String(parsed.author_id).trim().toLowerCase();
                             const aName = String(parsed.author_name || '').trim().toLowerCase();
-                            const matchesId = (aId === currentUserId) || (currentEmail && aId === currentEmail);
-                            const matchesName = (currentUserNick && aName === currentUserNick) || (currentEmail && aName === currentEmail);
+                            const myHWIDStr = String(currentHWID || '').trim().toLowerCase();
+                            const matchesId = (aId === currentUserId) || (currentEmail && aId === currentEmail) || (myHWIDStr && aId === myHWIDStr);
+                            const matchesName = (currentUserNick && (aName === currentUserNick || aName.includes(currentUserNick) || currentUserNick.includes(aName))) || (currentEmail && aName === currentEmail);
                             if (!matchesId && !matchesName) {
                                 // Vlastní linka patřící jinému účtu na tomto PC
                                 continue;
@@ -3120,12 +3129,15 @@ async function loadLocalEditorLines(syncDb = true) {
 }
 
 async function syncLocalLinesWithDatabase(lines) {
-    if (!Array.isArray(lines) || lines.length === 0) return lines;
+    if (!Array.isArray(lines)) lines = [];
     try {
         const customDataPath = path.join(centralUserDataPath, 'data');
+        if (!fs.existsSync(customDataPath)) fs.mkdirSync(customDataPath, { recursive: true });
         const cfg = loadConfig();
-        const authorId = cfg.discord_id || '';
-        const authorNick = cfg.discord_nick || '';
+        const authorId = String(cfg.discord_id || '').trim();
+        const authorNick = String(cfg.discord_nick || '').trim();
+        const authorEmail = String(cfg.email || '').trim().toLowerCase();
+        const authorHWID = String(currentHWID || '').trim();
 
         let serverRoutes = [];
         try {
@@ -3146,7 +3158,15 @@ async function syncLocalLinesWithDatabase(lines) {
                 const dataPub = await pubRes.json();
                 if (dataPub.success && Array.isArray(dataPub.routes)) {
                     for (const pr of dataPub.routes) {
-                        if (!serverRoutes.some(sr => String(sr.id) === String(pr.id))) {
+                        const aIdStr = String(pr.author_id || '').trim();
+                        const aNameStr = String(pr.author_name || '').trim().toLowerCase();
+                        const isMine = Boolean(
+                            (authorId && aIdStr && authorId === aIdStr) ||
+                            (authorEmail && aIdStr && authorEmail === aIdStr.toLowerCase()) ||
+                            (authorHWID && aIdStr && authorHWID === aIdStr) ||
+                            (authorNick && aNameStr && (aNameStr.includes(authorNick.toLowerCase()) || authorNick.toLowerCase().includes(aNameStr)))
+                        );
+                        if (isMine && !serverRoutes.some(sr => String(sr.id) === String(pr.id))) {
                             serverRoutes.push({ ...pr, status: pr.status || 'approved' });
                         }
                     }
@@ -3155,11 +3175,12 @@ async function syncLocalLinesWithDatabase(lines) {
         } catch (e) { }
 
         if (serverRoutes.length > 0) {
+            let addedNew = false;
+            const activeServerRoutes = serverRoutes.filter(r => r.is_deleted_by_author !== 1 && r.status !== 'deleted_by_user');
+
+            // 1. Aktualizace existujících lokálních linek
             for (const line of lines) {
                 if (line.source === 'comm' || String(line.id).startsWith('comm_')) continue;
-
-                // Filtrujeme aktivní serverové záznamy
-                const activeServerRoutes = serverRoutes.filter(r => r.is_deleted_by_author !== 1 && r.status !== 'deleted_by_user');
 
                 // 1. Zkusit shodu čísla linky A verze
                 let match = activeServerRoutes.find(r =>
@@ -3216,6 +3237,64 @@ async function syncLocalLinesWithDatabase(lines) {
                         } catch (e) { }
                     }
                 }
+            }
+
+            // 2. Obnova chybějících autorových linek do Moje linky
+            for (const sr of activeServerRoutes) {
+                const sNum = String(sr.route_number).trim();
+                const sVer = String(sr.version || 'V1').toUpperCase();
+                const alreadyLocal = lines.some(l =>
+                    String(l.num).trim() === sNum &&
+                    String(l.version || 'V1').toUpperCase() === sVer &&
+                    l.source !== 'comm'
+                );
+
+                if (!alreadyLocal) {
+                    let stops = [];
+                    try {
+                        stops = typeof sr.stops_json === 'string' ? JSON.parse(sr.stops_json) : (sr.stops || []);
+                    } catch (_) { }
+
+                    const firstStop = (stops && stops.length) ? (stops[0].name || stops[0].n || (Array.isArray(stops[0]) ? stops[0][0] : '')) : '';
+                    const lastStop = (stops && stops.length) ? (stops[stops.length - 1].name || stops[stops.length - 1].n || (Array.isArray(stops[stops.length - 1]) ? stops[stops.length - 1][0] : '')) : '';
+                    const autoJrName = (firstStop && lastStop && firstStop !== lastStop) ? `${firstStop} – ${lastStop}` : (sr.route_name || `Linka ${sNum}`);
+                    const curName = (sr.route_name || '').trim();
+                    const routeName = (curName && !curName.startsWith('Linka ') && curName !== sNum) ? curName : autoJrName;
+
+                    const fileId = `user_${sNum}_${sr.id}`;
+                    const restoredLine = {
+                        id: fileId,
+                        commId: sr.id,
+                        num: sNum,
+                        name: routeName,
+                        dest: lastStop || sr.route_name || 'Konečná',
+                        source: 'manual',
+                        is_custom: true,
+                        author_id: sr.author_id || authorId || authorHWID,
+                        author_name: sr.author_name || authorNick || 'Autor',
+                        version: sr.version || 'V1',
+                        status: sr.status === 'approved' ? 'published' : (sr.status || 'local'),
+                        reject: sr.reject_reason || null,
+                        tags: Array.isArray(sr.tags) ? sr.tags : (sr.system_tag ? [sr.system_tag] : ['IDPK']),
+                        voice: sr.voice_type || 'synt',
+                        packageUrl: sr.audio_package_url || null,
+                        stops: stops
+                    };
+
+                    try {
+                        const fp = path.join(customDataPath, `${fileId}.json`);
+                        fs.writeFileSync(fp, JSON.stringify(restoredLine, null, 2), 'utf8');
+                        syncRouteFileToLinky(restoredLine);
+                    } catch (_) { }
+
+                    lines.unshift(restoredLine);
+                    addedNew = true;
+                }
+            }
+
+            if (addedNew && window.LC && window.LC.setLines) {
+                window.LC.setLines(lines);
+                if (window.LC.renderMine) window.LC.renderMine();
             }
         }
     } catch (err) {

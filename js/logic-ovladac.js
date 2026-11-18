@@ -1002,6 +1002,13 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     }, 500);
 
+    window.renderLinesList = function() {
+        if (typeof window.renderLinkList === 'function') {
+            window.renderLinkList();
+        }
+    };
+    const renderLinesList = window.renderLinesList;
+
     if (isDevMode) {
         debugLog("⚠️ DETEKOVÁN VSC (VÝVOJÁŘSKÝ REŽIM) - BLOKACE IGNOROVÁNY!");
     }

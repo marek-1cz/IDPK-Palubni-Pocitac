@@ -93,8 +93,8 @@
       "installerHeaderIcon": "icon.ico",
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "OIS IDPK V1.6.2",
-      "uninstallDisplayName": "OIS IDPK V1.6.2",
+      "shortcutName": "OIS IDPK V1.6.3",
+      "uninstallDisplayName": "OIS IDPK V1.6.3",
       "deleteAppDataOnUninstall": false,
       "perMachine": false
     },
