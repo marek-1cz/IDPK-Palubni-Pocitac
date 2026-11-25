@@ -3593,41 +3593,52 @@ async function loadCommunityEditorLines(preloadedLocalLines) {
     return [];
 }
 
+function _mapAdminRouteRow(q) {
+    let stops = q.stops || [];
+    return {
+        id: String(q.id),
+        num: String(q.route_number),
+        name: q.route_name,
+        author: q.author_name || 'Hráč',
+        type: q.route_type === 'custom' ? 'fiktivni' : 'realna',
+        voice: q.voice_type || 'synt',
+        tags: q.system_tag ? String(q.system_tag).split(',').map(x => x.trim()).filter(Boolean) : ['IDPK'],
+        desc: q.description || '',
+        scope: q.system_tag && String(q.system_tag).toUpperCase() !== 'IDPK' ? 'cr' : 'idpk',
+        status: q.status || 'pending',
+        status_bucket: q.status_bucket || ((q.is_deleted_by_author || q.status === 'rejected' || q.status === 'deleted_by_user') ? 'archived' : (q.status === 'approved' ? 'approved' : 'pending')),
+        dl: Number(q.download_count || 0),
+        stops: (Array.isArray(stops) ? stops : []).map(s => {
+            let audUrl = s.audio_url || (s.snd && s.snd.url) || '';
+            if (audUrl && audUrl.startsWith('/')) {
+                audUrl = `${API_BASE}${audUrl}`;
+            }
+            return {
+                n: s.name || s.n || s,
+                snd: (audUrl || s.snd) ? {
+                    name: s.audio_file || (s.snd && s.snd.name) || 'hlaseni.wav',
+                    dur: s.dur || 2.5,
+                    url: audUrl
+                } : null
+            };
+        })
+    };
+}
+
 async function loadPendingAdminQueue() {
     if (!['admin', 'sa', 'dev'].includes(mapRoleToLC(currentUserRole))) return [];
     try {
+        const resAll = await safeFetch(`${API_BASE}/api/admin/community-routes/all`, { headers: _authHeaders() }, 5000);
+        if (resAll.ok) {
+            const dataAll = await resAll.json();
+            if (dataAll && Array.isArray(dataAll.routes)) {
+                return dataAll.routes.map(_mapAdminRouteRow);
+            }
+        }
         const res = await safeFetch(`${API_BASE}/api/community-routes/pending`, { headers: _authHeaders() }, 4000);
         if (res.ok) {
             const data = await res.json();
-            const queue = (data.queue || []).map(q => {
-                let stops = q.stops || [];
-                return {
-                    id: String(q.id),
-                    num: String(q.route_number),
-                    name: q.route_name,
-                    author: q.author_name || 'Hráč',
-                    type: q.route_type === 'custom' ? 'fiktivni' : 'realna',
-                    voice: q.voice_type || 'synt',
-                    tags: q.system_tag ? [q.system_tag] : ['IDPK'],
-                    desc: q.description || '',
-                    scope: q.system_tag && q.system_tag.toUpperCase() !== 'IDPK' ? 'cr' : 'idpk',
-                    stops: stops.map(s => {
-                        let audUrl = s.audio_url || (s.snd && s.snd.url) || '';
-                        if (audUrl && audUrl.startsWith('/')) {
-                            audUrl = `${API_BASE}${audUrl}`;
-                        }
-                        return {
-                            n: s.name || s.n || s,
-                            snd: (audUrl || s.snd) ? {
-                                name: s.audio_file || (s.snd && s.snd.name) || 'hlaseni.wav',
-                                dur: s.dur || 2.5,
-                                url: audUrl
-                            } : null
-                        };
-                    })
-                };
-            });
-            return queue;
+            return (data.queue || []).map(_mapAdminRouteRow);
         }
     } catch (e) {
         console.warn('Nelze načíst frontu ke schválení:', e);
@@ -3658,12 +3669,13 @@ async function initLCBridgeData() {
         reconcileLinesWithGameApplication(myLines);
 
         // 2. Paralelní načtení komunitních linek a admin fronty s využitím již načtených lokálních linek
-        const [commLines, pendingQueue] = await Promise.all([
+        const [commLines, adminRoutes] = await Promise.all([
             loadCommunityEditorLines(myLines),
             loadPendingAdminQueue()
         ]);
         if (window.LC.setComm) window.LC.setComm(commLines);
-        if (window.LC.setQueue) window.LC.setQueue(pendingQueue);
+        if (window.LC.setAdminRoutes) window.LC.setAdminRoutes(adminRoutes);
+        else if (window.LC.setQueue) window.LC.setQueue(adminRoutes);
 
         // 3. Na pozadí ověřit stavy se serverem bez zdržení startu aplikace
         syncLocalLinesWithDatabase(myLines).then(() => {
@@ -4450,8 +4462,9 @@ document.addEventListener('lc:line-decision', async (e) => {
         if (data.success) {
             if (window.LC) {
                 window.LC.toast('ok', ok ? 'Linka schválena' : 'Linka zamítnuta', 'Rozhodnutí bylo uloženo a uživatel byl informován.');
-                const newQ = await loadPendingAdminQueue();
-                window.LC.setQueue(newQ);
+                const allAdmin = await loadPendingAdminQueue();
+                if (window.LC.setAdminRoutes) window.LC.setAdminRoutes(allAdmin);
+                else window.LC.setQueue(allAdmin);
                 const commLines = await loadCommunityEditorLines();
                 window.LC.setComm(commLines);
             }
@@ -4460,6 +4473,87 @@ document.addEventListener('lc:line-decision', async (e) => {
         }
     } catch (err) {
         if (window.LC) window.LC.toast('err', 'Chyba spojení', err.message);
+    }
+});
+
+document.addEventListener('lc:admin-refresh', async () => {
+    try {
+        const allAdmin = await loadPendingAdminQueue();
+        if (window.LC) {
+            if (window.LC.setAdminRoutes) window.LC.setAdminRoutes(allAdmin);
+            else if (window.LC.setQueue) window.LC.setQueue(allAdmin);
+            window.LC.toast('ok', 'Seznam správy obnoven', `Načteno ${allAdmin.length} komunitních linek.`);
+        }
+    } catch (err) {
+        if (window.LC) window.LC.toast('err', 'Chyba načítání', err.message);
+    }
+});
+
+document.addEventListener('lc:admin-purge', async (e) => {
+    const id = e.detail && e.detail.id;
+    if (!id) return;
+    try {
+        const res = await fetch(`${API_BASE}/api/admin/community-routes/purge`, {
+            method: 'POST',
+            headers: _authHeaders({ 'Content-Type': 'application/json' }),
+            body: JSON.stringify({ route_id: id })
+        });
+        const data = await res.json().catch(() => ({}));
+        if (res.status === 401) {
+            if (window.LC) window.LC.toast('err', 'Relace vypršela', 'Odhlaste se prosím vlevo nahoře a znovu se přihlaste.');
+            return;
+        }
+        if (data.success) {
+            const [allAdmin, commLines] = await Promise.all([loadPendingAdminQueue(), loadCommunityEditorLines()]);
+            if (window.LC) {
+                if (window.LC.setAdminRoutes) window.LC.setAdminRoutes(allAdmin);
+                else window.LC.setQueue(allAdmin);
+                if (window.LC.setComm) window.LC.setComm(commLines);
+                window.LC.toast('ok', 'Trvale smazáno', 'Linka i její zvukové soubory byly smazány.');
+            }
+        } else {
+            if (window.LC) window.LC.toast('err', 'Chyba', data.error || 'Smazání selhalo.');
+        }
+    } catch (err) {
+        if (window.LC) window.LC.toast('err', 'Chyba spojení', err.message);
+    }
+});
+
+document.addEventListener('lc:admin-export-official', async (e) => {
+    const { id, mode } = e.detail || {};
+    if (!id) return;
+    const fmt = mode === 'txt' ? 'txt' : 'zip';
+    const srcList = (window.LC && window.LC.S && Array.isArray(window.LC.S.adminRoutes) && window.LC.S.adminRoutes.length)
+        ? window.LC.S.adminRoutes
+        : ((window.LC && window.LC.S && window.LC.S.queue) || []);
+    const item = srcList.find(x => String(x.id) === String(id));
+    const safeNum = item ? (String(item.num || 'custom').replace(/[^a-zA-Z0-9_-]/g, '') || 'custom') : String(id);
+    const defaultName = fmt === 'txt' ? `${safeNum}_auto.txt` : `linka_${safeNum}_oficialni_export.zip`;
+    try {
+        if (window.LC) window.LC.toast('info', 'Připravuji export…', fmt === 'txt' ? `Generuji ${safeNum}_auto.txt` : `Balím ${safeNum}_auto.txt a hlášení…`);
+        const res = await safeFetch(`${API_BASE}/api/admin/community-routes/${encodeURIComponent(id)}/export-official?format=${fmt}`, { headers: _authHeaders() }, 20000);
+        if (res.status === 401) {
+            if (window.LC) window.LC.toast('err', 'Relace vypršela', 'Odhlaste se prosím vlevo nahoře a znovu se přihlaste.');
+            return;
+        }
+        if (!res.ok) {
+            const errJson = await res.json().catch(() => ({}));
+            throw new Error(errJson.error || `HTTP ${res.status}`);
+        }
+        const ab = await res.arrayBuffer();
+        const base64Data = Buffer.from(ab).toString('base64');
+        const saveRes = await ipcRenderer.invoke('admin-save-official-export', { mode: mode || 'zip', defaultName, base64Data });
+        if (saveRes && saveRes.success) {
+            if (mode === 'folder') {
+                if (window.LC) window.LC.toast('ok', 'Uloženo do složky', `Vloženo do ${saveRes.path} (linky: ${saveRes.txtCount || 0}, zvuky: ${saveRes.sndCount || 0}).`);
+            } else {
+                if (window.LC) window.LC.toast('ok', 'Export uložen', `Soubor uložen: ${path.basename(saveRes.path)}`);
+            }
+        } else if (saveRes && !saveRes.canceled) {
+            if (window.LC) window.LC.toast('err', 'Uložení selhalo', saveRes.error || 'Neznámá chyba.');
+        }
+    } catch (err) {
+        if (window.LC) window.LC.toast('err', 'Export selhal', err.message);
     }
 });
 
@@ -4706,7 +4800,8 @@ document.addEventListener('lc:community-refresh', async () => {
         if (window.LC) {
             if (window.LC.setLines) window.LC.setLines(myLines);
             if (window.LC.setComm) window.LC.setComm(commLines);
-            if (window.LC.setQueue) window.LC.setQueue(pendingQueue);
+            if (window.LC.setAdminRoutes) window.LC.setAdminRoutes(pendingQueue);
+            else if (window.LC.setQueue) window.LC.setQueue(pendingQueue);
             if (window.LC.renderComm) window.LC.renderComm();
             if (window.LC.renderMine) window.LC.renderMine();
             window.LC.toast('ok', 'Seznam aktualizován', `Načteno ${commLines.length} komunitních linek.`);

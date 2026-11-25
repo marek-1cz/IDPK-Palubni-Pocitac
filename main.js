@@ -2826,6 +2826,62 @@ ipcMain.handle('export-line-zip', async (event, line) => {
         return { success: false, error: err.message };
     }
 });
+
+ipcMain.handle('admin-save-official-export', async (event, payload) => {
+    if (!payload || !payload.base64Data) return { success: false, error: 'Chybí data k uložení.' };
+    const win = BrowserWindow.fromWebContents(event.sender);
+    const buf = Buffer.from(payload.base64Data, 'base64');
+    const mode = payload.mode || 'zip';
+    const safeName = path.basename(String(payload.defaultName || (mode === 'txt' ? 'linka_auto.txt' : 'linka_oficialni.zip')));
+    try {
+        if (mode === 'folder') {
+            const { canceled, filePaths } = await dialog.showOpenDialog(win, {
+                title: 'Vyberte cílovou složku hry / projektu (např. IDPK-OIS-RC-EDITION-V1.6)',
+                properties: ['openDirectory', 'createDirectory']
+            });
+            if (canceled || !filePaths || !filePaths.length) return { success: false, canceled: true };
+            const targetDir = filePaths[0];
+            const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'idpk-official-export-'));
+            const tmpZip = path.join(tmpDir, 'bundle.zip');
+            const tmpExtract = path.join(tmpDir, 'out');
+            fs.mkdirSync(tmpExtract, { recursive: true });
+            fs.writeFileSync(tmpZip, buf);
+            const extractZip = require('extract-zip');
+            await extractZip(tmpZip, { dir: tmpExtract });
+            const copySafeFiles = (subParts) => {
+                const srcDir = path.join(tmpExtract, ...subParts);
+                if (!fs.existsSync(srcDir)) return 0;
+                const dstDir = path.join(targetDir, ...subParts);
+                fs.mkdirSync(dstDir, { recursive: true });
+                let cnt = 0;
+                for (const entry of fs.readdirSync(srcDir, { withFileTypes: true })) {
+                    if (!entry.isFile()) continue;
+                    const safeBase = path.basename(entry.name);
+                    fs.copyFileSync(path.join(srcDir, safeBase), path.join(dstDir, safeBase));
+                    cnt++;
+                }
+                return cnt;
+            };
+            const txtCount = copySafeFiles(['linky']);
+            const sndCount = copySafeFiles(['zvuky', 'zastavky']);
+            try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch (_) { }
+            return { success: true, path: targetDir, txtCount, sndCount };
+        }
+        const { canceled, filePath } = await dialog.showSaveDialog(win, {
+            title: mode === 'txt' ? 'Uložit oficiální _auto.txt dokument' : 'Uložit originální balíček (ZIP)',
+            defaultPath: safeName,
+            filters: mode === 'txt'
+                ? [{ name: 'Textový soubor (*.txt)', extensions: ['txt'] }]
+                : [{ name: 'ZIP archiv (*.zip)', extensions: ['zip'] }]
+        });
+        if (canceled || !filePath) return { success: false, canceled: true };
+        fs.writeFileSync(filePath, buf);
+        return { success: true, path: filePath };
+    } catch (err) {
+        return { success: false, error: err.message };
+    }
+});
+
 ipcMain.handle('auto-match-stops-audio', async (event, stops) => {
     if (!Array.isArray(stops)) return [];
     const findAudioPath = (fileName) => {
