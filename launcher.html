@@ -57,7 +57,8 @@ svg.ic{width:1.15em;height:1.15em;fill:none;stroke:currentColor;stroke-width:2;s
 .role-badge{display:inline-block;font-size:10px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;padding:2px 8px;border-radius:999px;background:rgba(148,163,184,.15);color:#cbd5e1;border:1px solid rgba(148,163,184,.25)}
 .role-badge.supporter{background:rgba(245,158,11,.14);color:#fbbf24;border-color:rgba(245,158,11,.35)}
 .role-badge.tester{background:rgba(56,189,248,.14);color:#7dd3fc;border-color:rgba(56,189,248,.35)}
-.role-badge.admin{background:linear-gradient(135deg, #ef4444 0%, #b91c1c 100%);color:#ffffff;border:1px solid #f87171;box-shadow:0 0 10px rgba(239,68,68,0.5);font-weight:900;letter-spacing:0.1em;text-shadow:0 1px 2px rgba(0,0,0,0.6)}
+.role-badge.admin,.role-badge.sa,.role-badge.dev{background:linear-gradient(135deg, #ef4444 0%, #b91c1c 100%);color:#ffffff;border:1px solid #f87171;box-shadow:0 0 10px rgba(239,68,68,0.5);font-weight:900;letter-spacing:0.06em;text-shadow:0 1px 2px rgba(0,0,0,0.6)}
+.role-badge.sa{font-size:9.5px;padding:2px 7px;letter-spacing:0.04em;white-space:nowrap}
 #offline-badge{font-size:10px;font-weight:800;background:var(--amber);color:#1a1100;padding:2px 8px;border-radius:999px;text-transform:uppercase;letter-spacing:.06em;display:inline-flex;align-items:center;gap:4px}
 #btn-logout{border:0;background:transparent;color:#f87171;width:32px;height:32px;border-radius:9px;display:grid;place-items:center;transition:.2s}
 #btn-logout:hover{background:rgba(239,68,68,.15)}
@@ -1508,7 +1509,8 @@ const CONFIG = { DEMO: false, REDUCED_FX: false };
   };
 
   /* ---------------- uživatel ---------------- */
-  const ROLES = { user: 'Uživatel', supporter: 'Podporovatel', tester: 'Tester', admin: 'Admin' };
+  const ROLES = { user: 'Uživatel', supporter: 'Podporovatel', tester: 'Tester', dev: 'DEV', sa: 'SA · SUPERADMIN', admin: 'Admin' };
+  const isAdminRole = (r) => ['admin', 'sa', 'dev', 'developer', 'superadmin'].includes(String(r || '').toLowerCase());
   function setUser(u) {
     u = u || {};
     const name = u.name || 'HWID-7F3A-91C2';
@@ -1526,7 +1528,9 @@ const CONFIG = { DEMO: false, REDUCED_FX: false };
   function setRole(r) {
     S.role = r; const el = $('role-display');
     el.className = 'role-badge ' + r; el.textContent = ROLES[r] || r;
-    const isDev = ['admin', 'sa', 'dev', 'developer'].includes(String(r).toLowerCase());
+    el.style.backgroundColor = '';
+    el.title = r === 'sa' ? 'Superadmin (SA)' : (ROLES[r] || r);
+    const isDev = isAdminRole(r);
     $('btn-dev-build').hidden = !isDev;
     const sDev = $('settings-dev-card'); if (sDev) sDev.hidden = !isDev;
     if (window.__syncAdmin) window.__syncAdmin(r);
@@ -1599,9 +1603,11 @@ const CONFIG = { DEMO: false, REDUCED_FX: false };
       const d = document.createElement('div');
       d.className = 'opt' + (v.id === S.sel ? ' sel' : '') + (isLatest ? ' opt-latest' : ' opt-older');
 
-      let badgeHtml = '<span class="vtag ' + v.tag + '">' + ({ stable: 'Stabilní', rc: 'RC', beta: 'Beta', old: 'Starší', dev: 'Dev' }[v.tag] || v.tag) + '</span>';
+      let badgeHtml = (v.tag && v.tag !== 'stable')
+        ? '<span class="vtag ' + v.tag + '">' + ({ rc: 'RC', beta: 'Beta', old: 'Starší', dev: 'Dev' }[v.tag] || v.tag) + '</span>'
+        : '';
       if (isLatest) {
-        badgeHtml = '<span class="vtag latest" style="background:rgba(56,189,248,0.22);color:#38bdf8;border:1px solid rgba(56,189,248,0.45);font-weight:900;font-size:10px;padding:3px 9px;border-radius:6px;box-shadow:0 0 12px rgba(56,189,248,0.35);letter-spacing:0.06em;">NEJNOVĚJŠÍ</span> ' + badgeHtml;
+        badgeHtml = '<span class="vtag latest" style="background:rgba(56,189,248,0.22);color:#38bdf8;border:1px solid rgba(56,189,248,0.45);font-weight:900;font-size:10px;padding:3px 9px;border-radius:6px;box-shadow:0 0 12px rgba(56,189,248,0.35);letter-spacing:0.06em;">NEJNOVĚJŠÍ</span>' + (badgeHtml ? ' ' + badgeHtml : '');
       }
 
       d.innerHTML = '<div style="display:flex;align-items:center;gap:10px;">' +
@@ -1839,7 +1845,7 @@ const CONFIG = { DEMO: false, REDUCED_FX: false };
   /* ---------------- modaly ---------------- */
   function openModal(id) { $(id).hidden = false; }
   function closeModal(id) { $(id).hidden = true; }
-  const dlistHtml = (arr, name) => arr.map((v) => '<label class="dli' + (v.lock ? ' lock' : '') + '"><input type="checkbox" ' + (v.pre ? 'checked' : '') + ' data-id="' + v.id + '"><b>' + esc(v.name) + '</b><span class="vtag ' + v.tag + '">' + v.tag.toUpperCase() + '</span><span class="sz">' + esc(v.size) + '</span></label>').join('');
+  const dlistHtml = (arr, name) => arr.map((v) => '<label class="dli' + (v.lock ? ' lock' : '') + '"><input type="checkbox" ' + (v.pre ? 'checked' : '') + ' data-id="' + v.id + '"><b>' + esc(v.name) + '</b>' + (v.tag && v.tag !== 'stable' ? '<span class="vtag ' + v.tag + '">' + v.tag.toUpperCase() + '</span>' : '') + '<span class="sz">' + esc(v.size) + '</span></label>').join('');
   function openDeleteVersions() {
     const arr = S.versions.filter((v) => v.installed).map((v) => ({ ...v, lock: v.id === S.sel }));
     $('delete-versions-list').innerHTML = dlistHtml(arr); openModal('delete-versions-modal');
@@ -2204,7 +2210,7 @@ const CONFIG = { DEMO: false, REDUCED_FX: false };
   }
   $$('#ed-tabs .ed-tab').forEach((b) => (b.onclick = () => selTab(b.dataset.tab)));
   function syncAdminTab(role) {
-    const adm = role === 'admin'; $('tab-admin').hidden = !adm; $('cnt-admin').textContent = (S.queue || []).length;
+    const adm = isAdminRole(role); $('tab-admin').hidden = !adm; $('cnt-admin').textContent = (S.queue || []).length;
     if (!adm && !$('pane-admin').hidden) selTab('mine');
   }
   window.__syncAdmin = syncAdminTab;

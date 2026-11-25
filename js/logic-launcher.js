@@ -1354,11 +1354,12 @@ async function initLauncher(config) {
 
         // Získat roli z users tabulky s timeoutem
         try {
-            const roleRes = await safeFetch(`${API_BASE}/api/launcher/user_info`, {
+            const roleLookupId = config.discord_id || (config.email ? 'email-' + config.email : '');
+            const roleRes = roleLookupId ? await safeFetch(`${API_BASE}/api/launcher/user_info`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ discord_id: config.discord_id })
-            }, 5000);
+                body: JSON.stringify({ discord_id: roleLookupId })
+            }, 5000) : { ok: false };
             if (roleRes.ok) {
                 const data = await roleRes.json();
                 if (data && data.status === 'success') {
@@ -1410,7 +1411,7 @@ async function initLauncher(config) {
         if (currentUserRole.includes('DEV') || currentUserRole.includes('SA')) color = '#ef4444';
         else if (currentUserRole.includes('BT')) color = '#3b82f6';
 
-        if (roleDisplay) {
+        if (!window.LC && roleDisplay) {
             roleDisplay.innerText = currentUserRole.toUpperCase();
             roleDisplay.style.backgroundColor = color;
         }
@@ -1522,7 +1523,21 @@ async function loadAvailableVersions() {
                 const data = await res.json();
                 if (data.status === 'ok') {
                     dbVersions = data.versions || [];
-                    if (data.user_role) currentUserRole = data.user_role;
+                    if (data.user_role) {
+                        currentUserRole = data.user_role;
+                        if (cfg.user_role !== currentUserRole) {
+                            cfg.user_role = currentUserRole;
+                            saveConfig(cfg);
+                        }
+                        if (window.LC && window.LC.setUser) {
+                            window.LC.setUser({
+                                name: cfg.discord_nick || cfg.email || 'Uživatel',
+                                hwid: currentHWID,
+                                role: mapRoleToLC(currentUserRole),
+                                avatar_url: cfg.avatar_url || (typeof currentUserAvatarUrl !== 'undefined' ? currentUserAvatarUrl : null)
+                            });
+                        }
+                    }
                     onlineFetchSuccess = true;
                     // Uložit do offline mezipaměti pro případ výpadku sítě v budoucnu
                     saveLauncherCache({
@@ -2949,7 +2964,9 @@ async function doLauncherOfflineLogin() {
 function mapRoleToLC(r) {
     if (!r) return 'user';
     const s = String(r).toLowerCase().trim();
-    if (s.includes('admin') || s === 'sa' || /\bsa\b/.test(s) || s.includes('dev') || s.includes('správce') || s.includes('vedení')) return 'admin';
+    if (s === 'sa' || /\bsa\b/.test(s) || s.includes('superadmin') || s.includes('server manager') || s === 'sm') return 'sa';
+    if (s === 'dev' || /\bdev\b/.test(s) || s.includes('developer') || s.includes('vývojář') || s.includes('vyvojar')) return 'dev';
+    if (s.includes('admin') || s.includes('správce') || s.includes('vedení')) return 'admin';
     if (s === 'bt' || /\bbt\b/.test(s) || s.includes('tester') || s.includes('beta')) return 'tester';
     if (s.includes('supporter') || s.includes('podporovatel') || s.includes('předplatitel') || s.includes('vip')) return 'supporter';
     return 'user';
@@ -3577,7 +3594,7 @@ async function loadCommunityEditorLines(preloadedLocalLines) {
 }
 
 async function loadPendingAdminQueue() {
-    if (mapRoleToLC(currentUserRole) !== 'admin') return [];
+    if (!['admin', 'sa', 'dev'].includes(mapRoleToLC(currentUserRole))) return [];
     try {
         const res = await safeFetch(`${API_BASE}/api/community-routes/pending`, { headers: _authHeaders() }, 4000);
         if (res.ok) {
