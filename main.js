@@ -5,12 +5,10 @@ const readline = require('readline');
 const http = require('http'); 
 const { exec } = require('child_process');
 const log = require('electron-log');
-const { createClient } = require('@supabase/supabase-js');
-const WebSocket = require('ws');
-global.WebSocket = WebSocket; // DŮLEŽITÉ: Musí se nastavit přímo do Node.js global objektu
 const extract = require('extract-zip');
 const https = require('https');
 const os = require('os');
+const zlib = require('zlib');
 
 // Zamezení chyb "Unable to move the cache" / "Gpu Cache Creation failed"
 app.commandLine.appendSwitch('disable-gpu-cache');
@@ -19,11 +17,88 @@ app.commandLine.appendSwitch('disable-disk-cache');
 
 log.info('App starting...');
 
-const SUPABASE_URL = 'https://tdonrppusbwhoftdontz.supabase.co';
-const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRkb25ycHB1c2J3aG9mdGRvbnR6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI4MDI1NDIsImV4cCI6MjA4ODM3ODU0Mn0.4RLDe65aE5aW1HtWkfgS0QL6JY1MNzGrA7yfnehBFzo';
-const supabase = createClient(SUPABASE_URL, SUPABASE_KEY, {
-    auth: { persistSession: false }
-});
+function _escapeHtmlMain(str) {
+    return String(str == null ? '' : str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
+function _safeRouteFilenameBase(id) {
+    return path.basename(String(id || '').trim()).replace(/\.\.+/g, '_').replace(/[^a-zA-Z0-9_.-\u00C0-\u024F ]/g, '_');
+}
+
+function _createZipBuffer(entries) {
+    const crcTable = new Uint32Array(256);
+    for (let n = 0; n < 256; n++) {
+        let c = n;
+        for (let k = 0; k < 8; k++) c = (c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1);
+        crcTable[n] = c >>> 0;
+    }
+    const crc32 = (buf) => {
+        let c = 0xFFFFFFFF;
+        for (let i = 0; i < buf.length; i++) c = crcTable[(c ^ buf[i]) & 0xFF] ^ (c >>> 8);
+        return (c ^ 0xFFFFFFFF) >>> 0;
+    };
+    const localParts = [];
+    const centralParts = [];
+    let offset = 0;
+    for (const ent of entries) {
+        const nameBuf = Buffer.from(String(ent.name).replace(/\\/g, '/'), 'utf8');
+        const rawBuf = Buffer.isBuffer(ent.data) ? ent.data : Buffer.from(String(ent.data || ''), 'utf8');
+        const compBuf = zlib.deflateRawSync(rawBuf);
+        const crc = crc32(rawBuf);
+
+        const lh = Buffer.alloc(30);
+        lh.writeUInt32LE(0x04034B50, 0);
+        lh.writeUInt16LE(20, 4);
+        lh.writeUInt16LE(0x0800, 6);
+        lh.writeUInt16LE(8, 8);
+        lh.writeUInt16LE(0, 10);
+        lh.writeUInt16LE(0, 12);
+        lh.writeUInt32LE(crc, 14);
+        lh.writeUInt32LE(compBuf.length, 18);
+        lh.writeUInt32LE(rawBuf.length, 22);
+        lh.writeUInt16LE(nameBuf.length, 26);
+        lh.writeUInt16LE(0, 28);
+        localParts.push(lh, nameBuf, compBuf);
+
+        const cd = Buffer.alloc(46);
+        cd.writeUInt32LE(0x02014B50, 0);
+        cd.writeUInt16LE(20, 4);
+        cd.writeUInt16LE(20, 6);
+        cd.writeUInt16LE(0x0800, 8);
+        cd.writeUInt16LE(8, 10);
+        cd.writeUInt16LE(0, 12);
+        cd.writeUInt16LE(0, 14);
+        cd.writeUInt32LE(crc, 16);
+        cd.writeUInt32LE(compBuf.length, 20);
+        cd.writeUInt32LE(rawBuf.length, 24);
+        cd.writeUInt16LE(nameBuf.length, 28);
+        cd.writeUInt16LE(0, 30);
+        cd.writeUInt16LE(0, 32);
+        cd.writeUInt16LE(0, 34);
+        cd.writeUInt16LE(0, 36);
+        cd.writeUInt32LE(0, 38);
+        cd.writeUInt32LE(offset, 42);
+        centralParts.push(cd, nameBuf);
+
+        offset += lh.length + nameBuf.length + compBuf.length;
+    }
+    const cdSize = centralParts.reduce((s, b) => s + b.length, 0);
+    const eocd = Buffer.alloc(22);
+    eocd.writeUInt32LE(0x06054B50, 0);
+    eocd.writeUInt16LE(0, 4);
+    eocd.writeUInt16LE(0, 6);
+    eocd.writeUInt16LE(entries.length, 8);
+    eocd.writeUInt16LE(entries.length, 10);
+    eocd.writeUInt32LE(cdSize, 12);
+    eocd.writeUInt32LE(offset, 16);
+    eocd.writeUInt16LE(0, 20);
+    return Buffer.concat([...localParts, ...centralParts, eocd]);
+}
 
 process.on('uncaughtException', (error) => {
     console.error('Kritická chyba (Aplikace nespadne):', error);
@@ -123,43 +198,74 @@ function getUnlockedCustomRoutes() {
     return customRoutes;
 }
 
-function getJsonRouteId(shortName) {
+const _JSON_IGNORED_FILES = new Set([
+    'stop_importance', 'via_priority', 'zones_override',
+    'gtfs_version', 'build_info', 'cached_launcher_state', 'config',
+    '_sablona_vlastni_linky'
+]);
+
+function getJsonRouteId(shortName, allowNumFallback = true) {
     if (!shortName) return null;
-    const clean = String(shortName).trim();
-    // 1. Zkontrolujeme přímou shodu názvu souboru
+    const clean = _safeRouteFilenameBase(String(shortName).trim());
+    if (!clean || _JSON_IGNORED_FILES.has(clean)) return null;
+
+    // Pokud jde o oficiální GTFS ID (např. 400621 nebo L400621), nepřepisovat vlastní linkou podle čísla
+    const looksLikeOfficialGtfsId = /^L?\d{5,}$/i.test(clean);
+
+    // 1. Přímá shoda názvu souboru
     let p = getUniversalPath('data', `${clean}.json`);
     if (p && fs.existsSync(p)) return clean;
 
-    let numStr = clean.replace(/\D/g, '').replace(/^0+/, '');
-    if (numStr) {
-        let pNum = getUniversalPath('data', `${numStr}.json`);
-        if (pNum && fs.existsSync(pNum)) return numStr;
-    }
-
-    // 2. Prohledat složky dat pro nalezení podle parsed.id nebo parsed.num
     const scanDirs = [
         path.join(PATH_USERDATA, 'data'),
         path.join(PATH_EXE, 'data'),
         path.join(PATH_DEV, 'data'),
+        path.join(process.resourcesPath || '', 'data'),
         path.join(app.getPath('userData'), 'data')
-    ];
+    ].filter(Boolean);
+
+    // 2. Přesná shoda base názvu souboru nebo parsed.id
     for (const dir of scanDirs) {
         if (!fs.existsSync(dir)) continue;
         try {
             const files = fs.readdirSync(dir).filter(f => f.endsWith('.json'));
             for (const f of files) {
                 const base = f.replace('.json', '');
+                if (_JSON_IGNORED_FILES.has(base) || base.startsWith('_')) continue;
                 if (base === clean) return base;
                 try {
                     const parsed = JSON.parse(fs.readFileSync(path.join(dir, f), 'utf8'));
-                    if (parsed && typeof parsed === 'object') {
-                        if (String(parsed.id) === clean || String(parsed.num) === clean || (numStr && String(parsed.num) === numStr)) {
+                    if (parsed && typeof parsed === 'object' && String(parsed.id || '') === clean) {
+                        return base;
+                    }
+                } catch (_) {}
+            }
+        } catch (_) {}
+    }
+
+    // 3. Fallback podle krátkého čísla jen pro ne-GTFS ID (např. při zadání přes linkospoj nebo ruční linku)
+    if (allowNumFallback && !looksLikeOfficialGtfsId) {
+        let numStr = clean.replace(/\D/g, '').replace(/^0+/, '');
+        if (numStr) {
+            let pNum = getUniversalPath('data', `${numStr}.json`);
+            if (pNum && fs.existsSync(pNum)) return numStr;
+        }
+        for (const dir of scanDirs) {
+            if (!fs.existsSync(dir)) continue;
+            try {
+                const files = fs.readdirSync(dir).filter(f => f.endsWith('.json'));
+                for (const f of files) {
+                    const base = f.replace('.json', '');
+                    if (_JSON_IGNORED_FILES.has(base) || base.startsWith('_')) continue;
+                    try {
+                        const parsed = JSON.parse(fs.readFileSync(path.join(dir, f), 'utf8'));
+                        if (parsed && typeof parsed === 'object' && parsed.is_custom && (String(parsed.num) === clean || (numStr && String(parsed.num) === numStr))) {
                             return base;
                         }
-                    }
-                } catch(_) {}
-            }
-        } catch(_) {}
+                    } catch (_) {}
+                }
+            } catch (_) {}
+        }
     }
     return null;
 }
@@ -304,9 +410,14 @@ function showNextAnnouncement(messages, index, discord_id) {
     });
 
     let btnHtml = '';
-    if (msg.link_url && msg.link_url.trim() !== '') {
-        btnHtml = `<a href="#" onclick="require('electron').shell.openExternal('${msg.link_url}')" style="display:inline-block; padding:10px 20px; background:#38bdf8; color:#000; font-weight:bold; text-decoration:none; border-radius:5px; margin-bottom:10px; width:100%; box-sizing:border-box;">Otevřít odkaz</a>`;
+    const rawLink = String(msg.link_url || '').trim();
+    const safeHref = /^https?:\/\//i.test(rawLink) ? _escapeHtmlMain(rawLink) : '';
+    if (safeHref) {
+        btnHtml = `<a href="#" id="ann-link-btn" data-url="${safeHref}" style="display:inline-block; padding:10px 20px; background:#38bdf8; color:#000; font-weight:bold; text-decoration:none; border-radius:5px; margin-bottom:10px; width:100%; box-sizing:border-box;">Otevřít odkaz</a>`;
     }
+    const safeTitle = _escapeHtmlMain(msg.title || 'Oznámení');
+    const safeContent = _escapeHtmlMain(msg.content || '').replace(/\n/g, '<br>');
+    const safeMsgId = _escapeHtmlMain(msg.id || '');
 
     const htmlContent = `
     <html>
@@ -326,13 +437,27 @@ function showNextAnnouncement(messages, index, discord_id) {
     </head>
     <body>
         <div class="box">
-            <div class="header">${msg.title}</div>
-            <div class="content">${msg.content}</div>
+            <div class="header">${safeTitle}</div>
+            <div class="content">${safeContent}</div>
             <div class="footer">
                 ${btnHtml}
-                <button class="close-btn" onclick="const { ipcRenderer } = require('electron'); ipcRenderer.send('close-announcement', { id: '${msg.id}', index: ${index} })">Zavřít oznámení</button>
+                <button class="close-btn" id="ann-close-btn">Zavřít oznámení</button>
             </div>
         </div>
+        <script>
+            (function() {
+                var lb = document.getElementById('ann-link-btn');
+                if (lb) lb.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    var u = lb.getAttribute('data-url') || '';
+                    if (/^https?:\/\//i.test(u)) require('electron').shell.openExternal(u);
+                });
+                var cb = document.getElementById('ann-close-btn');
+                if (cb) cb.addEventListener('click', function() {
+                    require('electron').ipcRenderer.send('close-announcement', { id: ${JSON.stringify(safeMsgId)}, index: ${Number(index) || 0} });
+                });
+            })();
+        </script>
     </body>
     </html>
     `;
@@ -393,11 +518,13 @@ function sendStatsToBackend(data) {
     });
 }
 
-let pendingStatsPromise = Promise.resolve();
+let pendingStatsPromise = null;
+let _quitStatsFlushed = false;
 
 ipcMain.on('save-stats-on-close', (event, data) => {
     if (data && data.line && data.stops && data.stops.length > 0) {
-        pendingStatsPromise = sendStatsToBackend(data);
+        _quitStatsFlushed = false;
+        pendingStatsPromise = sendStatsToBackend(data).finally(() => { _quitStatsFlushed = true; });
     }
 });
 
@@ -409,51 +536,57 @@ ipcMain.on('quit-app', async (event, data) => {
             await Promise.race([pendingStatsPromise, new Promise(r => setTimeout(r, 2000))]);
         }
     } catch(e) {}
+    _quitStatsFlushed = true;
     app.quit();
 });
 
-app.on('before-quit', async (e) => {
-    try {
-        if (pendingStatsPromise) {
-            await Promise.race([pendingStatsPromise, new Promise(r => setTimeout(r, 2000))]);
-        }
-    } catch(e) {}
+app.on('before-quit', (e) => {
+    if (_quitStatsFlushed || !pendingStatsPromise) return;
+    e.preventDefault();
+    Promise.race([pendingStatsPromise, new Promise(r => setTimeout(r, 2000))])
+        .catch(() => {})
+        .finally(() => {
+            _quitStatsFlushed = true;
+            app.quit();
+        });
 });
 ipcMain.on('relaunch-app', () => { app.relaunch(); app.exit(); });
 ipcMain.on('install-launcher-update', (event, installerPath) => {
     try {
         const { spawn } = require('child_process');
-        const fs = require('fs');
-        const path = require('path');
-        const os = require('os');
-
-        if (!installerPath || !fs.existsSync(installerPath)) {
-            console.error('[install-launcher-update] Soubor instalátoru neexistuje:', installerPath);
+        if (!installerPath || typeof installerPath !== 'string') return;
+        const resolvedInstaller = path.resolve(installerPath);
+        const resolvedTmp = path.resolve(os.tmpdir());
+        if (!resolvedInstaller.toLowerCase().startsWith(resolvedTmp.toLowerCase() + path.sep) || !resolvedInstaller.toLowerCase().endsWith('.exe')) {
+            console.error('[install-launcher-update] Neplatná cesta instalátoru:', installerPath);
+            return;
+        }
+        if (!fs.existsSync(resolvedInstaller)) {
+            console.error('[install-launcher-update] Soubor instalátoru neexistuje:', resolvedInstaller);
             return;
         }
 
-        const stat = fs.statSync(installerPath);
+        const stat = fs.statSync(resolvedInstaller);
         if (stat.size < 5000000) {
-            console.error('[install-launcher-update] Instalátor je neúplný nebo poškozený (velikost: ' + stat.size + ' B):', installerPath);
-            try { fs.unlinkSync(installerPath); } catch (_) {}
+            console.error('[install-launcher-update] Instalátor je neúplný nebo poškozený (velikost: ' + stat.size + ' B):', resolvedInstaller);
+            try { fs.unlinkSync(resolvedInstaller); } catch (_) {}
             return;
         }
 
-        const appExe = process.execPath;
-        const tempBatch = path.join(os.tmpdir(), `idpk_updater_${Date.now()}.bat`);
-
-        const scriptContent = [
-            '@echo off',
-            'timeout /t 2 /nobreak >nul',
-            `start "" /wait "${installerPath}" /S`,
-            'timeout /t 1 /nobreak >nul',
-            `start "" "${appExe}"`,
-            'del "%~f0"'
+        const escPs = (s) => String(s).replace(/'/g, "''");
+        const psScriptPath = path.join(resolvedTmp, `idpk_updater_${Date.now()}.ps1`);
+        const psScript = [
+            'Start-Sleep -Seconds 2',
+            `$inst = '${escPs(resolvedInstaller)}'`,
+            `$exe = '${escPs(process.execPath)}'`,
+            "if (Test-Path -LiteralPath $inst) { Start-Process -FilePath $inst -ArgumentList '/S' -Wait }",
+            'Start-Sleep -Seconds 1',
+            'if (Test-Path -LiteralPath $exe) { Start-Process -FilePath $exe }',
+            'Remove-Item -LiteralPath $PSCommandPath -Force -ErrorAction SilentlyContinue'
         ].join('\r\n');
+        fs.writeFileSync(psScriptPath, psScript, 'utf8');
 
-        fs.writeFileSync(tempBatch, scriptContent, 'utf8');
-
-        const child = spawn('cmd.exe', ['/c', tempBatch], {
+        const child = spawn('powershell.exe', ['-NoProfile', '-WindowStyle', 'Hidden', '-ExecutionPolicy', 'Bypass', '-File', psScriptPath], {
             detached: true,
             stdio: 'ignore',
             windowsHide: true
@@ -605,7 +738,8 @@ ipcMain.handle('get-link-files', async () => {
 });
 
 ipcMain.handle('read-route-file', async (event, filename) => {
-    let cleanName = filename.split('|')[0].toLowerCase().replace('.txt', '').replace(/[\r\n]+/g, '').trim();
+    let cleanName = _safeRouteFilenameBase(String(filename || '').split('|')[0].toLowerCase().replace('.txt', '').replace(/[\r\n]+/g, '').trim());
+    if (!cleanName) return null;
     let p = getUniversalPath('linky', `${cleanName}.txt`); if (p) return fs.readFileSync(p, 'utf-8');
     let pCustom = getUniversalPath('linky', `${cleanName}_custom.txt`); if (pCustom) return fs.readFileSync(pCustom, 'utf-8');
     let pAuto = getUniversalPath('linky', `${cleanName}_auto.txt`); if (pAuto) return fs.readFileSync(pAuto, 'utf-8');
@@ -1743,19 +1877,20 @@ async function interpolateMissingTimes(stops) {
                     break;
                 }
             }
-            if (nextTimeInMins !== null && lastTimeInMins > 0) {
+            if (nextTimeInMins !== null && lastTimeInMins >= 0) {
+                if (nextTimeInMins < lastTimeInMins) nextTimeInMins += 1440;
                 let diff = nextTimeInMins - lastTimeInMins;
                 let steps = nextIndex - i + 1;
                 let stepSize = diff / steps;
                 let currentMins = Math.round(lastTimeInMins + stepSize);
                 lastTimeInMins = currentMins;
-                let h = Math.floor(currentMins / 60);
-                let m = currentMins % 60;
+                let h = Math.floor(currentMins / 60) % 24;
+                let m = ((currentMins % 60) + 60) % 60;
                 stops[i].time = (h < 10 ? '0' : '') + h + ':' + (m < 10 ? '0' : '') + m;
             } else {
                 lastTimeInMins += 2; // Arbitrary 2 mins if no data
-                let h = Math.floor(lastTimeInMins / 60);
-                let m = lastTimeInMins % 60;
+                let h = Math.floor(lastTimeInMins / 60) % 24;
+                let m = ((lastTimeInMins % 60) + 60) % 60;
                 stops[i].time = (h < 10 ? '0' : '') + h + ':' + (m < 10 ? '0' : '') + m;
             }
         }
@@ -1814,8 +1949,8 @@ async function getGtfsStopsForTrip(tripId, forceSilent = false) {
     
     let zonesOverride = {};
     try {
-        const overridePath = path.join(app.getPath('userData'), 'data', 'zones_override.json');
-        if (fs.existsSync(overridePath)) {
+        const overridePath = getUniversalPath('data', 'zones_override.json') || path.join(app.getPath('userData'), 'data', 'zones_override.json');
+        if (overridePath && fs.existsSync(overridePath)) {
             zonesOverride = JSON.parse(fs.readFileSync(overridePath, 'utf8'));
         }
     } catch (e) { log.error("Failed to load zones_override.json: " + e); }
@@ -1909,14 +2044,18 @@ ipcMain.handle('editor-get-routes', () => {
 });
 
 ipcMain.handle('editor-save-route', (e, id, data) => {
+    const safeId = _safeRouteFilenameBase(id);
+    if (!safeId) return false;
     const customDataPath = path.join(PATH_USERDATA, 'data');
     if (!fs.existsSync(customDataPath)) fs.mkdirSync(customDataPath, { recursive: true });
-    fs.writeFileSync(path.join(customDataPath, id + '.json'), JSON.stringify(data, null, 4));
+    fs.writeFileSync(path.join(customDataPath, safeId + '.json'), JSON.stringify(data, null, 4));
     return true;
 });
 
 ipcMain.handle('editor-delete-route', (e, id) => {
-    const p = path.join(PATH_USERDATA, 'data', id + '.json');
+    const safeId = _safeRouteFilenameBase(id);
+    if (!safeId) return false;
+    const p = path.join(PATH_USERDATA, 'data', safeId + '.json');
     if (fs.existsSync(p)) fs.unlinkSync(p);
     return true;
 });
@@ -1967,14 +2106,9 @@ ipcMain.handle('gtfs-load-routes', async () => {
 
     // JSON linky ze složky data (komunitní, vytvořené přes GTFS, ručně nebo AI)
     try {
-        let dirsToScan = [path.join(PATH_USERDATA, 'data'), path.join(PATH_EXE, 'data'), path.join(PATH_DEV, 'data')];
+        let dirsToScan = [path.join(PATH_USERDATA, 'data'), path.join(PATH_EXE, 'data'), path.join(PATH_DEV, 'data'), path.join(process.resourcesPath || '', 'data')].filter(Boolean);
         const seenJsonRoutes = new Set();
-        const seenLineNums = new Set();
-        const IGNORED = new Set([
-            'stop_importance', 'via_priority', 'zones_override',
-            'gtfs_version', 'build_info', 'cached_launcher_state', 'config',
-            '_sablona_vlastni_linky'
-        ]);
+        const IGNORED = _JSON_IGNORED_FILES;
         dirsToScan.forEach(dir => {
             if (fs.existsSync(dir)) {
                 fs.readdirSync(dir).filter(f => f.endsWith('.json')).forEach(f => {
@@ -1984,14 +2118,10 @@ ipcMain.handle('gtfs-load-routes', async () => {
                     try {
                         const parsed = JSON.parse(fs.readFileSync(path.join(dir, f), 'utf8'));
                         const lineNum = parsed.num || parsed.line || base;
-                        const cleanNum = String(lineNum).trim();
-                        if (seenLineNums.has(cleanNum)) return;
-                        seenLineNums.add(cleanNum);
-
                         const lineName = parsed.name || (`Linka ${lineNum}`);
-                        const author = parsed.author ? parsed.author : 'Uživatel';
-                        // Zvýraznění autora a čisté číslo linky (pravidlo #11)
-                        results.unshift(`${lineNum} | ${lineName} · LINKA VYTVOŘENA: ${author} | ${base}`);
+                        const author = parsed.author_name || parsed.author || 'Uživatel';
+                        const verTag = parsed.version ? ` (${parsed.version})` : '';
+                        results.unshift(`${lineNum} | ${lineName}${verTag} · LINKA VYTVOŘENA: ${author} | ${base}`);
                     } catch (_) {
                         results.unshift(`${base} | Lokální JSON Linka ${base} | ${base}`);
                     }
@@ -2333,6 +2463,12 @@ app.whenReady().then(() => {
 
             const externalFolders = ['obraz', 'zvuky', 'data', 'linky'];
             
+            if (url.includes('..')) {
+                return callback({ error: -10 });
+            }
+            if (fs.existsSync(url)) {
+                return callback({ path: url });
+            }
             for (let folder of externalFolders) {
                 let search1 = `\\${folder}\\`;
                 let search2 = `/${folder}/`;
@@ -2341,11 +2477,13 @@ app.whenReady().then(() => {
                 if (idx === -1) idx = url.indexOf(search2);
                 
                 if (idx !== -1) {
-                    let relativePath = url.substring(idx);
-                    let externalPath = path.join(path.dirname(process.execPath), relativePath);
-                    
-                    if (fs.existsSync(externalPath)) {
-                        return callback({ path: externalPath });
+                    let relativePath = url.substring(idx).replace(/^[\\/]+/, '');
+                    const roots = [PATH_USERDATA, path.dirname(process.execPath), process.resourcesPath || '', PATH_DEV].filter(Boolean);
+                    for (const rootDir of roots) {
+                        const externalPath = path.join(rootDir, relativePath);
+                        if (fs.existsSync(externalPath)) {
+                            return callback({ path: externalPath });
+                        }
                     }
                 }
             }
@@ -2511,9 +2649,10 @@ autoUpdater.on('error', (err) => {
 });
 
 app.on('ready', async () => {
-    // Check for updates
+    // Check for updates only when electron-updater config is shipped
     try {
-        if (app.isPackaged) {
+        const appUpdateYml = path.join(process.resourcesPath || '', 'app-update.yml');
+        if (app.isPackaged && fs.existsSync(appUpdateYml)) {
             autoUpdater.checkForUpdatesAndNotify();
         }
     } catch(e) {
@@ -2521,18 +2660,22 @@ app.on('ready', async () => {
     }
     if (process.argv.includes('--no-launcher')) {
         let allowGame = false;
+        const userDataPath = process.env.APPDATA ? path.join(process.env.APPDATA, 'idpk-palubni-pocitac') : os.homedir();
+        const configPath = path.join(userDataPath, 'config.json');
+        const cachePath = path.join(userDataPath, 'cached_launcher_state.json');
+        let config = null;
         try {
-            const userDataPath = process.env.APPDATA ? path.join(process.env.APPDATA, 'idpk-palubni-pocitac') : os.homedir();
-            const configPath = path.join(userDataPath, 'config.json');
             if (fs.existsSync(configPath)) {
-                const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
-                let id_param = config.discord_id;
-                if (!id_param && config.email) id_param = 'email-' + config.email;
+                config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+                let id_param = config.discord_id || (config.email ? ('email-' + config.email) : '');
                 if (id_param) {
-                    const response = await fetch(`https://datacorebot.koyeb.app/api/launcher/versions?discord_id=${id_param}`);
+                    const controller = new AbortController();
+                    const tOut = setTimeout(() => controller.abort(), 3500);
+                    const response = await fetch(`https://datacorebot.koyeb.app/api/launcher/versions?discord_id=${encodeURIComponent(id_param)}`, { signal: controller.signal });
+                    clearTimeout(tOut);
                     const data = await response.json();
-                    
-                    if (data.status !== 'banned' && data.status !== 'error' && data.versions) {
+
+                    if (data.status !== 'banned' && data.status !== 'locked' && data.status !== 'error' && data.versions) {
                         const myVer = "V" + app.getVersion();
                         const targetVer = data.versions.find(v => v.db_version === myVer || v.version_name === myVer || myVer.startsWith(v.db_version) || (config.last_version && v.db_version === config.last_version));
                         if (targetVer && targetVer.has_access && targetVer.can_launch) {
@@ -2545,14 +2688,25 @@ app.on('ready', async () => {
                 }
             }
         } catch (err) {
-            console.error("Security check failed:", err);
+            console.warn("Offline fallback during --no-launcher check:", err.message || err);
+            if (config && (config.discord_id || config.email)) {
+                try {
+                    if (fs.existsSync(cachePath)) {
+                        const cState = JSON.parse(fs.readFileSync(cachePath, 'utf8'));
+                        const myVer = "V" + app.getVersion();
+                        const cachedVer = Array.isArray(cState.versions) ? cState.versions.find(v => v.db_version === myVer || v.version_name === myVer || myVer.startsWith(v.db_version) || (config.last_version && v.db_version === config.last_version)) : null;
+                        allowGame = cachedVer ? Boolean(cachedVer.has_access && cachedVer.can_launch) : true;
+                    } else {
+                        allowGame = true;
+                    }
+                } catch (_) { allowGame = true; }
+            }
         }
 
         if (allowGame) {
             createController();
             await syncGtfsData();
         } else {
-            // Pokud je ban nebo chyba, spadneme do Launcheru, který ukáže červenou BAN obrazovku
             createLauncher();
         }
     } else {
@@ -2639,40 +2793,35 @@ ipcMain.handle('export-line-zip', async (event, line) => {
         });
         if (canceled || !filePath) return { success: false, canceled: true };
 
-        return new Promise((resolve) => {
-            try {
-                const archiver = require('archiver');
-                const output = fs.createWriteStream(filePath);
-                const archive = archiver('zip', { zlib: { level: 9 } });
+        try {
+            const entries = [];
+            const fileId = _safeRouteFilenameBase(line.id || `custom_${safeNum}`) || `custom_${safeNum}`;
+            entries.push({ name: `${fileId}.json`, data: Buffer.from(JSON.stringify(line, null, 2), 'utf8') });
 
-                output.on('close', () => resolve({ success: true, path: filePath }));
-                archive.on('error', (err) => resolve({ success: false, error: err.message }));
-
-                archive.pipe(output);
-
-                // 1. Zapsat JSON soubor linky
-                const fileId = line.id || `custom_${safeNum}`;
-                archive.append(JSON.stringify(line, null, 2), { name: `${fileId}.json` });
-
-                // 2. Přibalit zvukové soubory z userdata/sounds
-                const soundsDir = path.join(PATH_USERDATA, 'sounds');
-                const includedSounds = new Set();
-                (line.stops || []).forEach(st => {
-                    const sndName = (st.snd && st.snd.name) ? st.snd.name : (st.audio_file || st.audio || null);
-                    if (sndName && !includedSounds.has(sndName)) {
-                        includedSounds.add(sndName);
-                        const soundPath = path.join(soundsDir, sndName);
-                        if (fs.existsSync(soundPath)) {
-                            archive.file(soundPath, { name: `sounds/${sndName}` });
-                        }
+            const soundsDir = path.join(PATH_USERDATA, 'sounds');
+            const zastDir = path.join(PATH_USERDATA, 'zvuky', 'zastavky');
+            const includedSounds = new Set();
+            (line.stops || []).forEach(st => {
+                const rawSnd = (st && st.snd && st.snd.name) ? st.snd.name : (st && (st.audio_file || st.audio)) || null;
+                if (!rawSnd) return;
+                const sndName = path.basename(String(rawSnd));
+                if (!includedSounds.has(sndName)) {
+                    includedSounds.add(sndName);
+                    const p1 = path.join(soundsDir, sndName);
+                    const p2 = path.join(zastDir, sndName);
+                    const foundPath = fs.existsSync(p1) ? p1 : (fs.existsSync(p2) ? p2 : null);
+                    if (foundPath) {
+                        entries.push({ name: `sounds/${sndName}`, data: fs.readFileSync(foundPath) });
                     }
-                });
+                }
+            });
 
-                archive.finalize();
-            } catch(e) {
-                resolve({ success: false, error: e.message });
-            }
-        });
+            const zipBuf = _createZipBuffer(entries);
+            fs.writeFileSync(filePath, zipBuf);
+            return { success: true, path: filePath };
+        } catch(e) {
+            return { success: false, error: e.message };
+        }
     } catch(err) {
         return { success: false, error: err.message };
     }
@@ -2697,19 +2846,42 @@ ipcMain.handle('auto-match-stops-audio', async (event, stops) => {
         return null;
     };
 
+    const soundsDir = path.join(PATH_USERDATA, 'sounds');
+    const zastavkyDir = path.join(PATH_USERDATA, 'zvuky', 'zastavky');
+    try { if (!fs.existsSync(soundsDir)) fs.mkdirSync(soundsDir, { recursive: true }); } catch (_) {}
+    try { if (!fs.existsSync(zastavkyDir)) fs.mkdirSync(zastavkyDir, { recursive: true }); } catch (_) {}
+
     return stops.map(s => {
         const name = typeof s === 'string' ? s : (s.n || s.name || '');
         const res = resolveStopAudio(name);
         if (res && res.audio) {
             const resolvedPath = findAudioPath(res.audio);
             if (resolvedPath) {
+                const baseAudio = path.basename(resolvedPath);
+                let finalPath = resolvedPath;
+                try {
+                    const destSound = path.join(soundsDir, baseAudio);
+                    if (path.resolve(resolvedPath) !== path.resolve(destSound)) {
+                        const srcStat = fs.statSync(resolvedPath);
+                        if (!fs.existsSync(destSound) || fs.statSync(destSound).size !== srcStat.size) {
+                            fs.copyFileSync(resolvedPath, destSound);
+                        }
+                    }
+                    finalPath = destSound;
+                    const destZast = path.join(zastavkyDir, baseAudio);
+                    if (path.resolve(resolvedPath) !== path.resolve(destZast) && !fs.existsSync(destZast)) {
+                        fs.copyFileSync(resolvedPath, destZast);
+                    }
+                } catch (eCopy) {
+                    console.warn('[auto-match-stops-audio] copy warning:', eCopy.message);
+                }
                 return {
                     name,
                     matched: true,
-                    audio: path.basename(resolvedPath),
+                    audio: baseAudio,
                     source: res.source,
-                    filePath: resolvedPath,
-                    url: 'file:///' + resolvedPath.replace(/\\/g, '/')
+                    filePath: finalPath,
+                    url: 'file:///' + finalPath.replace(/\\/g, '/')
                 };
             }
         }
@@ -2887,8 +3059,8 @@ ipcMain.handle('gtfs-editor-search', async (event, query) => {
         const searchInDb = (dbInstance, scopeName) => {
             if (!dbInstance) return [];
             try {
-                let stmt = dbInstance.prepare("SELECT route_id, route_short_name, route_long_name FROM routes WHERE (route_type = '3' OR route_type = 3) AND (route_short_name LIKE $q OR route_long_name LIKE $q OR route_id LIKE $q) LIMIT 80");
-                stmt.bind({ $q: `%${qClean}%` });
+                let stmt = dbInstance.prepare("SELECT route_id, route_short_name, route_long_name FROM routes WHERE (route_type = '3' OR route_type = 3) AND (route_short_name LIKE $q OR route_long_name LIKE $q OR route_id LIKE $q) ORDER BY CASE WHEN route_short_name = $exact OR route_id = $exact THEN 0 WHEN route_short_name LIKE $ends OR route_id LIKE $ends THEN 1 WHEN route_short_name LIKE $starts OR route_id LIKE $starts THEN 2 ELSE 3 END, LENGTH(route_short_name) ASC LIMIT 160");
+                stmt.bind({ $q: `%${qClean}%`, $exact: qClean, $ends: `%${qClean}`, $starts: `${qClean}%` });
                 let routes = [];
                 while (stmt.step()) {
                     routes.push(stmt.getAsObject());
@@ -2921,7 +3093,7 @@ ipcMain.handle('gtfs-editor-search', async (event, query) => {
 
                     for (let rId of group.routeIds) {
                         try {
-                            let tStmt = dbInstance.prepare("SELECT t.trip_id, COUNT(st.stop_sequence) as cnt FROM trips t JOIN stop_times st ON t.trip_id = st.trip_id WHERE t.route_id = $r GROUP BY t.trip_id ORDER BY cnt DESC LIMIT 1");
+                            let tStmt = dbInstance.prepare("SELECT t.trip_id, COUNT(st.stop_sequence) as cnt FROM trips t JOIN stop_times st ON t.trip_id = st.trip_id WHERE t.route_id = $r GROUP BY t.trip_id ORDER BY cnt DESC, t.trip_id ASC LIMIT 1");
                             tStmt.bind({ $r: rId });
                             if (tStmt.step()) {
                                 let row = tStmt.getAsObject();
@@ -2998,7 +3170,7 @@ ipcMain.handle('gtfs-editor-search', async (event, query) => {
                     return a.num.localeCompare(b.num, undefined, { numeric: true });
                 });
 
-                return results;
+                return results.slice(0, 60);
             } catch(e) {
                 console.error(`[gtfs-editor-search][${scopeName}]`, e);
                 return [];
@@ -3247,7 +3419,14 @@ const server = http.createServer((req, res) => {
             }
         });
     } else if (req.url.startsWith('/action/')) {
-        const actionStr = decodeURIComponent(req.url.split('/')[2]);
+        const rawSeg = req.url.slice('/action/'.length);
+        const actionStr = decodeURIComponent(rawSeg);
+        const cmdName = actionStr.split(':::')[0];
+        const ALLOWED_CMDS = new Set(['pressKey','deleteChar','moveArrow','confirmSelection','handleEnterOrStop','smartButtonAction','handleLeftButton','handleTerminate','toggleSettings','backToLogin','manualResetStop','fullReset','toggleListMouse','switchToIdpkMode','backToManual','backToIdpkList','openFunkMenu','closeFunkMenu','toggleDelayMode','toggleRandomContinue','toggleTimeAuto','toggleDelayAuto','toggleAutoAnnounce','manualContinueTrip','autoStartRandomTrip','setFocus','selectListItem','selectStartStop','selectDestination','finalizeTripSelection','backToManualWithLoad','backToIdpkMode','reloadStartStops','closeErrorModal','forceEndRide','openStopWindow','softReset','submitPinNumber','updateDelayDisplay','setFictionalTime']);
+        if (!ALLOWED_CMDS.has(cmdName)) {
+            res.writeHead(403); res.end('Forbidden command');
+            return;
+        }
         if (controllerWindow) controllerWindow.webContents.send('mobile-action', actionStr);
         res.writeHead(200); res.end('OK');
     } else {
@@ -3256,7 +3435,7 @@ const server = http.createServer((req, res) => {
 });
 
 if (process.argv.includes('--no-launcher')) {
-    server.listen(5000, '0.0.0.0', () => { console.log("Mobilní server běží na portu 5000"); });
+    server.listen(5000, '127.0.0.1', () => { console.log("Lokální server běží pouze na 127.0.0.1:5000"); });
 }
 
 ipcMain.on('sync-dom', (event, html) => {
@@ -3290,19 +3469,20 @@ ipcMain.handle('get-gtfs-version', async () => {
 
 ipcMain.handle('get-gtfs-validity', async () => {
     try {
-        let dataDir = path.join(app.getPath('userData'), 'data');
-        const versionFile = path.join(dataDir, 'gtfs_version.json');
-        if (fs.existsSync(versionFile)) {
-            const verData = JSON.parse(fs.readFileSync(versionFile, 'utf-8'));
+        const versionFile = path.join(PATH_USERDATA, 'data', 'gtfs_version.json');
+        const fallbackFile = path.join(app.getPath('userData'), 'data', 'gtfs_version.json');
+        const vf = fs.existsSync(versionFile) ? versionFile : (fs.existsSync(fallbackFile) ? fallbackFile : getUniversalPath('data', 'gtfs_version.json'));
+        if (vf && fs.existsSync(vf)) {
+            const verData = JSON.parse(fs.readFileSync(vf, 'utf-8'));
             return verData.validity || "";
         }
     } catch(e) { console.error(e); }
     return "";
 });
 ipcMain.on('force-buse-window-fix', () => {
-    if (buseWindow && !buseWindow.isDestroyed()) {
-        buseWindow.setResizable(true);
-        buseWindow.setSize(1400, 380);
-        buseWindow.setTitle('BUSE_PANEL_FIX');
+    if (panelWindow && !panelWindow.isDestroyed()) {
+        panelWindow.setResizable(true);
+        panelWindow.setSize(1400, 380);
+        panelWindow.setTitle('BUSE_PANEL_FIX');
     }
 });

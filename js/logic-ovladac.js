@@ -140,17 +140,23 @@ try {
 }
 
 // OPRAVA ZVUKŮ: Nasmerujeme cestu o slozku vys (pokud jsme ve slozce js), aby se spravne nasla slozka "zvuky"
-function getBasePath() { 
+function getBasePath() {
+    const candidates = [];
     try {
         let devBase = __dirname;
         if (devBase.endsWith('js') || devBase.endsWith('js\\') || devBase.endsWith('js/')) {
             devBase = path.join(__dirname, '..');
         }
-        if (require('fs').existsSync(path.join(devBase, 'obraz'))) {
-            return devBase;
-        }
-    } catch(e) {}
-    return path.join(__dirname, '..');
+        candidates.push(devBase);
+    } catch (_) {}
+    try { candidates.push(path.dirname(process.execPath)); } catch (_) {}
+    try { if (process.resourcesPath) candidates.push(process.resourcesPath); } catch (_) {}
+    for (const c of candidates) {
+        try {
+            if (c && fs.existsSync(path.join(c, 'obraz'))) return c;
+        } catch (_) {}
+    }
+    return candidates[0] || path.join(__dirname, '..');
 }
 
 function debugLog(msg) {
@@ -284,7 +290,7 @@ window.prepareStatsPayload = function() {
         lineToSend = String(routeData.routeId).trim();
     }
     if (!lineToSend || statsAnnouncedStops.length === 0) return null;
-    if (lineToSend.startsWith('user_') || lineToSend.startsWith('comm_') || lineToSend.includes(':::') || lineToSend.includes('1794516125535') || lineToSend.includes('user_732') || routeData.isCustomRoute) {
+    if (lineToSend.startsWith('user_') || lineToSend.startsWith('comm_') || lineToSend.includes(':::') || routeData.isCustom || routeData.isComm || routeData.isCustomRoute || !isOfficialBuiltinRoute(lineToSend)) {
         return null;
     }
     let dId = localStorage.getItem('discordId') || storedDiscordId || "";
@@ -642,8 +648,12 @@ window.doOfflineLogin = async function() {
             config.offline_mode = true;
             if (saveConfig) saveConfig(config);
             storedDiscordId = data.discord_id;
+            isAppOfflineMode = true;
+            localStorage.setItem('discordId', data.discord_id);
+            localStorage.setItem('discordNick', data.discord_nick || data.discord_id);
             window.closeErrorModal && window.closeErrorModal();
             window.showNotification && window.showNotification(`Přihlášen nouzově jako ${data.discord_nick} (⧿ OFFLINE REŽIM)`, 'warning', 6000);
+            if (typeof window.initAppFlow === 'function') window.initAppFlow(false);
         } else {
             if (errEl) errEl.textContent = data.message || 'Nesprávné jméno nebo heslo.';
         }
@@ -1461,10 +1471,7 @@ window.initAppFlow = async function(isServerOnline = true) {
         } catch(_) {}
     }
 
-    if (isDevMode && !storedDiscordId) {
-        storedDiscordId = "VSC-DEV";
-        storedNick = "VÝVOJÁŘ";
-    }
+    /* Přihlášení se vždy čte z config.json nebo offline cache bez VSC bypassu */
 
     if (!storedDiscordId) {
         if (!isServerOnline || isAppOfflineMode) {
@@ -1648,13 +1655,6 @@ window.startDiscordAuth = async function() {
             return;
         }
 
-        if (isDevMode && data.status === 'error') {
-            debugLog("⚠️ VSC REŽIM: Ignoruji blokaci při přihlášení (" + data.message + ")");
-            data.status = 'success';
-            data.discord_id = val; 
-            data.discord_nick = "VSC-DEV";
-        }
-        
         if (data.status === 'success') {
             storedDiscordId = data.discord_id;
             storedNick = data.discord_nick || data.discord_id;
@@ -1689,10 +1689,7 @@ window.pollDiscordAuth = async function() {
         }, 4000);
         const data = await res.json();
         
-        if (data.status === 'success' || isDevMode) {
-            if (isDevMode && data.status !== 'success') {
-                debugLog("⚠️ VSC REŽIM: Ignoruji chybu Discord Pollingu.");
-            }
+        if (data.status === 'success') {
             clearInterval(discordPollInterval);
             localStorage.setItem('discordId', storedDiscordId);
             localStorage.setItem('discordNick', data.display_name || "VSC_DEV");
@@ -2068,19 +2065,24 @@ window.checkAutoAnnounce = function(now, s1) {
     let currentMins = now.getHours() * 60 + now.getMinutes();
     let currentSecs = now.getSeconds();
 
+    const _circDelta = (cur, target) => {
+        let d = cur - target;
+        if (d < -720) d += 1440;
+        if (d > 720) d -= 1440;
+        return d;
+    };
+    const minSec = (drivePhase === 1) ? 30 : 0;
+
     if (isTimeBasedAuto) {
-        let isLate = false;
-        if (drivePhase === 0 && (currentMins > schedMins || (currentMins === schedMins && currentSecs >= 0))) isLate = true;
-        if (drivePhase === 1 && (currentMins > schedMins || (currentMins === schedMins && currentSecs >= 30))) isLate = true;
-        if (isLate) window.triggerAutoRapid();
-    } 
+        const d = _circDelta(currentMins, schedMins);
+        if (d > 0 || (d === 0 && currentSecs >= minSec)) window.triggerAutoRapid();
+    }
     else if (isDelayAuto && lockedAutoDelayMins !== null && lockedAutoStartTimeMins !== null) {
-        let isLate = false;
-        if (currentMins >= lockedAutoStartTimeMins) {
-            if (drivePhase === 0 && (currentMins > schedMins + lockedAutoDelayMins || (currentMins === schedMins + lockedAutoDelayMins && currentSecs >= 0))) isLate = true;
-            if (drivePhase === 1 && (currentMins > schedMins + lockedAutoDelayMins || (currentMins === schedMins + lockedAutoDelayMins && currentSecs >= 30))) isLate = true;
+        const sinceStart = _circDelta(currentMins, lockedAutoStartTimeMins % 1440);
+        if (sinceStart >= 0) {
+            const d = _circDelta(currentMins, (schedMins + lockedAutoDelayMins + 1440) % 1440);
+            if (d > 0 || (d === 0 && currentSecs >= minSec)) window.triggerAutoRapid();
         }
-        if (isLate) window.triggerAutoRapid();
     }
 };
 
@@ -3585,7 +3587,7 @@ window.announceStop = function(idx) {
     window.currentAnnouncingStopName = stop.name || "Neznámá zastávka";
 
     let sequence = ['zvuky/hlaseni/GONG.wav']; 
-    if (stop.audio && stop.audio !== '.wav' && stop.audio.length > 4) { 
+    if (stop.audio && String(stop.audio).trim().length > 0 && String(stop.audio).trim().toLowerCase() !== '.wav') { 
         let audioPath = stop.audio.startsWith('zvuky/') ? stop.audio : `zvuky/zastavky/${stop.audio}`;
         sequence.push(audioPath); 
     } else { 
@@ -3620,7 +3622,7 @@ window.announceNextStop = function(idx) {
     window.currentAnnouncingStopName = stop.name || "Neznámá zastávka";
 
     let sequence = ['zvuky/hlaseni/GONG.wav', 'zvuky/hlaseni/PZ.wav']; 
-    if (stop.audio && stop.audio !== '.wav' && stop.audio.length > 4) { 
+    if (stop.audio && String(stop.audio).trim().length > 0 && String(stop.audio).trim().toLowerCase() !== '.wav') { 
         let audioPath = stop.audio.startsWith('zvuky/') ? stop.audio : `zvuky/zastavky/${stop.audio}`;
         sequence.push(audioPath); 
     } else {
@@ -4224,7 +4226,10 @@ window.playStopSound = function() {
     if (isPlayingQueue || audioQueue.length > 0) {
         pendingStopSound = true; 
     } else {
-        window.playDirectAudio('zvuky/hlaseni/ZASTAVIME.wav'); 
+        audioQueue.push({ file: 'zvuky/hlaseni/ZASTAVIME.wav' });
+        isAnnouncementPlaying = true;
+        if (typeof window.updateAudioStatusIndicator === 'function') window.updateAudioStatusIndicator();
+        window.processAudioQueue();
     }
 };
 
@@ -4332,6 +4337,8 @@ function resolveAudioFilePath(relPath) {
     const uData = (typeof PATH_USERDATA !== 'undefined' && PATH_USERDATA) ? PATH_USERDATA : (window.PATH_USERDATA || path.join(process.env.APPDATA || os.homedir(), 'idpk-palubni-pocitac', 'userdata'));
     const uPath = (typeof userDataPath !== 'undefined' && userDataPath) ? userDataPath : (window.userDataPath || path.join(process.env.APPDATA || os.homedir(), 'idpk-palubni-pocitac'));
 
+    const exeDir = (() => { try { return path.dirname(process.execPath); } catch (_) { return ''; } })();
+    const resDir = (() => { try { return process.resourcesPath || ''; } catch (_) { return ''; } })();
     const candidateFolders = [
         path.join(uData, 'zvuky', 'zastavky'),
         path.join(uData, 'zvuky'),
@@ -4343,8 +4350,12 @@ function resolveAudioFilePath(relPath) {
         uPath,
         path.join(getBasePath(), 'zvuky', 'zastavky'),
         path.join(getBasePath(), 'zvuky'),
-        getBasePath()
-    ];
+        getBasePath(),
+        exeDir ? path.join(exeDir, 'zvuky', 'zastavky') : '',
+        exeDir ? path.join(exeDir, 'zvuky') : '',
+        resDir ? path.join(resDir, 'zvuky', 'zastavky') : '',
+        resDir ? path.join(resDir, 'zvuky') : ''
+    ].filter(Boolean);
 
     for (const folder of candidateFolders) {
         for (const name of candidateNames) {
@@ -4368,17 +4379,23 @@ window.playDirectAudio = function(relativePath, fromQueue = false) {
     }
     const resolvedPath = resolveAudioFilePath(relativePath);
     let absolutePath = "file:///" + resolvedPath.replace(/\\/g, '/'); 
+    let settled = false;
+    const finishItem = () => {
+        if (settled) return;
+        settled = true;
+        if (typeof window.updateAudioStatusIndicator === 'function') window.updateAudioStatusIndicator();
+        if (fromQueue) {
+            isPlayingQueue = false;
+            window.processAudioQueue();
+        }
+    };
+
     audioPlayer.src = absolutePath; 
     
-    audioPlayer.onended = () => { 
-        if (typeof window.updateAudioStatusIndicator === 'function') window.updateAudioStatusIndicator();
-        if (fromQueue) { 
-            isPlayingQueue = false; 
-            window.processAudioQueue(); 
-        } 
-    }; 
+    audioPlayer.onended = () => finishItem(); 
     
-    audioPlayer.onerror = (e) => { 
+    audioPlayer.onerror = () => { 
+        if (settled) return;
         let dId = localStorage.getItem('discordId') || storedDiscordId || "Neznámý";
         let nick = localStorage.getItem('discordNick') || "Neznámý";
         
@@ -4394,15 +4411,11 @@ window.playDirectAudio = function(relativePath, fromQueue = false) {
                 body: JSON.stringify({ discord_id: dId, nick: nick, type: `CHYBA - LINKA ${routeData.line}`, message: errMsg })
             }, 3000).catch(()=>{});
         }
-
-        if (typeof window.updateAudioStatusIndicator === 'function') window.updateAudioStatusIndicator();
-        if (fromQueue) { 
-            isPlayingQueue = false; 
-            window.processAudioQueue(); 
-        } 
+        finishItem();
     }; 
     
-    audioPlayer.play().catch(e => { 
+    audioPlayer.play().catch(() => { 
+        if (settled) return;
         let dId = localStorage.getItem('discordId') || storedDiscordId || "Neznámý";
         let nick = localStorage.getItem('discordNick') || "Neznámý";
         
@@ -4418,12 +4431,7 @@ window.playDirectAudio = function(relativePath, fromQueue = false) {
                 body: JSON.stringify({ discord_id: dId, nick: nick, type: `CHYBA - LINKA ${routeData.line}`, message: errMsg })
             }, 3000).catch(()=>{});
         }
-
-        if (typeof window.updateAudioStatusIndicator === 'function') window.updateAudioStatusIndicator();
-        if (fromQueue) { 
-            isPlayingQueue = false; 
-            window.processAudioQueue(); 
-        } 
+        finishItem();
     }); 
 };
 
@@ -4451,7 +4459,7 @@ window.updateAudioStatusIndicator = function() {
     }
 
     const stops = routeData.stops || [];
-    const isRouteEntirelySilent = stops.length > 0 && stops.every(s => !s.audio || s.audio === '.wav' || String(s.audio).trim().length <= 4);
+    const isRouteEntirelySilent = stops.length > 0 && stops.every(s => !s.audio || String(s.audio).trim() === '' || String(s.audio).trim().toLowerCase() === '.wav');
 
     if (isRouteEntirelySilent || routeData.isMuted || routeData.isSilentRoute) {
         // 4. Linka bez zvuku naschvál: oranžový kruh + bílý přeškrtnutý repráček
@@ -4469,7 +4477,7 @@ window.updateAudioStatusIndicator = function() {
     let hasAudio = false;
     if (targetStop) {
         const audioVal = targetStop.audio || targetStop.audio_file || (targetStop.snd && targetStop.snd.name);
-        if (audioVal && String(audioVal).trim().length > 4 && String(audioVal).trim() !== '.wav') {
+        if (audioVal && String(audioVal).trim().length > 0 && String(audioVal).trim().toLowerCase() !== '.wav') {
             const rel = String(audioVal).startsWith('zvuky/') ? String(audioVal) : `zvuky/zastavky/${audioVal}`;
             try {
                 const resolved = resolveAudioFilePath(rel);
@@ -4569,7 +4577,7 @@ async function koyebMirrorSync() {
         const https = require('https');
         let reqPayload = {
             session_id: mirrorSessionId,
-            discord_id: (typeof isDevMode !== 'undefined' && isDevMode) ? 'VSC-DEV' : (localStorage.getItem('discordId') || storedDiscordId),
+            discord_id: localStorage.getItem('discordId') || storedDiscordId || '',
             state: state
         };
         if (window.mirrorApproveState !== undefined) {
@@ -4699,25 +4707,11 @@ async function koyebMirrorSync() {
 
         if (json.actions && json.actions.length > 0) {
             json.actions.forEach(actObj => {
-                // We handle object-based actions now from the exact mirror
-                if (typeof actObj === 'object' && actObj.action === 'eval' && actObj.code) {
-                    try { 
-                        if (actObj.code.includes('Swal.fire') && typeof Swal === 'undefined') {
-                            // Fallback if sweetalert didn't load
-                            if (confirm("Někdo se chce připojit ke sdílení obrazu. Povolit?")) {
-                                fetch("https://datacorebot.koyeb.app/api/mirror/pc_action", {
-                                    method: 'POST',
-                                    headers: {'Content-Type': 'application/json'},
-                                    body: JSON.stringify({session_id: mirrorSessionId, action: 'ALLOW_CONNECTION'})
-                                }).catch(e=>{});
-                            }
-                        } else {
-                            eval(actObj.code); 
-                        }
-                    } catch (e) { 
-                        console.error("Mirror eval err", e); 
-                        alert("CHYBA V ZRCADLENÍ: " + e.message);
-                    }
+                // Safe structured actions from cloud mirror (eval removed)
+                if (typeof actObj === 'object' && actObj.action === 'eval') {
+                    console.warn('[Mirror] Ignored disallowed eval action');
+                } else if (typeof actObj === 'object' && actObj.action === 'approve_prompt') {
+                    window.mirrorApproveState = Boolean(confirm('Někdo se chce připojit ke sdílení obrazu. Povolit?'));
                 } else if (typeof actObj === 'object' && actObj.action === 'input' && actObj.id) {
                     let inputEl = document.getElementById(actObj.id);
                     if (inputEl) {

@@ -3,16 +3,23 @@ const path = require('path');
 const process = require('process');
 
 function getBasePath() {
+    const fs = require('fs');
+    const candidates = [];
     try {
         let devBase = __dirname;
         if (devBase.endsWith('js') || devBase.endsWith('js\\') || devBase.endsWith('js/')) {
             devBase = path.join(__dirname, '..');
         }
-        if (require('fs').existsSync(path.join(devBase, 'obraz'))) {
-            return devBase;
-        }
-    } catch(e) {}
-    return path.join(__dirname, '..');
+        candidates.push(devBase);
+    } catch (_) {}
+    try { candidates.push(path.dirname(process.execPath)); } catch (_) {}
+    try { if (process.resourcesPath) candidates.push(process.resourcesPath); } catch (_) {}
+    for (const c of candidates) {
+        try {
+            if (c && fs.existsSync(path.join(c, 'obraz'))) return c;
+        } catch (_) {}
+    }
+    return candidates[0] || path.join(__dirname, '..');
 }
 
 function cleanLineDisplay(val) {
