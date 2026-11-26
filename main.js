@@ -346,6 +346,21 @@ ipcMain.on('broadcast-stop-state', (event, isStopPressed) => {
     if (stopWindow) { stopWindow.webContents.send('update-stop-state', isStopPressed); }
 });
 
+function closeAllGameWindows() {
+    const keep = launcherWindow;
+    BrowserWindow.getAllWindows().forEach(w => {
+        if (w && !w.isDestroyed() && w !== keep) {
+            try { w.removeAllListeners('closed'); } catch (_) {}
+            try { w.close(); } catch (_) {}
+        }
+    });
+    controllerWindow = null;
+    panelWindow = null;
+    stopWindow = null;
+    debugWindow = null;
+    announcementWindow = null;
+}
+
 function createController() {
     controllerWindow = new BrowserWindow({
         width: 380, height: 750, resizable: false, autoHideMenuBar: true, title: "OIS IDPK V1.6.3",
@@ -353,7 +368,10 @@ function createController() {
         icon: path.join(__dirname, 'icon.ico')
     });
     loadWindowFile(controllerWindow, 'ovladac.html');
-    controllerWindow.on('closed', () => { app.quit(); });
+    controllerWindow.on('closed', () => {
+        closeAllGameWindows();
+        app.quit();
+    });
 }
 
 // resize-controller byl odstraněn – nastavení nyní používá overlay, ne zvětšení okna
@@ -608,10 +626,7 @@ ipcMain.on('minimize-app', () => {
     }
 });
 ipcMain.on('fallback-to-launcher', () => {
-    if (controllerWindow && !controllerWindow.isDestroyed()) {
-        controllerWindow.removeAllListeners('closed');
-        controllerWindow.close();
-    }
+    closeAllGameWindows();
     createLauncher();
 });
 let _lastUdOpen = 0;
@@ -2029,41 +2044,10 @@ ipcMain.on('open-editor', () => {
     loadWindowFile(editorWin, 'editor.html');
 });
 
-let communityWindow = null;
 ipcMain.on('open-community-routes', () => {
-    if (communityWindow && !communityWindow.isDestroyed()) {
-        if (communityWindow.isMinimized()) communityWindow.restore();
-        communityWindow.focus();
-        return;
-    }
-    communityWindow = new BrowserWindow({
-        width: 1280,
-        height: 720,
-        useContentSize: true,
-        center: true,
-        resizable: false,
-        maximizable: false,
-        frame: false,
-        title: "Komunitní linky – OIS IDPK",
-        webPreferences: { nodeIntegration: true, contextIsolation: false, webSecurity: false, autoplayPolicy: 'no-user-gesture-required' },
-        icon: path.join(__dirname, 'icon.ico'),
-        backgroundColor: '#080d1a'
-    });
-    loadWindowFile(communityWindow, 'launcher.html', { query: { mode: 'community' } });
-    communityWindow.on('closed', () => {
-        communityWindow = null;
-        CUSTOM_ROUTES_CACHE.clear();
-        if (controllerWindow && !controllerWindow.isDestroyed()) {
-            controllerWindow.webContents.send('refresh-link-files');
-        }
-    });
-});
-
-ipcMain.on('notify-routes-updated', () => {
+    closeAllGameWindows();
     CUSTOM_ROUTES_CACHE.clear();
-    if (controllerWindow && !controllerWindow.isDestroyed()) {
-        controllerWindow.webContents.send('refresh-link-files');
-    }
+    createLauncher({ mode: 'community' });
 });
 
 ipcMain.handle('editor-get-routes', () => {
@@ -2764,7 +2748,11 @@ app.on('ready', async () => {
 });
 
 let launcherWindow;
-function createLauncher() {
+function createLauncher(queryObj) {
+    if (launcherWindow && !launcherWindow.isDestroyed()) {
+        try { launcherWindow.removeAllListeners('closed'); } catch (_) {}
+        try { launcherWindow.close(); } catch (_) {}
+    }
     launcherWindow = new BrowserWindow({
         width: 1280,
         height: 720,
@@ -2778,7 +2766,7 @@ function createLauncher() {
         icon: path.join(__dirname, 'icon.ico'),
         backgroundColor: '#080d1a'
     });
-    loadWindowFile(launcherWindow, 'launcher.html');
+    loadWindowFile(launcherWindow, 'launcher.html', queryObj ? { query: queryObj } : undefined);
 
     launcherWindow.on('closed', () => { app.quit(); });
 }
