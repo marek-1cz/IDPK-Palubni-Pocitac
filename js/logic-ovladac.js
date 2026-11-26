@@ -4250,6 +4250,9 @@ window.processAudioQueue = function() {
     if (audioQueue.length === 0) { 
         if (pendingStopSound) { 
             pendingStopSound = false; 
+            isPlayingQueue = true;
+            isAnnouncementPlaying = true;
+            if (typeof window.updateAudioStatusIndicator === 'function') window.updateAudioStatusIndicator();
             window.playDirectAudio('zvuky/hlaseni/ZASTAVIME.wav', true); 
             return; 
         } 
@@ -4406,7 +4409,12 @@ window.playDirectAudio = function(relativePath, fromQueue = false) {
         }
     };
 
+    try {
+        audioPlayer.pause();
+        audioPlayer.currentTime = 0;
+    } catch (_) {}
     audioPlayer.src = absolutePath; 
+    try { audioPlayer.load(); } catch (_) {}
     
     audioPlayer.onended = () => finishItem(); 
     
@@ -4452,6 +4460,14 @@ window.playDirectAudio = function(relativePath, fromQueue = false) {
 };
 
 window.updateAudioStatusIndicator = function() {
+    const btnMain = document.getElementById('btn-announce');
+    if (btnMain) {
+        const isLocked = Boolean(isAnnouncementPlaying && appState === 'DRIVE' && !window.isAtEndOfRoute());
+        btnMain.classList.toggle('announce-cooldown', isLocked);
+        if (isLocked) btnMain.setAttribute('aria-disabled', 'true');
+        else btnMain.removeAttribute('aria-disabled');
+    }
+
     const el = document.getElementById('audio-status-indicator');
     if (!el) return;
 
