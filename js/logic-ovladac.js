@@ -1012,6 +1012,34 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     }, 500);
 
+    window.openCommunityRoutes = function() {
+        window.playClick();
+        if (typeof ipcRenderer !== 'undefined' && ipcRenderer) {
+            ipcRenderer.send('open-community-routes');
+        }
+    };
+
+    if (typeof ipcRenderer !== 'undefined' && ipcRenderer && ipcRenderer.on) {
+        ipcRenderer.on('refresh-link-files', () => {
+            ipcRenderer.invoke('get-link-files').then(files => {
+                if (Array.isArray(files)) {
+                    files.sort((a, b) => {
+                        const aComm = a.toLowerCase().includes('_custom') || a.toLowerCase().includes('comm_');
+                        const bComm = b.toLowerCase().includes('_custom') || b.toLowerCase().includes('comm_');
+                        if (aComm && !bComm) return -1;
+                        if (!aComm && bComm) return 1;
+                        return a.localeCompare(b, undefined, { numeric: true });
+                    });
+                    availableFiles = files;
+                    if (typeof listMode !== 'undefined' && listMode === 'JSON') {
+                        filteredFiles = files;
+                        renderLinesList();
+                    }
+                }
+            }).catch(() => {});
+        });
+    }
+
     window.renderLinesList = function() {
         if (typeof window.renderLinkList === 'function') {
             window.renderLinkList();

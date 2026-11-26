@@ -953,8 +953,13 @@ async function checkAuthAndInit() {
         }
     } catch (_) { }
 
+    const isCommunityMode = (() => {
+        try { return new URLSearchParams(window.location.search).get('mode') === 'community'; }
+        catch (_) { return false; }
+    })();
+
     // Rychlá paralelní kontrola pouze metadat aktualizace launcheru (stahování spouštíme až po potvrzení)
-    const updateMetaPromise = checkLauncherUpdateMeta().catch(e => {
+    const updateMetaPromise = isCommunityMode ? Promise.resolve(null) : checkLauncherUpdateMeta().catch(e => {
         console.warn('[LauncherUpdate] Kontrola aktualizace selhala:', e);
         return null;
     });
@@ -974,7 +979,12 @@ async function checkAuthAndInit() {
         if (typeof initLCBridgeData === 'function') await initLCBridgeData();
         if (window.LC) {
             window.LC.showBoot(false);
-            window.LC.show('game');
+            if (isCommunityMode) {
+                window.LC.show('editor');
+                if (window.LC.selTab) window.LC.selTab('comm');
+            } else {
+                window.LC.show('game');
+            }
         }
         const overlay = document.getElementById('initial-loading-overlay');
         if (overlay) { overlay.hidden = true; overlay.style.display = 'none'; }
@@ -4132,6 +4142,7 @@ document.addEventListener('lc:line-save', (e) => {
         fs.writeFileSync(filePath, JSON.stringify(line, null, 2), 'utf8');
         syncRouteFileToLinky(line);
         reconcileLinesWithGameApplication();
+        try { if (typeof ipcRenderer !== 'undefined' && ipcRenderer.send) ipcRenderer.send('notify-routes-updated'); } catch (_) { }
         if (window.LC) {
             window.LC.toast('ok', `Linka ${line.num} uložena`, 'Linka byla uložena do vašich linek.');
         }
@@ -4507,6 +4518,7 @@ document.addEventListener('lc:line-delete', async (e) => {
             } catch (_) { }
         }
         reconcileLinesWithGameApplication();
+        try { if (typeof ipcRenderer !== 'undefined' && ipcRenderer.send) ipcRenderer.send('notify-routes-updated'); } catch (_) { }
     } catch (err) {
         console.warn('Chyba při mazání souboru linky:', err);
     }
@@ -4990,6 +5002,7 @@ document.addEventListener('lc:community-download', async (e) => {
     fs.writeFileSync(path.join(customDataPath, `comm_${id}.json`), JSON.stringify(lineData, null, 2), 'utf8');
     syncRouteFileToLinky(lineData);
     commItem.state = 'installed';
+    try { if (typeof ipcRenderer !== 'undefined' && ipcRenderer.send) ipcRenderer.send('notify-routes-updated'); } catch (_) { }
 
     // Zaznamenat stažení do serverového počítadla (s automatickým vyloučením autora linky)
     try {
