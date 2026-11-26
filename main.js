@@ -591,27 +591,45 @@ ipcMain.on('install-launcher-update', (event, installerPath) => {
             return;
         }
 
-        const escPs = (s) => String(s).replace(/'/g, "''");
-        const psScriptPath = path.join(resolvedTmp, `idpk_updater_${Date.now()}.ps1`);
-        const psScript = [
-            'Start-Sleep -Seconds 2',
-            `$inst = '${escPs(resolvedInstaller)}'`,
-            `$exe = '${escPs(process.execPath)}'`,
-            "if (Test-Path -LiteralPath $inst) { Start-Process -FilePath $inst -ArgumentList '/S' -Wait }",
-            'Start-Sleep -Seconds 1',
-            'if (Test-Path -LiteralPath $exe) { Start-Process -FilePath $exe }',
-            'Remove-Item -LiteralPath $PSCommandPath -Force -ErrorAction SilentlyContinue'
+        const escVbs = (s) => String(s).replace(/"/g, '""');
+        const vbsScriptPath = path.join(resolvedTmp, `idpk_updater_${Date.now()}.vbs`);
+        const exeName = path.basename(process.execPath);
+        const vbsScript = [
+            'Option Explicit',
+            'Dim sh, fso, inst, exe, exeName, wmi, procs',
+            'Set sh = CreateObject("WScript.Shell")',
+            'Set fso = CreateObject("Scripting.FileSystemObject")',
+            `inst = "${escVbs(resolvedInstaller)}"`,
+            `exe = "${escVbs(process.execPath)}"`,
+            `exeName = "${escVbs(exeName)}"`,
+            'WScript.Sleep 1500',
+            'If fso.FileExists(inst) Then',
+            '    sh.Run """" & inst & """ /S", 0, True',
+            'End If',
+            'WScript.Sleep 1000',
+            'On Error Resume Next',
+            'Set wmi = GetObject("winmgmts:\\\\.\\root\\cimv2")',
+            'Set procs = wmi.ExecQuery("SELECT ProcessId FROM Win32_Process WHERE Name = \'" & exeName & "\'")',
+            'If procs.Count = 0 Then',
+            '    If fso.FileExists(exe) Then sh.Run """" & exe & """", 1, False',
+            'End If',
+            'If fso.FileExists(inst) Then fso.DeleteFile inst, True',
+            'If fso.FileExists(WScript.ScriptFullName) Then fso.DeleteFile WScript.ScriptFullName, True'
         ].join('\r\n');
-        fs.writeFileSync(psScriptPath, psScript, 'utf8');
+        fs.writeFileSync(vbsScriptPath, vbsScript, 'utf8');
 
-        const child = spawn('powershell.exe', ['-NoProfile', '-WindowStyle', 'Hidden', '-ExecutionPolicy', 'Bypass', '-File', psScriptPath], {
+        const wscriptExe = path.join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'wscript.exe');
+        const child = spawn(wscriptExe, ['//B', '//Nologo', vbsScriptPath], {
             detached: true,
             stdio: 'ignore',
             windowsHide: true
         });
         child.unref();
 
-        app.quit();
+        if (launcherWindow && !launcherWindow.isDestroyed()) {
+            try { launcherWindow.hide(); } catch (_) { }
+        }
+        setTimeout(() => { app.exit(0); }, 150);
     } catch (e) {
         console.error('Error starting launcher updater:', e);
     }
@@ -2652,9 +2670,9 @@ global.syncGtfsData = syncGtfsData;
 
 const { autoUpdater } = require('electron-updater');
 
-// Setup AutoUpdater
-autoUpdater.autoDownload = true;
-autoUpdater.autoInstallOnAppQuit = true;
+// Setup AutoUpdater (disabled: Launcher updates are managed exclusively by our custom DataCoreBot updater)
+autoUpdater.autoDownload = false;
+autoUpdater.autoInstallOnAppQuit = false;
 
 autoUpdater.on('update-available', (info) => {
     log.info('Aktualizace nalezena: ' + info.version);
@@ -2670,15 +2688,8 @@ autoUpdater.on('error', (err) => {
 });
 
 app.on('ready', async () => {
-    // Check for updates only when electron-updater config is shipped
-    try {
-        const appUpdateYml = path.join(process.resourcesPath || '', 'app-update.yml');
-        if (app.isPackaged && fs.existsSync(appUpdateYml)) {
-            autoUpdater.checkForUpdatesAndNotify();
-        }
-    } catch (e) {
-        log.error("Chyba při kontrole aktualizací:", e);
-    }
+    // Launcher updates are handled via DataCoreBot API in launcher.html / logic-launcher.js
+    // (autoUpdater disabled so closing the launcher never unexpectedly restarts it)
     if (process.argv.includes('--no-launcher')) {
         let allowGame = false;
         const userDataPath = process.env.APPDATA ? path.join(process.env.APPDATA, 'idpk-palubni-pocitac') : os.homedir();

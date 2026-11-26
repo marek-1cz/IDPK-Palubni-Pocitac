@@ -1206,11 +1206,17 @@ button.chip.dl:hover{border-color:var(--blue);color:#fff}
 </div>
 
 <div class="modal" id="launcher-update-modal" hidden>
-  <div class="mbox"><div class="mico b"><svg class="ic"><use href="#i-rocket"/></svg></div>
-    <h3>Aktualizace launcheru</h3><p id="launcher-update-status">Připravuje se…</p>
+  <div class="mbox" style="width:460px;">
+    <div class="mico b"><svg class="ic"><use href="#i-rocket"/></svg></div>
+    <div style="display:inline-block;padding:3px 10px;border-radius:999px;background:rgba(59,130,246,.14);border:1px solid rgba(59,130,246,.3);color:#93c5fd;font-size:11px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;margin-bottom:10px;">Automatická aktualizace</div>
+    <h3 style="margin-bottom:6px;">Aktualizuji IDPK Launcher</h3>
+    <p id="launcher-update-status" style="min-height:38px;">Připravuje se…</p>
     <div class="up-stages" id="up-stages"><span>Kontrola</span><span>Stahování</span><span>Instalace</span><span>Restart</span></div>
-    <div class="progress-bar"><div class="progress-fill" id="launcher-update-progress-bar"></div></div>
+    <div class="progress-bar"><div class="progress-fill" id="launcher-update-progress-bar" style="transition:width .25s ease;"></div></div>
     <div style="display:flex;justify-content:space-between;margin-top:10px;color:var(--muted);font-size:12.5px;font-variant-numeric:tabular-nums"><span id="launcher-update-percent">0 %</span><span id="launcher-update-speed">—</span></div>
+    <div style="margin-top:14px;padding:10px 12px;border-radius:10px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.07);font-size:11.5px;color:var(--dim);line-height:1.45;">
+      Po stažení se okno na několik sekund zavře, nainstaluje se nová verze na pozadí a Launcher se sám znovu spustí.
+    </div>
   </div>
 </div>
 

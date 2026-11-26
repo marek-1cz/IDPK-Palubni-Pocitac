@@ -731,6 +731,7 @@ function downloadFileWithProgress({
                 fileStream.on('finish', () => {
                     fileStream.close(() => {
                         if (timer) clearTimeout(timer);
+                        activeDownloadCleanup = null;
                         isCleanedUp = true;
                         resolve({ total, downloaded, destPath });
                     });
@@ -836,7 +837,10 @@ function downloadAndInstallLauncherUpdate(url, newVersion) {
                 }
             });
 
-            if (statusEl) statusEl.innerText = `Aktualizace stažena. Restartuji a instaluji Launcher...`;
+            if (window.LC && window.LC.setLauncherUpdate) {
+                window.LC.setLauncherUpdate({ stage: 2, pct: 100, text: 'Staženo! Spouštím tichou instalaci Launcheru…', speed: 'Hotovo' });
+            }
+            if (statusEl) statusEl.innerText = `Aktualizace stažena. Instaluji novou verzi a restartuji Launcher…`;
             if (pBar) pBar.style.width = '100%';
             if (pPct) pPct.innerText = '100 %';
 
@@ -860,14 +864,16 @@ function downloadAndInstallLauncherUpdate(url, newVersion) {
                 return;
             }
 
-            if (window.LC && window.LC.setLauncherUpdate) {
-                window.LC.setLauncherUpdate({ stage: 3, pct: 100, text: 'Instalace a restart Launcheru…', speed: '' });
-            }
             setTimeout(() => {
-                ipcRenderer.send('install-launcher-update', tempExePath);
-                activeLauncherUpdateDownload = null;
-                resolve(true);
-            }, 1000);
+                if (window.LC && window.LC.setLauncherUpdate) {
+                    window.LC.setLauncherUpdate({ stage: 3, pct: 100, text: 'Instaluji aktualizaci na pozadí… Launcher se za chvíli sám znovu spustí.', speed: 'Instalace…' });
+                }
+                setTimeout(() => {
+                    ipcRenderer.send('install-launcher-update', tempExePath);
+                    activeLauncherUpdateDownload = null;
+                    resolve(true);
+                }, 700);
+            }, 600);
         } catch (err) {
             console.error("[LauncherUpdate] Download error:", err);
             if (modal) { modal.hidden = true; modal.style.display = 'none'; }
@@ -2407,7 +2413,19 @@ async function downloadAndApplyPatch(versionName, folder, patchUrl, targetBuild)
         }
 
         try {
-            await extract(patchZipPath, { dir: extractDir });
+            if (!fs.existsSync(patchZipPath)) {
+                await new Promise(r => setTimeout(r, 400));
+            }
+            try {
+                await extract(patchZipPath, { dir: extractDir });
+            } catch (exErr) {
+                if (exErr && (exErr.code === 'ENOENT' || exErr.code === 'EBUSY' || exErr.code === 'EPERM')) {
+                    await new Promise(r => setTimeout(r, 600));
+                    await extract(patchZipPath, { dir: extractDir });
+                } else {
+                    throw exErr;
+                }
+            }
         } finally {
             process.noAsar = originalNoAsar;
             try { if (fs.existsSync(patchZipPath)) await fs.promises.unlink(patchZipPath); } catch (_) { }
