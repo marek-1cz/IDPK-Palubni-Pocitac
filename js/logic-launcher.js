@@ -484,7 +484,7 @@ function hasVersionPatchUpdate(v, folder) {
     const localBuild = localInfo ? String(localInfo.build || localInfo.current_build || '').trim() : '';
     const remoteBuild = String(v.current_build || v.db_version || '').trim();
     const patchUrl = String(v.patch_url || '').trim();
-    if (v.build_number && localInfo && localInfo.build_number && Number(v.build_number) > Number(localInfo.build_number)) {
+    if (patchUrl && v.build_number && localInfo && localInfo.build_number && Number(v.build_number) > Number(localInfo.build_number)) {
         return true;
     }
     if (patchUrl && remoteBuild) {
@@ -1490,7 +1490,8 @@ async function initLauncher(config) {
             console.warn('[initLauncher] Nelze načíst roli ze serveru, použita uložená role:', eRole.message || eRole);
             currentUserRole = config.user_role || 'User';
         }
-        if (!window.LC && (currentUserRole.includes('DEV') || currentUserRole.includes('SA'))) {
+        const uRoleUp = String(currentUserRole || '').toUpperCase();
+        if (!window.LC && (uRoleUp.includes('DEV') || uRoleUp.includes('SA') || uRoleUp.includes('ADMIN') || uRoleUp.includes('SUPERADMIN'))) {
             const btnDevBuild = document.getElementById('btn-dev-build');
             if (btnDevBuild) {
                 btnDevBuild.style.display = 'block';
@@ -4558,17 +4559,32 @@ document.addEventListener('lc:launch-dev-build', async () => {
     try {
         let cfg = loadConfig();
         let id_param = cfg.discord_id || (cfg.email ? 'email-' + cfg.email : '');
-        if (navigator.onLine && id_param) {
-            const resCheck = await safeFetch(`${API_BASE}/api/launcher/versions?discord_id=${id_param}`, {}, 4000);
-            if (resCheck.ok) {
-                const dataCheck = await resCheck.json();
-                if (dataCheck.status === 'locked' || (dataCheck.status === 'error' && dataCheck.message && (dataCheck.message.includes('uzamčen') || dataCheck.message.includes('údržb')))) {
-                    showLockedScreen(dataCheck.message || "Launcher byl uzamčen administrátorem.");
-                    return;
+        const localRoleUp = String(currentUserRole || cfg.user_role || '').toUpperCase();
+        const hasLocalAdmin = localRoleUp.includes('DEV') || localRoleUp.includes('SA') || localRoleUp.includes('ADMIN') || localRoleUp.includes('SUPERADMIN');
+
+        if (navigator.onLine) {
+            const ref = await refreshLauncherSessionAndRole(true).catch(() => null);
+            if (!ref || !ref.ok || !ref.is_admin) {
+                if (window.LC) window.LC.toast('err', 'Přístup zamítnut', 'Dev build mohou spouštět pouze oprávnění administrátoři (DEV / SA).');
+                return;
+            }
+            if (id_param) {
+                const resCheck = await safeFetch(`${API_BASE}/api/launcher/versions?discord_id=${encodeURIComponent(id_param)}`, {}, 4000);
+                if (resCheck.ok) {
+                    const dataCheck = await resCheck.json();
+                    if (dataCheck.status === 'locked' || (dataCheck.status === 'error' && dataCheck.message && (dataCheck.message.includes('uzamčen') || dataCheck.message.includes('údržb')))) {
+                        showLockedScreen(dataCheck.message || "Launcher byl uzamčen administrátorem.");
+                        return;
+                    }
                 }
             }
+        } else if (!hasLocalAdmin) {
+            if (window.LC) window.LC.toast('err', 'Přístup zamítnut', 'Dev build mohou spouštět pouze administrátoři (DEV / SA).');
+            return;
         }
-    } catch (_) { }
+    } catch (_) {
+        return;
+    }
     isDevBuildLaunching = true;
     reconcileLinesWithGameApplication();
     ipcRenderer.send('launch-dev-build');

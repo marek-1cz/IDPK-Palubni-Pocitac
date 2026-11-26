@@ -430,11 +430,47 @@ window.showMandatoryPatchScreen = function(localBuild, serverBuild, versionName)
     }
     const devBtn = document.getElementById('btn-patch-dev-bypass');
     if (devBtn && isDevMode) {
-        devBtn.style.display = 'block';
-        devBtn.onclick = function() {
-            if (overlay) overlay.style.display = 'none';
-            window.initAppFlow(true);
-        };
+        (async () => {
+            try {
+                const fs = require('fs');
+                const p = require('path');
+                const os = require('os');
+                const cfgPath = p.join(process.env.APPDATA || os.homedir(), 'idpk-palubni-pocitac', 'config.json');
+                let cfg = {};
+                if (fs.existsSync(cfgPath)) cfg = JSON.parse(fs.readFileSync(cfgPath, 'utf8'));
+                const isAdminRoleStr = (r) => {
+                    const u = String(r || '').toUpperCase();
+                    return u.includes('DEV') || u.includes('SA') || u.includes('ADMIN') || u.includes('SUPERADMIN');
+                };
+                let allowed = isAdminRoleStr(cfg.user_role);
+                const lookupId = String(cfg.discord_id || (cfg.email ? 'email-' + cfg.email : '') || '').trim();
+                if (navigator.onLine && lookupId) {
+                    try {
+                        const headers = { 'Content-Type': 'application/json' };
+                        if (cfg.web_session_token) headers['Authorization'] = `Bearer ${cfg.web_session_token}`;
+                        const res = await fetchBlesk(`${API_BASE}/api/launcher/session_refresh`, {
+                            method: 'POST',
+                            headers,
+                            body: JSON.stringify({ discord_id: lookupId })
+                        }, 3500);
+                        if (res.ok) {
+                            const rData = await res.json().catch(() => ({}));
+                            if (rData && rData.status === 'success') {
+                                allowed = Boolean(rData.is_admin || isAdminRoleStr(rData.role));
+                            } else {
+                                allowed = false;
+                            }
+                        }
+                    } catch (_) {}
+                }
+                if (!allowed) return;
+                devBtn.style.display = 'block';
+                devBtn.onclick = function() {
+                    if (overlay) overlay.style.display = 'none';
+                    window.initAppFlow(true);
+                };
+            } catch (_) {}
+        })();
     }
 
     if (overlay) {
