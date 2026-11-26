@@ -3,7 +3,7 @@ const path = require('path');
 const fs = require('fs');
 const readline = require('readline');
 const http = require('http');
-const { exec } = require('child_process');
+const { exec, execFile } = require('child_process');
 const log = require('electron-log');
 const extract = require('extract-zip');
 const https = require('https');
@@ -283,21 +283,36 @@ function initExternalFolders() {
     console.log("Info: Složka data se prohledává dynamicky.");
 }
 
-ipcMain.handle('get-hwid', async () => {
+function _resolveWindowsHwidSilent(prefix = 'UNKNOWN-HWID-') {
+    const isValid = (s) => {
+        const v = String(s || '').trim();
+        return v.length >= 8 && !/^([F0-]+|UUID)$/i.test(v);
+    };
     return new Promise((resolve) => {
-        if (process.platform === 'win32') {
-            exec('wmic csproduct get uuid', (err, stdout) => {
-                if (err) resolve("UNKNOWN-HWID-" + Math.random().toString(36).substr(2, 9));
-                else {
-                    let lines = stdout.split('\n');
-                    let uuid = lines[1] ? lines[1].trim() : ("UNKNOWN-HWID-" + Math.random().toString(36).substr(2, 9));
-                    resolve(uuid);
-                }
-            });
-        } else {
-            resolve("NON-WIN-HWID-" + Math.random().toString(36).substr(2, 9));
+        if (process.platform !== 'win32') {
+            return resolve(prefix + Math.random().toString(36).substr(2, 9));
         }
+        const psExe = path.join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe');
+        const psCmd = "$u=(Get-CimInstance Win32_ComputerSystemProduct -ErrorAction SilentlyContinue).UUID; if(-not $u -or $u -match '^[F0-]+$'){$u=(Get-ItemProperty -Path 'HKLM:\\SOFTWARE\\Microsoft\\Cryptography' -ErrorAction SilentlyContinue).MachineGuid}; $u";
+        execFile(psExe, ['-NoProfile', '-WindowStyle', 'Hidden', '-NonInteractive', '-Command', psCmd], { windowsHide: true, timeout: 2500 }, (err, stdout) => {
+            if (!err && stdout) {
+                const hit = stdout.split(/\r?\n/).map(x => x.trim()).find(isValid);
+                if (hit) return resolve(hit);
+            }
+            const regExe = path.join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'reg.exe');
+            execFile(regExe, ['query', 'HKLM\\SOFTWARE\\Microsoft\\Cryptography', '/v', 'MachineGuid'], { windowsHide: true, timeout: 2000 }, (rErr, rOut) => {
+                if (!rErr && rOut) {
+                    const m = rOut.match(/MachineGuid\s+REG_SZ\s+([^\r\n]+)/i);
+                    if (m && isValid(m[1])) return resolve(m[1].trim());
+                }
+                resolve(prefix + Math.random().toString(36).substr(2, 9));
+            });
+        });
     });
+}
+
+ipcMain.handle('get-hwid', async () => {
+    return await _resolveWindowsHwidSilent('UNKNOWN-HWID-');
 });
 
 ipcMain.handle('purge-custom-route-cache', async (event, { lineNum, id } = {}) => {
@@ -593,25 +608,51 @@ ipcMain.on('install-launcher-update', (event, installerPath) => {
 
         const escVbs = (s) => String(s).replace(/"/g, '""');
         const vbsScriptPath = path.join(resolvedTmp, `idpk_updater_${Date.now()}.vbs`);
-        const exeName = path.basename(process.execPath);
+        const setupTargetExe = path.join(process.env.LOCALAPPDATA || '', 'Programs', 'idpk-launcher', 'IDPK Launcher.exe');
+        const portableExe = (process.env.PORTABLE_EXECUTABLE_FILE && !process.env.PORTABLE_EXECUTABLE_FILE.toLowerCase().includes('dist-launcher'))
+            ? path.resolve(process.env.PORTABLE_EXECUTABLE_FILE)
+            : '';
         const vbsScript = [
             'Option Explicit',
-            'Dim sh, fso, inst, exe, exeName, wmi, procs',
+            'Dim sh, fso, inst, currentExe, setupExe, portableExe, pid, wmi, procs, i, beforeMtime, afterMtime, launchTarget, exeName',
             'Set sh = CreateObject("WScript.Shell")',
             'Set fso = CreateObject("Scripting.FileSystemObject")',
             `inst = "${escVbs(resolvedInstaller)}"`,
-            `exe = "${escVbs(process.execPath)}"`,
-            `exeName = "${escVbs(exeName)}"`,
-            'WScript.Sleep 1500',
+            `currentExe = "${escVbs(process.execPath)}"`,
+            `setupExe = "${escVbs(setupTargetExe)}"`,
+            `portableExe = "${escVbs(portableExe)}"`,
+            `pid = ${Number(process.pid) || 0}`,
+            'On Error Resume Next',
+            'Set wmi = GetObject("winmgmts:\\\\.\\root\\cimv2")',
+            'If pid > 0 And IsObject(wmi) Then',
+            '    For i = 1 To 30',
+            '        Set procs = wmi.ExecQuery("SELECT ProcessId FROM Win32_Process WHERE ProcessId = " & pid)',
+            '        If procs.Count = 0 Then Exit For',
+            '        WScript.Sleep 300',
+            '    Next',
+            'End If',
+            'beforeMtime = ""',
+            'If setupExe <> "" And fso.FileExists(setupExe) Then beforeMtime = CStr(fso.GetFile(setupExe).DateLastModified)',
             'If fso.FileExists(inst) Then',
             '    sh.Run """" & inst & """ /S", 0, True',
             'End If',
-            'WScript.Sleep 1000',
-            'On Error Resume Next',
-            'Set wmi = GetObject("winmgmts:\\\\.\\root\\cimv2")',
+            'WScript.Sleep 800',
+            'afterMtime = ""',
+            'If setupExe <> "" And fso.FileExists(setupExe) Then afterMtime = CStr(fso.GetFile(setupExe).DateLastModified)',
+            'launchTarget = currentExe',
+            'If setupExe <> "" And fso.FileExists(setupExe) Then',
+            '    launchTarget = setupExe',
+            '    If portableExe <> "" And LCase(portableExe) <> LCase(setupExe) And fso.FileExists(portableExe) And afterMtime <> "" And (beforeMtime = "" Or afterMtime <> beforeMtime) Then',
+            '        fso.DeleteFile portableExe, True',
+            '    End If',
+            'ElseIf portableExe <> "" And fso.FileExists(inst) Then',
+            '    fso.CopyFile inst, portableExe, True',
+            '    launchTarget = portableExe',
+            'End If',
+            'exeName = fso.GetFileName(launchTarget)',
             'Set procs = wmi.ExecQuery("SELECT ProcessId FROM Win32_Process WHERE Name = \'" & exeName & "\'")',
-            'If procs.Count = 0 Then',
-            '    If fso.FileExists(exe) Then sh.Run """" & exe & """", 1, False',
+            'If Not IsObject(procs) Or procs.Count = 0 Then',
+            '    If fso.FileExists(launchTarget) Then sh.Run """" & launchTarget & """", 1, False',
             'End If',
             'If fso.FileExists(inst) Then fso.DeleteFile inst, True',
             'If fso.FileExists(WScript.ScriptFullName) Then fso.DeleteFile WScript.ScriptFullName, True'
@@ -3307,18 +3348,7 @@ ipcMain.on('launch-dev-build', async () => {
 });
 
 function getHWIDForUpdater() {
-    return new Promise((resolve) => {
-        if (process.platform === 'win32') {
-            exec('wmic csproduct get uuid', (err, stdout) => {
-                if (err) resolve("UNKNOWN-HWID-UPDATER-" + Math.random().toString(36).substr(2, 9));
-                else {
-                    let lines = stdout.split('\n');
-                    if (lines.length > 1) resolve(lines[1].trim());
-                    else resolve("UNKNOWN-HWID-UPDATER-" + Math.random().toString(36).substr(2, 9));
-                }
-            });
-        } else resolve("NOT-WINDOWS-" + Math.random().toString(36).substr(2, 9));
-    });
+    return _resolveWindowsHwidSilent('UNKNOWN-HWID-UPDATER-');
 }
 
 app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });

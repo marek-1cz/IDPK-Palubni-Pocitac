@@ -53,7 +53,7 @@ const https = require('https');
 const http = require('http');
 const { URL } = require('url');
 const extract = require('extract-zip');
-const { exec, spawn } = require('child_process');
+const { exec, execFile, spawn } = require('child_process');
 const os = require('os');
 
 window.onerror = function (msg, url, lineNo, columnNo, error) {
@@ -802,6 +802,52 @@ function isValidZipFile(filePath) {
     }
 }
 
+function promptOutdatedLauncherUpdate(currentVer, remoteVer, dlUrl) {
+    return new Promise((resolve) => {
+        const outModal = document.getElementById('launcher-outdated-modal');
+        const descEl = document.getElementById('launcher-outdated-desc');
+        const curEl = document.getElementById('outdated-cur-ver');
+        const newEl = document.getElementById('outdated-new-ver');
+        const btnUpd = document.getElementById('btn-outdated-update');
+        const btnExit = document.getElementById('btn-outdated-exit');
+
+        const overlay = document.getElementById('initial-loading-overlay');
+        if (overlay) { overlay.hidden = true; overlay.style.display = 'none'; }
+        if (window.LC && window.LC.showBoot) window.LC.showBoot(false);
+
+        if (!outModal || !btnUpd || !btnExit) {
+            downloadAndInstallLauncherUpdate(dlUrl, remoteVer).then(resolve);
+            return;
+        }
+
+        if (curEl) curEl.textContent = `v${currentVer}`;
+        if (newEl) newEl.textContent = `v${remoteVer}`;
+        if (descEl) descEl.innerHTML = `Verze <b>v${currentVer}</b> je stará. Aktualizujte prosím na novou verzi <b>v${remoteVer}</b>.`;
+
+        outModal.hidden = false;
+        outModal.style.display = 'flex';
+
+        btnUpd.disabled = false;
+        btnExit.disabled = false;
+
+        btnExit.onclick = () => {
+            btnExit.disabled = true;
+            btnUpd.disabled = true;
+            ipcRenderer.send('quit-app');
+            resolve('exit');
+        };
+
+        btnUpd.onclick = async () => {
+            btnUpd.disabled = true;
+            btnExit.disabled = true;
+            outModal.hidden = true;
+            outModal.style.display = 'none';
+            const ok = await downloadAndInstallLauncherUpdate(dlUrl, remoteVer);
+            resolve(ok ? 'updated' : 'failed');
+        };
+    });
+}
+
 function downloadAndInstallLauncherUpdate(url, newVersion) {
     if (activeLauncherUpdateDownload) return activeLauncherUpdateDownload;
     activeLauncherUpdateDownload = new Promise(async (resolve) => {
@@ -975,8 +1021,8 @@ async function checkAuthAndInit() {
 
     const updateMeta = await updateMetaPromise;
     if (updateMeta && updateMeta.hasUpdate) {
-        const didInstall = await downloadAndInstallLauncherUpdate(updateMeta.dlUrl, updateMeta.remoteVer);
-        if (didInstall) return;
+        const choice = await promptOutdatedLauncherUpdate(LAUNCHER_VERSION, updateMeta.remoteVer, updateMeta.dlUrl);
+        if (choice === 'updated' || choice === 'exit') return;
     }
 
     if (config.discord_id || config.email) {
@@ -2588,16 +2634,18 @@ function getHWID() {
         };
         const timer = setTimeout(() => finish(_getOrCreatePersistedFallbackHwid('FALLBACK-HWID-')), 4500);
 
-        exec('wmic csproduct get uuid', { timeout: 2000 }, (err, stdout) => {
-            if (!err && stdout) {
-                const line = stdout.split(/\r?\n/).map(x => x.trim()).find(x => isValidUuid(x));
+        const psExe = path.join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe');
+        const psCmd = "$u=(Get-CimInstance Win32_ComputerSystemProduct -ErrorAction SilentlyContinue).UUID; if(-not $u -or $u -match '^[F0-]+$'){$u=(Get-ItemProperty -Path 'HKLM:\\SOFTWARE\\Microsoft\\Cryptography' -ErrorAction SilentlyContinue).MachineGuid}; $u";
+        execFile(psExe, ['-NoProfile', '-WindowStyle', 'Hidden', '-NonInteractive', '-Command', psCmd], { windowsHide: true, timeout: 2500 }, (psErr, psOut) => {
+            if (!psErr && psOut) {
+                const line = psOut.split(/\r?\n/).map(x => x.trim()).find(x => isValidUuid(x));
                 if (line) return finish(line);
             }
-            const psCmd = 'powershell -NoProfile -Command "$u=(Get-CimInstance Win32_ComputerSystemProduct).UUID; if(-not $u){$u=(Get-ItemProperty -Path HKLM:\\SOFTWARE\\Microsoft\\Cryptography -ErrorAction SilentlyContinue).MachineGuid}; $u"';
-            exec(psCmd, { timeout: 2500 }, (psErr, psOut) => {
-                if (!psErr && psOut) {
-                    const line = psOut.split(/\r?\n/).map(x => x.trim()).find(x => isValidUuid(x));
-                    if (line) return finish(line);
+            const regExe = path.join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'reg.exe');
+            execFile(regExe, ['query', 'HKLM\\SOFTWARE\\Microsoft\\Cryptography', '/v', 'MachineGuid'], { windowsHide: true, timeout: 2000 }, (rErr, rOut) => {
+                if (!rErr && rOut) {
+                    const m = rOut.match(/MachineGuid\s+REG_SZ\s+([^\r\n]+)/i);
+                    if (m && isValidUuid(m[1])) return finish(m[1].trim());
                 }
                 finish(_getOrCreatePersistedFallbackHwid('UNKNOWN-HWID-'));
             });
@@ -2720,7 +2768,7 @@ async function forceDeleteFolderAsync(folderPath) {
         // Fallback pro otravné ENOTEMPTY a zamknuté Windows soubory
         if (os.platform() === 'win32') {
             return new Promise((resolve) => {
-                exec(`rmdir /s /q "${folderPath}"`, (err) => {
+                exec(`rmdir /s /q "${folderPath}"`, { windowsHide: true }, (err) => {
                     if (err && fs.existsSync(folderPath)) {
                         console.error("Fallback deletion failed:", err);
                         alert(`Upozornění: Některé soubory mohly zůstat, protože jsou momentálně používány systémem. (Chyba: ${error.code || error.message})`);
@@ -2834,9 +2882,7 @@ if (btnDeleteAllData) {
         try {
             const versionsDir = path.join(process.env.APPDATA || os.homedir(), 'idpk-palubni-pocitac', 'versions');
             if (fs.existsSync(versionsDir)) {
-                // Smažeme přímo přes cmd, aby nedošlo k zamrznutí nebo ENOTEMPTY
-                const { execSync } = require('child_process');
-                execSync(`rmdir /s /q "${versionsDir}"`);
+                fs.rmSync(versionsDir, { recursive: true, force: true });
                 fs.mkdirSync(versionsDir, { recursive: true });
             }
             alert('Hotovo! Všechna stažená data byla smazána. Při příštím spuštění se hra stáhne znovu.');
@@ -5157,8 +5203,10 @@ document.addEventListener('lc:launcher-update', async () => {
     if (btn) btn.disabled = true;
     if (txt) txt.textContent = 'Kontroluji…';
     try {
-        const hasUpdate = await checkForLauncherUpdate();
-        if (!hasUpdate && window.LC) {
+        const meta = await checkLauncherUpdateMeta();
+        if (meta && meta.hasUpdate) {
+            await promptOutdatedLauncherUpdate(LAUNCHER_VERSION, meta.remoteVer, meta.dlUrl);
+        } else if (window.LC) {
             window.LC.toast('ok', 'Launcher je aktuální', `Používáte nejnovější verzi v${LAUNCHER_VERSION}.`);
         }
     } catch (e) {
