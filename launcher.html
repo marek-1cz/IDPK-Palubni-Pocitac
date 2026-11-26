@@ -587,14 +587,19 @@ html.lite *,html.lite *::before,html.lite *::after{animation-duration:.001s!impo
 .tm-r{display:grid;grid-template-columns:22px minmax(0,1fr) 112px 28px 28px 28px;gap:6px;align-items:center;padding:6px 8px;border-radius:9px;background:rgba(255,255,255,.04);animation:vIn .25s var(--ease) both}
 .tm-r .tn{font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.tm-r .no{font-size:11px;font-weight:800;color:var(--dim);text-align:center}
 .tm-r .inp{padding:6px 8px;font-size:13px}.tm-r .ib{width:28px;height:28px}
-.adm-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:14px}
-.acard{padding:16px;border-radius:16px;background:var(--card);border:1px solid rgba(148,163,184,.35);display:flex;flex-direction:column;gap:12px;animation:vIn .4s var(--ease) both}
+.adm-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;margin-bottom:14px}
+.adm-kpi{background:rgba(255,255,255,.03);border:1px solid var(--line);border-radius:12px;padding:10px 12px;display:flex;flex-direction:column;gap:3px}
+.adm-kpi small{font-size:11px;color:var(--dim);font-weight:700;text-transform:uppercase;letter-spacing:.03em}
+.adm-kpi b{font-size:20px;font-weight:900;color:#f8fafc;line-height:1.1}
+.adm-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(390px,1fr));gap:14px}
+.acard{padding:16px;border-radius:16px;background:var(--card);border:1px solid rgba(148,163,184,.35);display:flex;flex-direction:column;gap:10px;animation:vIn .4s var(--ease) both}
 .acard .top{display:flex;align-items:center;gap:12px}.acard .meta{display:flex;gap:8px;flex-wrap:wrap;align-items:center;color:var(--muted);font-size:12px}
 .acard .tags{display:flex;gap:6px;flex-wrap:wrap}.acard .tag{font-size:11px;padding:2px 9px;border-radius:999px;background:rgba(255,255,255,.06);border:1px solid var(--line);color:var(--muted)}
 .adesc{font-size:12.5px;color:var(--muted);line-height:1.5}
-.alist{display:flex;flex-direction:column;gap:6px;max-height:190px;overflow:auto;padding:6px;border-radius:10px;background:rgba(0,0,0,.22)}
+.adm-stops summary{cursor:pointer;font-size:12px;font-weight:700;color:#7dd3fc;user-select:none;padding:4px 0}
+.alist{display:flex;flex-direction:column;gap:6px;max-height:190px;overflow:auto;padding:6px;border-radius:10px;background:rgba(0,0,0,.22);margin-top:6px}
 .ar{display:grid;grid-template-columns:20px minmax(0,1fr) 190px;gap:8px;align-items:center;font-size:12.5px}.ar .no{font-size:11px;color:var(--dim);text-align:center;font-weight:800}.ar .an{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.acard .acts2{display:flex;gap:8px}.acard .acts2 .btn{flex:1}
+.acard .acts2{display:flex;gap:8px;flex-wrap:wrap}.acard .acts2 .btn{flex:0 0 auto}
 .ag-in{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px}.ag-in .inp{padding:10px 12px;font-size:13px;text-align:left}
 @media(max-width:1000px){.opt2{grid-template-columns:1fr}.tm-cols{grid-template-columns:1fr}.stp.m .srow,.stop-head.m{grid-template-columns:16px 22px minmax(0,1fr) 50px 80px 150px 26px}.stp.g .srow,.stop-head.g{grid-template-columns:22px minmax(0,1fr) 190px 34px}}
 
@@ -863,10 +868,18 @@ button.chip.dl:hover{border-color:var(--blue);color:#fff}
         </div>
 
         <div class="ed-pane" id="pane-admin" hidden>
-          <div class="note" style="margin-bottom:14px"><svg class="ic" style="margin-top:2px"><use href="#i-shield"/></svg><span>Kompletní správa komunitních linek (čekající, schválené i archiv). Lze stáhnout <b>&lt;cislo&gt;_auto.txt</b> a složku <b>zvuky/zastavky/</b> přímo pro vložení do originální várky linek.</span></div>
+          <div class="note" style="margin-bottom:14px"><svg class="ic" style="margin-top:2px"><use href="#i-shield"/></svg><span>Kompletní správa komunitních linek: přehled všech zveřejněných, čekajících i archivovaných linek, možnost <b>vypnout/zapnout stahování</b>, <b>smazat linku</b> i stáhnout <b>&lt;cislo&gt;_auto.txt</b> a <b>zvuky/zastavky/</b> do originální várky.</span></div>
+          <div class="adm-kpis" id="adm-kpis"></div>
           <div class="toolbar">
-            <div class="search"><svg class="ic"><use href="#i-search"/></svg><input id="adm-search" placeholder="Hledat číslo, název, autora…" autocomplete="off"></div>
-            <div class="chips" id="adm-chips"><button class="chip on" data-f="all">Vše</button><button class="chip" data-f="pending">Ke schválení</button><button class="chip" data-f="approved">Schválené</button><button class="chip" data-f="archived">Archiv / Zamítnuté</button></div>
+            <div class="search"><svg class="ic"><use href="#i-search"/></svg><input id="adm-search" placeholder="Hledat číslo, název, autora, ID…" autocomplete="off"></div>
+            <div class="chips" id="adm-chips">
+              <button class="chip on" data-f="all">Vše</button>
+              <button class="chip" data-f="approved">Zveřejněné</button>
+              <button class="chip" data-f="pending">Ke schválení</button>
+              <button class="chip" data-f="paused">Vypnuté stahování</button>
+              <button class="chip" data-f="deleted_by_user">Smazáno autorem</button>
+              <button class="chip" data-f="rejected">Zamítnuto</button>
+            </div>
             <button class="btn sm" id="adm-refresh" style="margin-left:auto;"><svg class="ic"><use href="#i-refresh"/></svg>Obnovit</button>
           </div>
           <div class="adm-list" id="adm-list"></div>
@@ -2283,7 +2296,11 @@ const CONFIG = { DEMO: false, REDUCED_FX: false };
         if (l.status === 'local' || l.status === 'rejected') main += '<button class="btn primary" data-a="pub" data-id="' + l.id + '">' + ic('users') + 'Zveřejnit</button>';
         else if (l.status === 'pending') main += '<button class="btn" disabled style="opacity:0.95;padding:0 14px;background:rgba(250,204,21,0.12);border-color:rgba(250,204,21,0.35);color:#fde68a;font-weight:700;font-size:12px;white-space:nowrap;flex-shrink:0;">' + ic('clock') + 'Čeká na kontrolu</button>';
         else {
-          main += '<button class="btn" disabled style="color:#93c5fd;font-weight:700;">' + ic('check') + 'Zveřejněno</button>';
+          if (l.downloads_enabled === 0) {
+            main += '<span class="badge p" style="font-size:11px;padding:4px 9px;">Stahování vypnuto</span>';
+          } else {
+            main += '<button class="btn" disabled style="color:#93c5fd;font-weight:700;">' + ic('check') + 'Zveřejněno</button>';
+          }
           main += '<button class="btn sm ghost danger" data-a="unpub" data-id="' + l.id + '" title="Smazat tuto verzi z veřejné nabídky komunity">Smazat z komunity</button>';
         }
       } else {
@@ -2338,14 +2355,17 @@ const CONFIG = { DEMO: false, REDUCED_FX: false };
         }, () => {
           l.status = 'local';
           delete l.published;
+          delete l.reject;
+          delete l.downloads_enabled;
           const foundCommItem = (S.comm || []).find(c => String(c.num).trim() === String(l.num).trim() && (c.version || 'V1') === curVer);
           const foundCommId = l.commId || (foundCommItem ? foundCommItem.id : null);
+          delete l.commId;
           S.comm = (S.comm || []).filter(c => !(String(c.num).trim() === String(l.num).trim() && (c.version || 'V1') === curVer));
           emit('line-delete', { id: l.id, num: l.num, version: curVer, unpublish: true, isPublished: true, commId: foundCommId });
           emit('line-save', { line: l });
           renderMine(l.id);
           renderComm();
-          toast('ok', 'Linka smazána z komunity', 'Linka je nyní uložena pouze lokálně ve vašem účtu.');
+          toast('ok', 'Linka smazána z komunity', 'Odstranili jste linku z veřejné komunity. Ve vašem účtu zůstala jako lokální.');
         });
       } else if (a === 'export') {
         emit('line-export', { id: l.id });
@@ -2539,17 +2559,28 @@ const CONFIG = { DEMO: false, REDUCED_FX: false };
 
       let btn = '';
       if (c.state === 'idle') {
-        btn = '<button class="btn primary" data-id="' + c.id + '">' + ic('download') + 'Stáhnout' + (versions.length > 1 ? ' (' + (c.version || 'V1') + ')' : '') + '</button>';
+        if (c.downloads_enabled === 0) {
+          btn = '<button class="btn" disabled style="opacity:0.8;background:rgba(245,158,11,0.12);border-color:rgba(245,158,11,0.4);color:#fbbf24;">Stahování vypnuto</button>';
+        } else {
+          btn = '<button class="btn primary" data-id="' + c.id + '">' + ic('download') + 'Stáhnout' + (versions.length > 1 ? ' (' + (c.version || 'V1') + ')' : '') + '</button>';
+        }
       } else if (c.state === 'installed') {
         btn = '<div class="cl-act-row">' +
           '<button class="btn cl-btn-main" disabled>' + ic('check') + 'Staženo' + (versions.length > 1 ? ' (' + (c.version || 'V1') + ')' : '') + '</button>' +
           '<button class="btn cl-btn-del" data-del-comm="' + c.id + '" data-num="' + esc(c.num) + '" title="Smazat / odinstalovat staženou linku z PC">' + ic('trash') + '</button>' +
         '</div>';
       } else if (c.state === 'update') {
-        btn = '<div class="cl-act-row">' +
-          '<button class="btn primary cl-btn-main" style="background:#2563eb;font-weight:700;" data-id="' + c.id + '">' + ic('refresh') + 'Aktualizovat na ' + (c.version || 'V2') + '</button>' +
-          '<button class="btn cl-btn-del" data-del-comm="' + c.id + '" data-num="' + esc(c.num) + '" title="Smazat / odinstalovat staženou linku z PC">' + ic('trash') + '</button>' +
-        '</div>';
+        if (c.downloads_enabled === 0) {
+          btn = '<div class="cl-act-row">' +
+            '<button class="btn cl-btn-main" disabled style="opacity:0.85;color:#fbbf24;">Aktualizace pozastavena</button>' +
+            '<button class="btn cl-btn-del" data-del-comm="' + c.id + '" data-num="' + esc(c.num) + '" title="Smazat / odinstalovat staženou linku z PC">' + ic('trash') + '</button>' +
+          '</div>';
+        } else {
+          btn = '<div class="cl-act-row">' +
+            '<button class="btn primary cl-btn-main" style="background:#2563eb;font-weight:700;" data-id="' + c.id + '">' + ic('refresh') + 'Aktualizovat na ' + (c.version || 'V2') + '</button>' +
+            '<button class="btn cl-btn-del" data-del-comm="' + c.id + '" data-num="' + esc(c.num) + '" title="Smazat / odinstalovat staženou linku z PC">' + ic('trash') + '</button>' +
+          '</div>';
+        }
       } else if (c.state === 'busy') {
         btn = '<div class="mini"><i style="width:' + (c.p || 0) + '%"></i></div>';
       }
@@ -2575,7 +2606,7 @@ const CONFIG = { DEMO: false, REDUCED_FX: false };
       return '<div class="cl' + (S._cmShown ? ' na' : '') + '" data-cid="' + c.id + '" style="animation-delay:' + i * 40 + 'ms">' +
         '<div class="top"><span class="numchip">' + esc(c.num) + '</span><div class="tx"><b title="' + esc(fullTitle) + '">' + esc(fullTitle) + '</b><small>od ' + esc(c.author) + '</small></div></div>' +
         verSwitcher +
-        '<div class="meta"><span class="badge ' + t[1] + '">' + t[0] + '</span><span class="badge">' + ic('sound') + vo[0] + '</span>' + (c.scope === 'cr' ? '<span class="badge c">Data ČR</span>' : '') + (c.isNew ? '<span class="badge g">Nové</span>' : '') + '<span class="badge" style="background:rgba(56,189,248,0.2);color:#38bdf8;font-weight:700;">' + (c.version || 'V1') + '</span></div>' +
+        '<div class="meta"><span class="badge ' + t[1] + '">' + t[0] + '</span><span class="badge">' + ic('sound') + vo[0] + '</span>' + (c.scope === 'cr' ? '<span class="badge c">Data ČR</span>' : '') + (c.isNew ? '<span class="badge g">Nové</span>' : '') + (c.downloads_enabled === 0 ? '<span class="badge p">Stahování vypnuto</span>' : '') + '<span class="badge" style="background:rgba(56,189,248,0.2);color:#38bdf8;font-weight:700;">' + (c.version || 'V1') + '</span></div>' +
         '<div class="meta"><span>' + ic('download') + c.dl + '</span><span>' + ic('box') + esc(c.size) + '</span></div>' +
         (c.tags && c.tags.length ? '<div class="tags">' + c.tags.map((x) => '<span class="tag">' + esc(x) + '</span>').join('') + '</div>' : '') + btn + pvBtn + '</div>';
     }).join('');
@@ -2724,8 +2755,17 @@ const CONFIG = { DEMO: false, REDUCED_FX: false };
       $('cp-stops-list').innerHTML = '<div style="color:var(--muted);text-align:center;padding:20px;">Linka zatím neobsahuje žádné zastávky.</div>';
     }
 
-    $('cp-dl').style.display = 'inline-flex';
-    $('cp-dl').onclick = () => { closeModal('comm-preview-modal'); commDl(c.id); };
+    if (c.downloads_enabled === 0) {
+      $('cp-dl').style.display = 'inline-flex';
+      $('cp-dl').disabled = true;
+      $('cp-dl').textContent = 'Stahování vypnuto';
+      $('cp-dl').onclick = null;
+    } else {
+      $('cp-dl').disabled = false;
+      $('cp-dl').textContent = 'Stáhnout linku';
+      $('cp-dl').style.display = 'inline-flex';
+      $('cp-dl').onclick = () => { closeModal('comm-preview-modal'); commDl(c.id); };
+    }
     openModal('comm-preview-modal');
   }
 
@@ -2739,6 +2779,8 @@ const CONFIG = { DEMO: false, REDUCED_FX: false };
   if ($('sm-btn-clean-orphans')) $('sm-btn-clean-orphans').onclick = () => emit('storage-clean-orphans');
   function commGet(id) {
     const c = S.comm.find((x) => x.id === id);
+    if (!c) return;
+    if (c.downloads_enabled === 0) return toast('warn', 'Stahování vypnuto', 'Stahování této linky je dočasně vypnuto administrátorem.');
     if (c.scope === 'cr' && !S.gtfsCR) return needCR('Linka ' + c.num + ' → ' + c.dest + ' je mimo IDPK (Plzeňský kraj). Než ji stáhnete, potřebujete GTFS data celé České republiky.', () => commDl(id));
     commDl(id);
   }
@@ -3697,14 +3739,16 @@ const CONFIG = { DEMO: false, REDUCED_FX: false };
     emit('line-publish', { line: l, type: l.type, voice: isNoSound80 ? 'none' : l.voice, tags: l.tags, desc: l.desc });
   };
 
-  /* ---------- administrace (všechny linky + export do originálu) ---------- */
+  /* ---------- administrace (všechny linky + vypnutí stahování + smazání + export) ---------- */
   S.adminFilter = S.adminFilter || 'all';
   S.adminRoutes = S.adminRoutes || [];
   const getAdminSource = () => (Array.isArray(S.adminRoutes) && S.adminRoutes.length) ? S.adminRoutes : (S.queue || []);
-  const ADM_STATUS_BADGE = {
-    pending: ['Čeká na schválení', 'p'],
-    approved: ['Schváleno', 'g'],
-    archived: ['Archiv / Zamítnuto', 'r']
+  const getAdminBucket = (q) => {
+    const rawStatus = String((q && q.status) || 'pending').toLowerCase();
+    if (q && (q.is_deleted_by_author || rawStatus === 'deleted_by_user' || q.status_bucket === 'deleted_by_user')) return 'deleted_by_user';
+    if (rawStatus === 'rejected' || (q && q.status_bucket === 'rejected')) return 'rejected';
+    if (rawStatus === 'approved' || (q && q.status_bucket === 'approved')) return 'approved';
+    return 'pending';
   };
   if ($('adm-search')) $('adm-search').oninput = () => renderAdmin();
   if ($('adm-refresh')) $('adm-refresh').onclick = () => emit('admin-refresh');
@@ -3716,42 +3760,114 @@ const CONFIG = { DEMO: false, REDUCED_FX: false };
   }));
   function renderAdmin() {
     const allList = getAdminSource();
-    const pendingCount = allList.filter((x) => (x.status_bucket || x.status || 'pending') === 'pending').length;
-    $('cnt-admin').textContent = pendingCount;
+    const counts = { all: allList.length, approved: 0, pending: 0, paused: 0, deleted_by_user: 0, rejected: 0, downloads: 0 };
+    for (const r of allList) {
+      const b = getAdminBucket(r);
+      counts.downloads += Number(r.dl || 0);
+      if (b === 'approved') {
+        counts.approved++;
+        if (r.downloads_enabled === 0) counts.paused++;
+      } else if (b === 'pending') counts.pending++;
+      else if (b === 'deleted_by_user') counts.deleted_by_user++;
+      else if (b === 'rejected') counts.rejected++;
+    }
+    $('cnt-admin').textContent = counts.pending;
+    if ($('adm-kpis')) {
+      $('adm-kpis').innerHTML =
+        '<div class="adm-kpi"><small>Celkem v DB</small><b>' + counts.all + '</b></div>' +
+        '<div class="adm-kpi"><small>Zveřejněno</small><b style="color:#34d399;">' + (counts.approved - counts.paused) + '</b></div>' +
+        '<div class="adm-kpi"><small>Stahování vypnuto</small><b style="color:#fbbf24;">' + counts.paused + '</b></div>' +
+        '<div class="adm-kpi"><small>Ke schválení</small><b style="color:#38bdf8;">' + counts.pending + '</b></div>' +
+        '<div class="adm-kpi"><small>Smazáno autorem</small><b style="color:#94a3b8;">' + counts.deleted_by_user + '</b></div>' +
+        '<div class="adm-kpi"><small>Zamítnuto</small><b style="color:#f87171;">' + counts.rejected + '</b></div>' +
+        '<div class="adm-kpi"><small>Celkem stažení</small><b style="color:#c084fc;">' + counts.downloads + '×</b></div>';
+    }
+    const chipLabels = {
+      all: 'Vše (' + counts.all + ')',
+      approved: 'Zveřejněné (' + counts.approved + ')',
+      pending: 'Ke schválení (' + counts.pending + ')',
+      paused: 'Vypnuté stahování (' + counts.paused + ')',
+      deleted_by_user: 'Smazáno autorem (' + counts.deleted_by_user + ')',
+      rejected: 'Zamítnuto (' + counts.rejected + ')'
+    };
+    $$('#adm-chips .chip').forEach((c) => {
+      if (chipLabels[c.dataset.f]) c.textContent = chipLabels[c.dataset.f];
+    });
+
     const qStr = ($('adm-search') ? $('adm-search').value : '').trim().toLowerCase();
     const f = S.adminFilter || 'all';
     const filtered = allList.filter((q) => {
-      const bucket = q.status_bucket || ((q.is_deleted_by_author || q.status === 'rejected' || q.status === 'deleted_by_user') ? 'archived' : (q.status === 'approved' ? 'approved' : 'pending'));
-      if (f !== 'all' && bucket !== f) return false;
+      const bucket = getAdminBucket(q);
+      if (f === 'paused') {
+        if (!(bucket === 'approved' && q.downloads_enabled === 0)) return false;
+      } else if (f !== 'all' && bucket !== f) {
+        return false;
+      }
       if (qStr) {
-        const hay = `${q.num || ''} ${q.name || ''} ${q.author || ''} ${(q.tags || []).join(' ')}`.toLowerCase();
+        const hay = `${q.id || ''} ${q.num || ''} ${q.name || ''} ${q.author || ''} ${q.author_id || ''} ${(q.tags || []).join(' ')}`.toLowerCase();
         if (!hay.includes(qStr)) return false;
       }
       return true;
     });
     $('adm-list').innerHTML = filtered.map((q) => {
       const t = TYPES[q.type] || ['Reálná', 'b'], vo = VOICES[q.voice] || ['Syntéza', ''];
-      const bucket = q.status_bucket || ((q.is_deleted_by_author || q.status === 'rejected' || q.status === 'deleted_by_user') ? 'archived' : (q.status === 'approved' ? 'approved' : 'pending'));
-      const sb = ADM_STATUS_BADGE[bucket] || ['Čeká na schválení', 'p'];
+      const bucket = getAdminBucket(q);
+      const isPaused = bucket === 'approved' && q.downloads_enabled === 0;
+      let sb = ['Čeká na schválení', 'p'];
+      if (bucket === 'approved') sb = isPaused ? ['Stahování vypnuto', 'p'] : ['Zveřejněno', 'g'];
+      else if (bucket === 'deleted_by_user') sb = ['Smazáno autorem', ''];
+      else if (bucket === 'rejected') sb = ['Zamítnuto adminem', 'r'];
+
       const qTags = Array.isArray(q.tags) ? q.tags : [];
       const qStops = Array.isArray(q.stops) ? q.stops : [];
+      const sndCount = qStops.filter((s) => s && s.snd).length;
       const safeNum = String(q.num || 'custom').replace(/[^a-zA-Z0-9_-]/g, '') || 'custom';
-      const modBtns = bucket === 'pending'
-        ? '<button class="btn danger" data-d="no" data-id="' + esc(q.id) + '">' + ic('x') + 'Zamítnout</button><button class="btn green" data-d="ok" data-id="' + esc(q.id) + '">' + ic('check') + 'Schválit</button>'
-        : (bucket === 'approved'
-          ? '<button class="btn warn sm" data-d="no" data-id="' + esc(q.id) + '">' + ic('x') + 'Pozastavit</button><button class="btn danger sm" data-adm-purge="' + esc(q.id) + '">' + ic('trash') + 'Smazat navždy</button>'
-          : '<button class="btn green sm" data-d="ok" data-id="' + esc(q.id) + '">' + ic('check') + 'Obnovit / Schválit</button><button class="btn danger sm" data-adm-purge="' + esc(q.id) + '">' + ic('trash') + 'Smazat navždy</button>');
-      return '<div class="acard" data-id="' + esc(q.id) + '"><div class="top"><span class="numchip">' + esc(q.num) + '</span><div class="tx"><b>' + esc(q.name) + '</b><small>od ' + esc(q.author) + (q.dl ? ' · ' + q.dl + ' stažení' : '') + '</small></div><span class="badge ' + sb[1] + '" style="margin-left:auto;">' + sb[0] + '</span></div>' +
-        '<div class="meta"><span class="badge ' + t[1] + '">' + t[0] + '</span><span class="badge">' + ic('sound') + vo[0] + '</span>' + (q.scope === 'cr' ? '<span class="badge c">Data ČR</span>' : '') + '<span>' + ic('map') + ' ' + qStops.length + ' zastávek</span></div>' +
+
+      let modBtns = '';
+      if (bucket === 'pending') {
+        modBtns =
+          '<button class="btn danger sm" data-d="no" data-id="' + esc(q.id) + '">' + ic('x') + 'Zamítnout</button>' +
+          '<button class="btn green sm" data-d="ok" data-id="' + esc(q.id) + '">' + ic('check') + 'Schválit</button>' +
+          '<button class="btn danger sm ghost" data-adm-purge="' + esc(q.id) + '" data-num="' + esc(q.num) + '" title="Trvale smazat linku z databáze">' + ic('trash') + 'Smazat</button>';
+      } else if (bucket === 'approved') {
+        modBtns =
+          (isPaused
+            ? '<button class="btn green sm" data-adm-dl="1" data-id="' + esc(q.id) + '">' + ic('play') + 'Zapnout stahování</button>'
+            : '<button class="btn warn sm" data-adm-dl="0" data-id="' + esc(q.id) + '">⏸ Vypnout stahování</button>') +
+          '<button class="btn danger sm" data-adm-purge="' + esc(q.id) + '" data-num="' + esc(q.num) + '">' + ic('trash') + 'Smazat navždy</button>';
+      } else if (bucket === 'deleted_by_user') {
+        modBtns =
+          '<button class="btn green sm" data-d="ok" data-id="' + esc(q.id) + '">' + ic('check') + 'Obnovit do komunity</button>' +
+          '<button class="btn danger sm" data-adm-purge="' + esc(q.id) + '" data-num="' + esc(q.num) + '">' + ic('trash') + 'Smazat navždy</button>';
+      } else {
+        modBtns =
+          '<button class="btn green sm" data-d="ok" data-id="' + esc(q.id) + '">' + ic('check') + 'Schválit / Obnovit</button>' +
+          '<button class="btn danger sm" data-adm-purge="' + esc(q.id) + '" data-num="' + esc(q.num) + '">' + ic('trash') + 'Smazat navždy</button>';
+      }
+
+      const infoNote = bucket === 'deleted_by_user'
+        ? '<div class="adesc" style="color:#94a3b8;font-size:11.5px;">Autor sám odstranil linku z veřejné komunitní nabídky.</div>'
+        : (bucket === 'rejected' && q.reject_reason
+          ? '<div class="rej" style="margin:0;"><b>Důvod zamítnutí:</b> ' + esc(q.reject_reason) + '</div>'
+          : '');
+
+      const stopsHtml = qStops.length
+        ? '<details class="adm-stops"><summary>Zobrazit zastávky a přehrát hlášení (' + qStops.length + ' · zvuk ' + sndCount + '/' + qStops.length + ')</summary>' +
+          '<div class="alist">' + qStops.map((s, i) => '<div class="ar"><span class="no">' + (i + 1) + '</span><span class="an">' + esc((s && s.n) || '') + '</span>' + (s && s.snd ? '<span class="aud' + (s.snd._p ? ' play' : '') + '"><button data-p="' + esc(q.id) + ':' + i + '" title="Přehrát">' + ic(s.snd._p ? 'min' : 'play') + '</button><em>' + esc(s.snd.name) + '</em><small>' + fmtDur(s.snd.dur) + '</small></span>' : '<span class="badge r">bez hlášení</span>') + '</div>').join('') + '</div></details>'
+        : '<div class="adesc" style="color:#64748b;">Bez zastávek.</div>';
+
+      return '<div class="acard" data-id="' + esc(q.id) + '"><div class="top"><span class="numchip">' + esc(q.num) + '</span><div class="tx"><b>' + esc(q.name) + '</b><small>od ' + esc(q.author) + (q.author_id ? ' (' + esc(q.author_id) + ')' : '') + ' · ' + esc(q.version || 'V1') + ' · #' + esc(q.id) + ' · ' + q.dl + '× staženo</small></div><span class="badge ' + sb[1] + '" style="margin-left:auto;">' + sb[0] + '</span></div>' +
+        '<div class="meta"><span class="badge ' + t[1] + '">' + t[0] + '</span><span class="badge">' + ic('sound') + vo[0] + '</span>' + (q.scope === 'cr' ? '<span class="badge c">Data ČR</span>' : '') + '<span>' + ic('map') + ' ' + qStops.length + ' zastávek (' + sndCount + ' zvuků)</span>' + (q.created_at ? '<span>' + esc(String(q.created_at).slice(0, 16)) + '</span>' : '') + '</div>' +
         (qTags.length ? '<div class="tags">' + qTags.map((x) => '<span class="tag">' + esc(x) + '</span>').join('') + '</div>' : '') + (q.desc ? '<div class="adesc">' + esc(q.desc) + '</div>' : '') +
-        '<div class="alist">' + qStops.map((s, i) => '<div class="ar"><span class="no">' + (i + 1) + '</span><span class="an">' + esc((s && s.n) || '') + '</span>' + (s && s.snd ? '<span class="aud' + (s.snd._p ? ' play' : '') + '"><button data-p="' + esc(q.id) + ':' + i + '" title="Přehrát">' + ic(s.snd._p ? 'min' : 'play') + '</button><em>' + esc(s.snd.name) + '</em><small>' + fmtDur(s.snd.dur) + '</small></span>' : '<span class="badge r">bez hlášení</span>') + '</div>').join('') + '</div>' +
-        '<div class="acts2" style="flex-wrap:wrap;gap:8px;justify-content:space-between;">' +
+        infoNote +
+        stopsHtml +
+        '<div class="acts2" style="justify-content:space-between;align-items:center;">' +
           '<div style="display:flex;gap:6px;flex-wrap:wrap;">' +
             '<button class="btn sm" data-adm-exp="txt" data-id="' + esc(q.id) + '" title="Stáhnout ' + esc(safeNum) + '_auto.txt">' + ic('box') + esc(safeNum) + '_auto.txt</button>' +
-            '<button class="btn sm" data-adm-exp="zip" data-id="' + esc(q.id) + '" title="Stáhnout ZIP (linky/ + zvuky/zastavky/)">' + ic('download') + 'Zvuky + .txt (ZIP)</button>' +
-            '<button class="btn sm primary" data-adm-exp="folder" data-id="' + esc(q.id) + '" title="Uložit linky/' + esc(safeNum) + '_auto.txt + zvuky/zastavky/ rovnou do vybrané složky projektu">' + ic('folder') + 'Do složky hry</button>' +
+            '<button class="btn sm" data-adm-exp="zip" data-id="' + esc(q.id) + '" title="Stáhnout ZIP (linky/ + zvuky/zastavky/)">' + ic('download') + 'ZIP</button>' +
+            '<button class="btn sm primary" data-adm-exp="folder" data-id="' + esc(q.id) + '" title="Uložit linky/' + esc(safeNum) + '_auto.txt + zvuky/zastavky/ rovnou do vybrané složky projektu">' + ic('folder') + 'Do složky</button>' +
           '</div>' +
-          '<div style="display:flex;gap:6px;flex-wrap:wrap;">' + modBtns + '</div>' +
+          '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-left:auto;">' + modBtns + '</div>' +
         '</div></div>';
     }).join('') || '<div class="empty"><b>Žádné linky v tomto filtru</b>Zkuste jiný filtr nebo vyhledávání.</div>';
     $$('#adm-list [data-p]').forEach((b) => (b.onclick = () => {
@@ -3762,9 +3878,14 @@ const CONFIG = { DEMO: false, REDUCED_FX: false };
       }
     }));
     $$('#adm-list [data-d]').forEach((b) => (b.onclick = () => openDecide(b.dataset.id, b.dataset.d === 'ok')));
+    $$('#adm-list [data-adm-dl]').forEach((b) => (b.onclick = () => {
+      const targetVal = Number(b.dataset.admDl) === 1 ? 1 : 0;
+      emit('admin-toggle-download', { id: b.dataset.id, downloads_enabled: targetVal });
+    }));
     $$('#adm-list [data-adm-exp]').forEach((b) => (b.onclick = () => emit('admin-export-official', { id: b.dataset.id, mode: b.dataset.admExp })));
     $$('#adm-list [data-adm-purge]').forEach((b) => (b.onclick = () => {
-      confirmBox({ title: 'Trvale smazat linku?', desc: 'Linka a všechny její nahrané zvukové soubory budou nenávratně odstraněny ze serveru.', yes: 'Smazat navždy' }, () => emit('admin-purge', { id: b.dataset.admPurge }));
+      const numLabel = b.dataset.num ? ` ${b.dataset.num}` : '';
+      confirmBox({ title: `Trvale smazat linku${numLabel}?`, desc: 'Linka a všechny její nahrané zvukové soubory budou nenávratně odstraněny z databáze komunitních linek.', yes: 'Smazat navždy' }, () => emit('admin-purge', { id: b.dataset.admPurge }));
     }));
   }
   let DC = null;
@@ -3790,7 +3911,14 @@ const CONFIG = { DEMO: false, REDUCED_FX: false };
     const q = allList.find((x) => String(x.id) === String(id));
     if (!q) return;
     q.status = ok ? 'approved' : 'rejected';
-    q.status_bucket = ok ? 'approved' : 'archived';
+    q.status_bucket = ok ? 'approved' : 'rejected';
+    if (ok) {
+      q.is_deleted_by_author = false;
+      q.downloads_enabled = 1;
+      q.reject_reason = '';
+    } else {
+      q.reject_reason = o.msg || 'Linka nebyla schválena administrátorem.';
+    }
     S.queue = S.queue.filter((x) => String(x.id) !== String(id));
     const l = S.lines.find((x) => String(x.id) === String(id));
     if (l) { l.status = ok ? 'published' : 'rejected'; if (!ok) l.reject = o.msg || 'Linka byla zamítnuta bez dalšího vysvětlení.'; }

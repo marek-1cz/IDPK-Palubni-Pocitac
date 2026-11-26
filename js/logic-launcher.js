@@ -3345,28 +3345,35 @@ async function syncLocalLinesWithDatabase(lines) {
 
                 if (match) {
                     let changed = false;
-                    const sStatus = match.status || 'approved';
+                    const sStatus = String(match.status || 'approved').toLowerCase();
                     if (match.is_deleted_by_author === 1 || sStatus === 'deleted_by_user') {
-                        if (line.status === 'published' || line.status === 'pending' || line.commId) {
+                        if (line.status === 'published' || line.status === 'pending' || line.status === 'rejected' || line.commId || line.reject) {
                             line.status = 'local';
                             delete line.published;
                             delete line.commId;
+                            delete line.reject;
+                            delete line.downloads_enabled;
                             changed = true;
                         }
                     } else if (sStatus === 'approved') {
-                        if (line.status !== 'published') {
+                        const srvDl = (match.downloads_enabled === 0 || match.downloads_enabled === false) ? 0 : 1;
+                        if (line.status !== 'published' || line.reject || line.downloads_enabled !== srvDl) {
                             line.status = 'published';
+                            delete line.reject;
+                            line.downloads_enabled = srvDl;
                             changed = true;
                         }
                     } else if (sStatus === 'rejected') {
-                        if (line.status !== 'rejected') {
+                        const nextRej = match.reject_reason || 'Linka nebyla schválena administrátorem.';
+                        if (line.status !== 'rejected' || line.reject !== nextRej) {
                             line.status = 'rejected';
-                            line.reject = match.reject_reason || 'Linka byla zamítnuta administrátorem.';
+                            line.reject = nextRej;
                             changed = true;
                         }
                     } else if (sStatus === 'pending') {
                         if (line.status !== 'pending' && line.status !== 'published') {
                             line.status = 'pending';
+                            delete line.reject;
                             changed = true;
                         }
                     }
@@ -3580,6 +3587,7 @@ async function loadCommunityEditorLines(preloadedLocalLines) {
                     tags: rawTags,
                     isNew: Boolean(r.is_new),
                     is_deleted_by_author: isDeleted,
+                    downloads_enabled: (r.downloads_enabled === 0 || r.downloads_enabled === false) ? 0 : 1,
                     state: state,
                     packageUrl: pkgUrl,
                     stops: stops
@@ -3595,18 +3603,40 @@ async function loadCommunityEditorLines(preloadedLocalLines) {
 
 function _mapAdminRouteRow(q) {
     let stops = q.stops || [];
+    if ((!stops || !stops.length) && q.stops_json) {
+        try {
+            stops = typeof q.stops_json === 'string' ? JSON.parse(q.stops_json) : q.stops_json;
+        } catch (_) { stops = []; }
+    }
+    const rawStatus = String(q.status || 'pending').toLowerCase();
+    const isAuthorDel = Boolean(q.is_deleted_by_author) || rawStatus === 'deleted_by_user';
+    const dlEnabled = (q.downloads_enabled === 0 || q.downloads_enabled === false) ? 0 : 1;
+    let bucket = q.status_bucket;
+    if (!bucket || bucket === 'archived') {
+        if (isAuthorDel) bucket = 'deleted_by_user';
+        else if (rawStatus === 'rejected') bucket = 'rejected';
+        else if (rawStatus === 'approved') bucket = 'approved';
+        else bucket = 'pending';
+    }
     return {
         id: String(q.id),
         num: String(q.route_number),
         name: q.route_name,
+        version: q.version || 'V1',
+        created_at: q.created_at || '',
+        updated_at: q.updated_at || '',
         author: q.author_name || 'Hráč',
-        type: q.route_type === 'custom' ? 'fiktivni' : 'realna',
+        author_id: q.author_id || '',
+        type: q.route_type === 'custom' ? 'fiktivni' : (q.route_type || 'realna'),
         voice: q.voice_type || 'synt',
         tags: q.system_tag ? String(q.system_tag).split(',').map(x => x.trim()).filter(Boolean) : ['IDPK'],
         desc: q.description || '',
         scope: q.system_tag && String(q.system_tag).toUpperCase() !== 'IDPK' ? 'cr' : 'idpk',
-        status: q.status || 'pending',
-        status_bucket: q.status_bucket || ((q.is_deleted_by_author || q.status === 'rejected' || q.status === 'deleted_by_user') ? 'archived' : (q.status === 'approved' ? 'approved' : 'pending')),
+        status: isAuthorDel ? 'deleted_by_user' : rawStatus,
+        status_bucket: bucket,
+        is_deleted_by_author: isAuthorDel,
+        reject_reason: isAuthorDel ? '' : (q.reject_reason || ''),
+        downloads_enabled: dlEnabled,
         dl: Number(q.download_count || 0),
         stops: (Array.isArray(stops) ? stops : []).map(s => {
             let audUrl = s.audio_url || (s.snd && s.snd.url) || '';
@@ -3628,20 +3658,39 @@ function _mapAdminRouteRow(q) {
 async function loadPendingAdminQueue() {
     if (!['admin', 'sa', 'dev'].includes(mapRoleToLC(currentUserRole))) return [];
     try {
-        const resAll = await safeFetch(`${API_BASE}/api/admin/community-routes/all`, { headers: _authHeaders() }, 5000);
+        const resAll = await safeFetch(`${API_BASE}/api/admin/community-routes/all`, { headers: _authHeaders() }, 12000);
         if (resAll.ok) {
             const dataAll = await resAll.json();
             if (dataAll && Array.isArray(dataAll.routes)) {
                 return dataAll.routes.map(_mapAdminRouteRow);
             }
         }
-        const res = await safeFetch(`${API_BASE}/api/community-routes/pending`, { headers: _authHeaders() }, 4000);
-        if (res.ok) {
-            const data = await res.json();
-            return (data.queue || []).map(_mapAdminRouteRow);
+        // Fallback při výpadku admin endpointu: sloučit čekající + veřejně zveřejněné
+        const [resPend, resPub] = await Promise.all([
+            safeFetch(`${API_BASE}/api/community-routes/pending`, { headers: _authHeaders() }, 6000).catch(() => null),
+            safeFetch(`${API_BASE}/api/community-routes`, {}, 6000).catch(() => null)
+        ]);
+        const merged = [];
+        const seen = new Set();
+        if (resPend && resPend.ok) {
+            const dP = await resPend.json().catch(() => ({}));
+            for (const r of (dP.queue || [])) {
+                seen.add(String(r.id));
+                merged.push(_mapAdminRouteRow(r));
+            }
         }
+        if (resPub && resPub.ok) {
+            const dPub = await resPub.json().catch(() => ({}));
+            for (const r of (dPub.routes || [])) {
+                if (!seen.has(String(r.id))) {
+                    seen.add(String(r.id));
+                    merged.push(_mapAdminRouteRow(r));
+                }
+            }
+        }
+        if (merged.length > 0) return merged;
     } catch (e) {
-        console.warn('Nelze načíst frontu ke schválení:', e);
+        console.warn('Nelze načíst admin seznam linek:', e);
     }
     return [];
 }
@@ -3950,7 +3999,8 @@ document.addEventListener('lc:logout', () => {
     availableVersions = [];
     if (window.LC) {
         if (window.LC.setLines) window.LC.setLines([]);
-        if (window.LC.setQueue) window.LC.setQueue([]);
+        if (window.LC.setAdminRoutes) window.LC.setAdminRoutes([]);
+        else if (window.LC.setQueue) window.LC.setQueue([]);
         if (window.LC.setVersions) window.LC.setVersions([]);
         window.LC.setUser({ name: '', hwid: currentHWID, role: 'user', avatar_url: null });
         window.LC.showLogin(true);
@@ -4291,28 +4341,34 @@ document.addEventListener('lc:line-delete', async (e) => {
         const isInstalledOnly = Boolean(detail.isInstalledOnly);
         if (!isInstalledOnly && (detail.unpublish || detail.isPublished || (detail.deleteAll && !String(id).startsWith('comm_')))) {
             const cfg = loadConfig();
-            fetch(`${API_BASE}/api/community-routes/delete`, {
-                method: 'POST',
-                headers: _authHeaders({ 'Content-Type': 'application/json' }),
-                body: JSON.stringify({
-                    route_id: detail.commId || (String(id).startsWith('comm_') ? id.replace('comm_', '') : undefined),
-                    route_number: detail.num || (detail.deleteAll ? (detail.num || '') : undefined),
-                    version: detail.version || undefined,
-                    author_id: cfg.discord_id || cfg.email || currentHWID,
-                    discord_id: cfg.discord_id || (cfg.email ? 'email-' + cfg.email : currentHWID),
-                    author_name: cfg.discord_nick || cfg.email || 'Hráč'
-                })
-            }).then(async () => {
+            try {
+                await fetch(`${API_BASE}/api/community-routes/delete`, {
+                    method: 'POST',
+                    headers: _authHeaders({ 'Content-Type': 'application/json' }),
+                    body: JSON.stringify({
+                        route_id: detail.commId || (String(id).startsWith('comm_') ? id.replace('comm_', '') : undefined),
+                        route_number: detail.num || (detail.deleteAll ? (detail.num || '') : undefined),
+                        version: detail.version || undefined,
+                        author_id: cfg.discord_id || cfg.email || currentHWID,
+                        discord_id: cfg.discord_id || (cfg.email ? 'email-' + cfg.email : currentHWID),
+                        author_name: cfg.discord_nick || cfg.email || 'Hráč'
+                    })
+                });
                 if (typeof syncLocalLinesWithDatabase === 'function') {
                     await syncLocalLinesWithDatabase();
                 }
-                const updatedComm = await loadCommunityEditorLines();
+                const [updatedComm, allAdmin] = await Promise.all([
+                    loadCommunityEditorLines(),
+                    loadPendingAdminQueue()
+                ]);
                 if (window.LC) {
                     if (window.LC.setComm) window.LC.setComm(updatedComm);
+                    if (window.LC.setAdminRoutes) window.LC.setAdminRoutes(allAdmin);
+                    else if (window.LC.setQueue) window.LC.setQueue(allAdmin);
                     if (window.LC.renderComm) window.LC.renderComm();
                     if (window.LC.renderMine) window.LC.renderMine();
                 }
-            }).catch(() => { });
+            } catch (_) { }
         }
         reconcileLinesWithGameApplication();
     } catch (err) {
@@ -4435,7 +4491,8 @@ document.addEventListener('lc:line-publish', async (e) => {
                 window.LC.renderMine(line.id);
                 window.LC.toast('ok', 'Linka odeslána ke schválení', 'Linka byla odeslána správcům ke kontrole. Po schválení v dashboardu nebo launcheru se objeví v komunitních linkách.');
                 loadPendingAdminQueue().then(queue => {
-                    if (window.LC.setQueue) window.LC.setQueue(queue);
+                    if (window.LC.setAdminRoutes) window.LC.setAdminRoutes(queue);
+                    else if (window.LC.setQueue) window.LC.setQueue(queue);
                 });
             }
         } else {
@@ -4519,6 +4576,49 @@ document.addEventListener('lc:admin-purge', async (e) => {
     }
 });
 
+document.addEventListener('lc:admin-toggle-download', async (e) => {
+    const detail = e.detail || {};
+    const id = detail.id;
+    if (!id) return;
+    try {
+        const res = await fetch(`${API_BASE}/api/admin/community-routes/toggle-download`, {
+            method: 'POST',
+            headers: _authHeaders({ 'Content-Type': 'application/json' }),
+            body: JSON.stringify({
+                route_id: id,
+                downloads_enabled: detail.downloads_enabled
+            })
+        });
+        const data = await res.json().catch(() => ({}));
+        if (res.status === 401) {
+            if (window.LC) window.LC.toast('err', 'Relace vypršela', 'Odhlaste se prosím vlevo nahoře a znovu se přihlaste.');
+            return;
+        }
+        if (data.success) {
+            const isOn = Number(data.downloads_enabled) !== 0;
+            const [allAdmin, commLines] = await Promise.all([loadPendingAdminQueue(), loadCommunityEditorLines()]);
+            if (typeof syncLocalLinesWithDatabase === 'function') {
+                await syncLocalLinesWithDatabase();
+            }
+            if (window.LC) {
+                if (window.LC.setAdminRoutes) window.LC.setAdminRoutes(allAdmin);
+                else window.LC.setQueue(allAdmin);
+                if (window.LC.setComm) window.LC.setComm(commLines);
+                if (window.LC.renderMine) window.LC.renderMine();
+                window.LC.toast(
+                    isOn ? 'ok' : 'warn',
+                    isOn ? 'Stahování zapnuto' : 'Stahování vypnuto',
+                    isOn ? 'Hráči si mohou tuto linku opět stáhnout.' : 'Linka zůstává evidovaná jako zveřejněná, ale nové stahování je zablokováno.'
+                );
+            }
+        } else {
+            if (window.LC) window.LC.toast('err', 'Chyba', data.error || 'Změna stavu stahování selhala.');
+        }
+    } catch (err) {
+        if (window.LC) window.LC.toast('err', 'Chyba spojení', err.message);
+    }
+});
+
 document.addEventListener('lc:admin-export-official', async (e) => {
     const { id, mode } = e.detail || {};
     if (!id) return;
@@ -4591,6 +4691,12 @@ document.addEventListener('lc:community-download', async (e) => {
     const id = e.detail && e.detail.id;
     const commItem = (window.LC && window.LC.S && window.LC.S.comm || []).find(x => x.id === id);
     if (!commItem) return;
+    if (commItem.downloads_enabled === 0) {
+        commItem.state = 'idle';
+        if (window.LC && window.LC.renderComm) window.LC.renderComm();
+        if (window.LC) window.LC.toast('warn', 'Stahování vypnuto', 'Stahování této linky je dočasně vypnuto administrátorem.');
+        return;
+    }
 
     const customDataPath = path.join(centralUserDataPath, 'data');
     if (!fs.existsSync(customDataPath)) fs.mkdirSync(customDataPath, { recursive: true });
