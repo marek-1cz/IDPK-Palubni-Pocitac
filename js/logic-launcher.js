@@ -360,6 +360,124 @@ function _authHeaders(extra = {}) {
     return headers;
 }
 
+let _sessionRefreshPromise = null;
+let _lastSessionRefreshTs = 0;
+
+function _applyVerifiedUserToUI(cfg, data) {
+    const prevAdmin = ['admin', 'sa', 'dev'].includes(mapRoleToLC(currentUserRole));
+    if (data.role) {
+        currentUserRole = data.role;
+        cfg.user_role = currentUserRole;
+    }
+    if (data.nick && String(data.nick).trim() && data.nick !== 'None' && data.nick !== 'čeká na odpověd') {
+        cfg.discord_nick = String(data.nick).trim();
+    }
+    if (data.avatar_url) {
+        currentUserAvatarUrl = data.avatar_url;
+        cfg.avatar_url = data.avatar_url;
+        const avEl = document.getElementById('avatar');
+        if (avEl) {
+            avEl.innerHTML = `<img src="${data.avatar_url}" style="width:100%;height:100%;border-radius:50%;object-fit:cover;" alt="Avatar">`;
+        }
+    }
+    if (data.web_session_token) {
+        cfg.web_session_token = data.web_session_token;
+    }
+    saveConfig(cfg);
+
+    const serverIsAdmin = typeof data.is_admin === 'boolean'
+        ? data.is_admin
+        : ['admin', 'sa', 'dev'].includes(mapRoleToLC(currentUserRole));
+    const effectiveLCRole = serverIsAdmin ? mapRoleToLC(currentUserRole) : (['admin', 'sa', 'dev'].includes(mapRoleToLC(currentUserRole)) ? 'user' : mapRoleToLC(currentUserRole));
+
+    if (window.LC && window.LC.setUser) {
+        window.LC.setUser({
+            name: cfg.discord_nick || cfg.email || 'Uživatel',
+            hwid: currentHWID,
+            role: effectiveLCRole,
+            avatar_url: data.avatar_url || cfg.avatar_url || null
+        });
+    }
+    const roleDisplay = document.getElementById('user-role-display') || document.getElementById('role-badge');
+    if (!window.LC && roleDisplay) {
+        let color = '#64748b';
+        if (currentUserRole.includes('DEV') || currentUserRole.includes('SA')) color = '#ef4444';
+        else if (currentUserRole.includes('BT')) color = '#3b82f6';
+        roleDisplay.innerText = String(currentUserRole || 'USER').toUpperCase();
+        roleDisplay.style.backgroundColor = color;
+    }
+    return { prevAdmin, serverIsAdmin };
+}
+
+async function refreshLauncherSessionAndRole(force = false) {
+    const now = Date.now();
+    if (!force && _lastSessionRefreshTs && (now - _lastSessionRefreshTs) < 15000 && loadConfig().web_session_token) {
+        return { ok: true, is_admin: ['admin', 'sa', 'dev'].includes(mapRoleToLC(currentUserRole)), cached: true };
+    }
+    if (_sessionRefreshPromise) return _sessionRefreshPromise;
+
+    _sessionRefreshPromise = (async () => {
+        try {
+            const cfg = loadConfig();
+            const roleLookupId = String(cfg.discord_id || (cfg.email ? 'email-' + cfg.email : '') || '').trim();
+            if (!roleLookupId && !cfg.web_session_token) {
+                return { ok: false, is_admin: false };
+            }
+            const res = await safeFetch(`${API_BASE}/api/launcher/session_refresh`, {
+                method: 'POST',
+                headers: _authHeaders({ 'Content-Type': 'application/json' }),
+                body: JSON.stringify({ discord_id: roleLookupId, hwid: currentHWID || '' })
+            }, 7000);
+            const data = await res.json().catch(() => ({}));
+            if (res.status === 403 || data.status === 'banned') {
+                currentUserRole = 'User';
+                if (window.LC) {
+                    if (window.LC.setAdminRoutes) window.LC.setAdminRoutes([]);
+                    if (window.LC.setUser) window.LC.setUser({ name: cfg.discord_nick || '', hwid: currentHWID, role: 'user', avatar_url: cfg.avatar_url || null });
+                }
+                return { ok: false, is_admin: false, data };
+            }
+            if (res.ok && data && data.status === 'success') {
+                _lastSessionRefreshTs = Date.now();
+                const { prevAdmin, serverIsAdmin } = _applyVerifiedUserToUI(cfg, data);
+                if (!serverIsAdmin && window.LC && window.LC.setAdminRoutes) {
+                    window.LC.setAdminRoutes([]);
+                } else if (!prevAdmin && serverIsAdmin && typeof loadPendingAdminQueue === 'function') {
+                    loadPendingAdminQueue().then((q) => {
+                        if (window.LC && window.LC.setAdminRoutes) window.LC.setAdminRoutes(q);
+                    }).catch(() => { });
+                }
+                return { ok: true, is_admin: serverIsAdmin, session_valid: Boolean(data.session_valid || cfg.web_session_token), data };
+            }
+        } catch (e) {
+            console.warn('[refreshLauncherSessionAndRole]', e && e.message ? e.message : e);
+        } finally {
+            _sessionRefreshPromise = null;
+        }
+        return { ok: false, is_admin: ['admin', 'sa', 'dev'].includes(mapRoleToLC(currentUserRole)) };
+    })();
+    return _sessionRefreshPromise;
+}
+
+async function authFetch(url, options = {}, timeoutMs = 10000) {
+    const cfg = loadConfig();
+    if (!cfg.web_session_token) {
+        await refreshLauncherSessionAndRole(true);
+    }
+    const buildOpts = () => ({
+        ...options,
+        headers: _authHeaders(options.headers || {})
+    });
+    let res = await safeFetch(url, buildOpts(), timeoutMs);
+    if (res.status === 401) {
+        const ref = await refreshLauncherSessionAndRole(true);
+        if (ref && ref.ok && loadConfig().web_session_token) {
+            res = await safeFetch(url, buildOpts(), timeoutMs);
+        }
+    }
+    return res;
+}
+
 function hasVersionPatchUpdate(v, folder) {
     if (!v || !folder) return false;
     const localInfo = getLocalBuildInfo(folder);
@@ -1352,59 +1470,26 @@ async function initLauncher(config) {
     try {
         if (hwidDisplay) hwidDisplay.innerText = config.discord_nick || currentHWID;
 
-        // Získat roli z users tabulky s timeoutem
+        // Získat aktuální roli a čerstvou relaci z users tabulky
         try {
-            const roleLookupId = config.discord_id || (config.email ? 'email-' + config.email : '');
-            const roleRes = roleLookupId ? await safeFetch(`${API_BASE}/api/launcher/user_info`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ discord_id: roleLookupId })
-            }, 5000) : { ok: false };
-            if (roleRes.ok) {
-                const data = await roleRes.json();
-                if (data && data.status === 'success') {
-                    currentUserRole = data.role || 'User';
-                    config.user_role = currentUserRole;
-                    if (data.nick && String(data.nick).trim() && data.nick !== 'None' && data.nick !== 'čeká na odpověd') {
-                        config.discord_nick = String(data.nick).trim();
-                    }
-                    if (data.avatar_url) {
-                        currentUserAvatarUrl = data.avatar_url;
-                        config.avatar_url = data.avatar_url;
-                        const avEl = document.getElementById('avatar');
-                        if (avEl) {
-                            avEl.innerHTML = `<img src="${data.avatar_url}" style="width:100%;height:100%;border-radius:50%;object-fit:cover;" alt="Avatar">`;
-                        }
-                    }
-                    saveConfig(config);
-                    if (window.LC && window.LC.setUser) {
-                        window.LC.setUser({
-                            name: config.discord_nick || config.email || 'Uživatel',
-                            hwid: currentHWID,
-                            role: mapRoleToLC(currentUserRole),
-                            avatar_url: data.avatar_url || config.avatar_url || null
-                        });
-                    }
-                    if (!window.LC && (currentUserRole.includes('DEV') || currentUserRole.includes('SA'))) {
-                        const btnDevBuild = document.getElementById('btn-dev-build');
-                        if (btnDevBuild) {
-                            btnDevBuild.style.display = 'block';
-                            btnDevBuild.addEventListener('click', () => {
-                                btnDevBuild.disabled = true;
-                                btnDevBuild.innerHTML = '<i class="fas fa-spinner fa-spin"></i> SPOUŠTÍM...';
-                                ipcRenderer.send('launch-dev-build');
-                            });
-                        }
-                    }
-                } else {
-                    currentUserRole = config.user_role || 'User';
-                }
-            } else {
+            const ref = await refreshLauncherSessionAndRole(true);
+            if (!ref || !ref.ok) {
                 currentUserRole = config.user_role || 'User';
             }
         } catch (eRole) {
             console.warn('[initLauncher] Nelze načíst roli ze serveru, použita uložená role:', eRole.message || eRole);
             currentUserRole = config.user_role || 'User';
+        }
+        if (!window.LC && (currentUserRole.includes('DEV') || currentUserRole.includes('SA'))) {
+            const btnDevBuild = document.getElementById('btn-dev-build');
+            if (btnDevBuild) {
+                btnDevBuild.style.display = 'block';
+                btnDevBuild.addEventListener('click', () => {
+                    btnDevBuild.disabled = true;
+                    btnDevBuild.innerHTML = '<i class="fas fa-spinner fa-spin"></i> SPOUŠTÍM...';
+                    ipcRenderer.send('launch-dev-build');
+                });
+            }
         }
 
         let color = '#64748b'; // public
@@ -3658,7 +3743,7 @@ function _mapAdminRouteRow(q) {
 async function loadPendingAdminQueue() {
     if (!['admin', 'sa', 'dev'].includes(mapRoleToLC(currentUserRole))) return [];
     try {
-        const resAll = await safeFetch(`${API_BASE}/api/admin/community-routes/all`, { headers: _authHeaders() }, 12000);
+        const resAll = await authFetch(`${API_BASE}/api/admin/community-routes/all`, {}, 12000);
         if (resAll.ok) {
             const dataAll = await resAll.json();
             if (dataAll && Array.isArray(dataAll.routes)) {
@@ -3667,7 +3752,7 @@ async function loadPendingAdminQueue() {
         }
         // Fallback při výpadku admin endpointu: sloučit čekající + veřejně zveřejněné
         const [resPend, resPub] = await Promise.all([
-            safeFetch(`${API_BASE}/api/community-routes/pending`, { headers: _authHeaders() }, 6000).catch(() => null),
+            authFetch(`${API_BASE}/api/community-routes/pending`, {}, 6000).catch(() => null),
             safeFetch(`${API_BASE}/api/community-routes`, {}, 6000).catch(() => null)
         ]);
         const merged = [];
@@ -3717,7 +3802,19 @@ async function initLCBridgeData() {
         if (window.LC.setLines) window.LC.setLines(myLines);
         reconcileLinesWithGameApplication(myLines);
 
+        // Automatická periodická kontrola oprávnění a čerstvosti relace
+        if (!window._lcAdminGuardInit) {
+            window._lcAdminGuardInit = true;
+            window.addEventListener('focus', () => {
+                refreshLauncherSessionAndRole(false).catch(() => { });
+            });
+            setInterval(() => {
+                if (navigator.onLine) refreshLauncherSessionAndRole(true).catch(() => { });
+            }, 300000);
+        }
+
         // 2. Paralelní načtení komunitních linek a admin fronty s využitím již načtených lokálních linek
+        await refreshLauncherSessionAndRole(false);
         const [commLines, adminRoutes] = await Promise.all([
             loadCommunityEditorLines(myLines),
             loadPendingAdminQueue()
@@ -4342,9 +4439,9 @@ document.addEventListener('lc:line-delete', async (e) => {
         if (!isInstalledOnly && (detail.unpublish || detail.isPublished || (detail.deleteAll && !String(id).startsWith('comm_')))) {
             const cfg = loadConfig();
             try {
-                await fetch(`${API_BASE}/api/community-routes/delete`, {
+                await authFetch(`${API_BASE}/api/community-routes/delete`, {
                     method: 'POST',
-                    headers: _authHeaders({ 'Content-Type': 'application/json' }),
+                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         route_id: detail.commId || (String(id).startsWith('comm_') ? id.replace('comm_', '') : undefined),
                         route_number: detail.num || (detail.deleteAll ? (detail.num || '') : undefined),
@@ -4353,7 +4450,7 @@ document.addEventListener('lc:line-delete', async (e) => {
                         discord_id: cfg.discord_id || (cfg.email ? 'email-' + cfg.email : currentHWID),
                         author_name: cfg.discord_nick || cfg.email || 'Hráč'
                     })
-                });
+                }, 10000);
                 if (typeof syncLocalLinesWithDatabase === 'function') {
                     await syncLocalLinesWithDatabase();
                 }
@@ -4472,14 +4569,13 @@ document.addEventListener('lc:line-publish', async (e) => {
             }
         });
 
-        const res = await fetch(`${API_BASE}/api/community-routes/submit`, {
+        const res = await authFetch(`${API_BASE}/api/community-routes/submit`, {
             method: 'POST',
-            headers: _authHeaders(),
             body: formData
-        });
+        }, 20000);
         const respData = await res.json().catch(() => ({}));
         if (res.status === 401) {
-            if (window.LC) window.LC.toast('err', 'Relace vypršela', 'Odhlaste se prosím vlevo nahoře a znovu se přihlaste.');
+            if (window.LC) window.LC.toast('err', 'Ověření relace selhalo', 'Automatické obnovení relace se nezdařilo. Zkuste se prosím odhlásit a přihlásit znovu.');
             return;
         }
         if (respData.success) {
@@ -4506,14 +4602,19 @@ document.addEventListener('lc:line-publish', async (e) => {
 document.addEventListener('lc:line-decision', async (e) => {
     const { id, ok, discord, message } = e.detail;
     try {
-        const res = await fetch(`${API_BASE}/api/community-routes/decision`, {
+        const res = await authFetch(`${API_BASE}/api/community-routes/decision`, {
             method: 'POST',
-            headers: _authHeaders({ 'Content-Type': 'application/json' }),
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ route_id: id, id: id, ok: ok, discord: discord, message: message })
-        });
+        }, 12000);
         const data = await res.json().catch(() => ({}));
         if (res.status === 401) {
-            if (window.LC) window.LC.toast('err', 'Relace vypršela', 'Odhlaste se prosím vlevo nahoře a znovu se přihlaste.');
+            if (window.LC) window.LC.toast('err', 'Ověření relace selhalo', 'Automatické obnovení relace se nezdařilo. Zkuste se prosím odhlásit a přihlásit znovu.');
+            return;
+        }
+        if (res.status === 403) {
+            await refreshLauncherSessionAndRole(true);
+            if (window.LC) window.LC.toast('err', 'Přístup odepřen', data.error || 'Nemáte administrátorská oprávnění.');
             return;
         }
         if (data.success) {
@@ -4533,8 +4634,26 @@ document.addEventListener('lc:line-decision', async (e) => {
     }
 });
 
+document.addEventListener('lc:admin-verify', async () => {
+    try {
+        const ref = await refreshLauncherSessionAndRole(true);
+        if (ref && ref.is_admin) {
+            const allAdmin = await loadPendingAdminQueue();
+            if (window.LC) {
+                if (window.LC.setAdminRoutes) window.LC.setAdminRoutes(allAdmin);
+                else if (window.LC.setQueue) window.LC.setQueue(allAdmin);
+            }
+        }
+    } catch (_) { }
+});
+
 document.addEventListener('lc:admin-refresh', async () => {
     try {
+        const ref = await refreshLauncherSessionAndRole(true);
+        if (!ref || !ref.is_admin) {
+            if (window.LC) window.LC.toast('err', 'Přístup odepřen', 'Nemáte administrátorská oprávnění.');
+            return;
+        }
         const allAdmin = await loadPendingAdminQueue();
         if (window.LC) {
             if (window.LC.setAdminRoutes) window.LC.setAdminRoutes(allAdmin);
@@ -4550,14 +4669,19 @@ document.addEventListener('lc:admin-purge', async (e) => {
     const id = e.detail && e.detail.id;
     if (!id) return;
     try {
-        const res = await fetch(`${API_BASE}/api/admin/community-routes/purge`, {
+        const res = await authFetch(`${API_BASE}/api/admin/community-routes/purge`, {
             method: 'POST',
-            headers: _authHeaders({ 'Content-Type': 'application/json' }),
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ route_id: id })
-        });
+        }, 12000);
         const data = await res.json().catch(() => ({}));
         if (res.status === 401) {
-            if (window.LC) window.LC.toast('err', 'Relace vypršela', 'Odhlaste se prosím vlevo nahoře a znovu se přihlaste.');
+            if (window.LC) window.LC.toast('err', 'Ověření relace selhalo', 'Automatické obnovení relace se nezdařilo. Zkuste se prosím odhlásit a přihlásit znovu.');
+            return;
+        }
+        if (res.status === 403) {
+            await refreshLauncherSessionAndRole(true);
+            if (window.LC) window.LC.toast('err', 'Přístup odepřen', data.error || 'Nemáte administrátorská oprávnění.');
             return;
         }
         if (data.success) {
@@ -4581,17 +4705,22 @@ document.addEventListener('lc:admin-toggle-download', async (e) => {
     const id = detail.id;
     if (!id) return;
     try {
-        const res = await fetch(`${API_BASE}/api/admin/community-routes/toggle-download`, {
+        const res = await authFetch(`${API_BASE}/api/admin/community-routes/toggle-download`, {
             method: 'POST',
-            headers: _authHeaders({ 'Content-Type': 'application/json' }),
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 route_id: id,
                 downloads_enabled: detail.downloads_enabled
             })
-        });
+        }, 12000);
         const data = await res.json().catch(() => ({}));
         if (res.status === 401) {
-            if (window.LC) window.LC.toast('err', 'Relace vypršela', 'Odhlaste se prosím vlevo nahoře a znovu se přihlaste.');
+            if (window.LC) window.LC.toast('err', 'Ověření relace selhalo', 'Automatické obnovení relace se nezdařilo. Zkuste se prosím odhlásit a přihlásit znovu.');
+            return;
+        }
+        if (res.status === 403) {
+            await refreshLauncherSessionAndRole(true);
+            if (window.LC) window.LC.toast('err', 'Přístup odepřen', data.error || 'Nemáte administrátorská oprávnění.');
             return;
         }
         if (data.success) {
@@ -4631,9 +4760,14 @@ document.addEventListener('lc:admin-export-official', async (e) => {
     const defaultName = fmt === 'txt' ? `${safeNum}_auto.txt` : `linka_${safeNum}_oficialni_export.zip`;
     try {
         if (window.LC) window.LC.toast('info', 'Připravuji export…', fmt === 'txt' ? `Generuji ${safeNum}_auto.txt` : `Balím ${safeNum}_auto.txt a hlášení…`);
-        const res = await safeFetch(`${API_BASE}/api/admin/community-routes/${encodeURIComponent(id)}/export-official?format=${fmt}`, { headers: _authHeaders() }, 20000);
+        const res = await authFetch(`${API_BASE}/api/admin/community-routes/${encodeURIComponent(id)}/export-official?format=${fmt}`, {}, 20000);
         if (res.status === 401) {
-            if (window.LC) window.LC.toast('err', 'Relace vypršela', 'Odhlaste se prosím vlevo nahoře a znovu se přihlaste.');
+            if (window.LC) window.LC.toast('err', 'Ověření relace selhalo', 'Automatické obnovení relace se nezdařilo. Zkuste se prosím odhlásit a přihlásit znovu.');
+            return;
+        }
+        if (res.status === 403) {
+            await refreshLauncherSessionAndRole(true);
+            if (window.LC) window.LC.toast('err', 'Přístup odepřen', 'Nemáte administrátorská oprávnění.');
             return;
         }
         if (!res.ok) {

@@ -2225,6 +2225,7 @@ const CONFIG = { DEMO: false, REDUCED_FX: false };
   function selTab(t) {
     $$('#ed-tabs .ed-tab').forEach((x) => x.classList.toggle('on', x.dataset.tab === t));
     ['mine', 'comm', 'admin'].forEach((k) => { const p = $('pane-' + k), on = k === t; if (on && p.hidden) { p.hidden = false; p.style.animation = 'none'; void p.offsetWidth; p.style.animation = ''; } p.hidden = !on; });
+    if (t === 'admin') emit('admin-verify');
   }
   $$('#ed-tabs .ed-tab').forEach((b) => (b.onclick = () => selTab(b.dataset.tab)));
   function syncAdminTab(role) {
