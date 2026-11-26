@@ -874,8 +874,8 @@ button.chip.dl:hover{border-color:var(--blue);color:#fff}
             <div class="search"><svg class="ic"><use href="#i-search"/></svg><input id="adm-search" placeholder="Hledat číslo, název, autora, ID…" autocomplete="off"></div>
             <div class="chips" id="adm-chips">
               <button class="chip on" data-f="all">Vše</button>
+              <button class="chip" data-f="pending" style="border-color:rgba(250,204,21,0.45);color:#fde68a;">⏳ Čeká na schválení</button>
               <button class="chip" data-f="approved">Zveřejněné</button>
-              <button class="chip" data-f="pending">Ke schválení</button>
               <button class="chip" data-f="paused">Vypnuté stahování</button>
               <button class="chip" data-f="deleted_by_user">Smazáno autorem</button>
               <button class="chip" data-f="rejected">Zamítnuto</button>
@@ -1340,6 +1340,12 @@ button.chip.dl:hover{border-color:var(--blue);color:#fff}
   <div class="mbox" style="text-align:left">
     <div style="text-align:center"><div class="mico g" id="dc-ico"><svg class="ic"><use href="#i-check"/></svg></div></div>
     <h3 style="text-align:center" id="dc-title">Schválit linku</h3><p style="text-align:center" id="dc-sub"></p>
+    <div id="dc-version-box" hidden style="margin-bottom:14px;padding:12px;border-radius:12px;background:rgba(139,92,246,0.12);border:1px solid rgba(167,139,250,0.4);">
+      <div id="dc-version-info" style="font-size:12.5px;color:#e9d5ff;margin-bottom:8px;font-weight:700;"></div>
+      <div id="dc-version-diffs" style="font-size:11.5px;color:#cbd5e1;margin-bottom:10px;"></div>
+      <label class="chk" style="margin-bottom:6px"><input type="radio" name="dc_ver_mode" value="new_version" checked><span id="dc-ver-new-lbl">Zachovat předchozí verzi a vydat jako novou verzi</span></label>
+      <label class="chk" style="margin-bottom:0"><input type="radio" name="dc_ver_mode" value="replace_existing"><span id="dc-ver-rep-lbl">Nahradit stávající verzi těmito úpravami</span></label>
+    </div>
     <label class="chk" id="dc-disc-row" style="margin-bottom:14px"><input type="checkbox" id="dc-disc" checked><span>Poslat oznámení o nové lince na Discord (do chatu)</span></label>
     <label class="fld" style="margin-bottom:16px"><span>Zpráva uživateli (volitelné)</span><textarea class="inp" id="dc-msg" rows="3" placeholder="Např. Díky za skvělou práci! / U třech zastávek chybí hlášení…"></textarea></label>
     <div class="acts row2"><button class="btn" id="dc-cancel">Zrušit</button><button class="btn green" id="dc-ok">Potvrdit</button></div>
@@ -3785,8 +3791,8 @@ const CONFIG = { DEMO: false, REDUCED_FX: false };
     }
     const chipLabels = {
       all: 'Vše (' + counts.all + ')',
+      pending: '⏳ Čeká na schválení (' + counts.pending + ')',
       approved: 'Zveřejněné (' + counts.approved + ')',
-      pending: 'Ke schválení (' + counts.pending + ')',
       paused: 'Vypnuté stahování (' + counts.paused + ')',
       deleted_by_user: 'Smazáno autorem (' + counts.deleted_by_user + ')',
       rejected: 'Zamítnuto (' + counts.rejected + ')'
@@ -3846,18 +3852,25 @@ const CONFIG = { DEMO: false, REDUCED_FX: false };
           '<button class="btn danger sm" data-adm-purge="' + esc(q.id) + '" data-num="' + esc(q.num) + '">' + ic('trash') + 'Smazat navždy</button>';
       }
 
-      const infoNote = bucket === 'deleted_by_user'
-        ? '<div class="adesc" style="color:#94a3b8;font-size:11.5px;">Autor sám odstranil linku z veřejné komunitní nabídky.</div>'
-        : (bucket === 'rejected' && q.reject_reason
-          ? '<div class="rej" style="margin:0;"><b>Důvod zamítnutí:</b> ' + esc(q.reject_reason) + '</div>'
-          : '');
+      const ex = (bucket === 'pending' && q.existing_approved) ? q.existing_approved : null;
+      const infoNote = ex
+        ? '<div style="padding:8px 10px;border-radius:10px;background:rgba(139,92,246,0.14);border:1px solid rgba(167,139,250,0.4);font-size:12px;color:#e9d5ff;">' +
+            '<b style="color:#ddd6fe;">🔄 Upravená verze existující linky (v komunitě už je ' + esc(ex.version || 'V1') + ')</b>' +
+            (Array.isArray(ex.diffs) && ex.diffs.length ? '<div style="margin-top:3px;color:#cbd5e1;font-size:11.5px;">' + ex.diffs.map(d => esc(d)).join(' · ') + '</div>' : '') +
+          '</div>'
+        : (bucket === 'deleted_by_user'
+          ? '<div class="adesc" style="color:#94a3b8;font-size:11.5px;">Autor sám odstranil linku z veřejné komunitní nabídky.</div>'
+          : (bucket === 'rejected' && q.reject_reason
+            ? '<div class="rej" style="margin:0;"><b>Důvod zamítnutí:</b> ' + esc(q.reject_reason) + '</div>'
+            : ''));
 
       const stopsHtml = qStops.length
         ? '<details class="adm-stops"><summary>Zobrazit zastávky a přehrát hlášení (' + qStops.length + ' · zvuk ' + sndCount + '/' + qStops.length + ')</summary>' +
           '<div class="alist">' + qStops.map((s, i) => '<div class="ar"><span class="no">' + (i + 1) + '</span><span class="an">' + esc((s && s.n) || '') + '</span>' + (s && s.snd ? '<span class="aud' + (s.snd._p ? ' play' : '') + '"><button data-p="' + esc(q.id) + ':' + i + '" title="Přehrát">' + ic(s.snd._p ? 'min' : 'play') + '</button><em>' + esc(s.snd.name) + '</em><small>' + fmtDur(s.snd.dur) + '</small></span>' : '<span class="badge r">bez hlášení</span>') + '</div>').join('') + '</div></details>'
         : '<div class="adesc" style="color:#64748b;">Bez zastávek.</div>';
 
-      return '<div class="acard" data-id="' + esc(q.id) + '"><div class="top"><span class="numchip">' + esc(q.num) + '</span><div class="tx"><b>' + esc(q.name) + '</b><small>od ' + esc(q.author) + (q.author_id ? ' (' + esc(q.author_id) + ')' : '') + ' · ' + esc(q.version || 'V1') + ' · #' + esc(q.id) + ' · ' + q.dl + '× staženo</small></div><span class="badge ' + sb[1] + '" style="margin-left:auto;">' + sb[0] + '</span></div>' +
+      const verUpdateBadge = ex ? '<span class="badge" style="background:rgba(139,92,246,0.22);color:#ddd6fe;border:1px solid rgba(167,139,250,0.45);">Upravená verze · ' + esc(ex.version || 'V1') + ' → ' + esc(ex.next_version || 'V2') + '</span>' : '';
+      return '<div class="acard" data-id="' + esc(q.id) + '"><div class="top"><span class="numchip">' + esc(q.num) + '</span><div class="tx"><b>' + esc(q.name) + '</b><small>od ' + esc(q.author) + (q.author_id ? ' (' + esc(q.author_id) + ')' : '') + ' · ' + esc(q.version || 'V1') + ' · #' + esc(q.id) + ' · ' + q.dl + '× staženo</small></div>' + verUpdateBadge + '<span class="badge ' + sb[1] + '" style="margin-left:auto;">' + sb[0] + '</span></div>' +
         '<div class="meta"><span class="badge ' + t[1] + '">' + t[0] + '</span><span class="badge">' + ic('sound') + vo[0] + '</span>' + (q.scope === 'cr' ? '<span class="badge c">Data ČR</span>' : '') + '<span>' + ic('map') + ' ' + qStops.length + ' zastávek (' + sndCount + ' zvuků)</span>' + (q.created_at ? '<span>' + esc(String(q.created_at).slice(0, 16)) + '</span>' : '') + '</div>' +
         (qTags.length ? '<div class="tags">' + qTags.map((x) => '<span class="tag">' + esc(x) + '</span>').join('') + '</div>' : '') + (q.desc ? '<div class="adesc">' + esc(q.desc) + '</div>' : '') +
         infoNote +
@@ -3896,8 +3909,23 @@ const CONFIG = { DEMO: false, REDUCED_FX: false };
       console.warn('Queue item not found for id:', id);
       return;
     }
-    DC = { id, ok };
+    DC = { id, ok, existing_approved: q.existing_approved || null };
     $('dc-ico').className = 'mico ' + (ok ? 'g' : 'r'); $('dc-ico').innerHTML = ic(ok ? 'check' : 'x'); $('dc-title').textContent = (ok ? 'Schválit linku ' : 'Zamítnout linku ') + q.num; $('dc-sub').textContent = q.name + ' · od ' + q.author;
+    const vBox = $('dc-version-box');
+    const ex = ok && q.existing_approved ? q.existing_approved : null;
+    if (vBox) {
+      vBox.hidden = !ex;
+      if (ex) {
+        const curV = ex.version || 'V1';
+        const nextV = ex.next_version || 'V2';
+        $('dc-version-info').textContent = `Existuje schválená verze ${curV} (${ex.voice_label || 'původní'}). Jak chcete tuto úpravu schválit?`;
+        $('dc-version-diffs').textContent = Array.isArray(ex.diffs) && ex.diffs.length ? ('Změny: ' + ex.diffs.join(' · ')) : '';
+        $('dc-ver-new-lbl').textContent = `Zachovat ${curV} a vydat jako novou verzi (${nextV})`;
+        $('dc-ver-rep-lbl').textContent = `Aktualizovat stávající ${curV} (nevydávat ${nextV})`;
+        const rNew = document.querySelector('input[name="dc_ver_mode"][value="new_version"]');
+        if (rNew) rNew.checked = true;
+      }
+    }
     $('dc-disc-row').hidden = !ok; $('dc-disc').checked = true; $('dc-msg').value = ''; $('dc-ok').className = 'btn ' + (ok ? 'green' : 'solid-danger'); $('dc-ok').textContent = ok ? 'Schválit a zveřejnit' : 'Zamítnout';
     openModal('decide-modal');
   }
@@ -3905,7 +3933,10 @@ const CONFIG = { DEMO: false, REDUCED_FX: false };
   $('dc-ok').onclick = () => {
     if (!DC) return;
     closeModal('decide-modal');
-    applyDecision(DC.id, DC.ok, { disc: $('dc-disc').checked, msg: $('dc-msg').value.trim() }, false);
+    const selModeEl = document.querySelector('input[name="dc_ver_mode"]:checked');
+    const verMode = (DC.ok && DC.existing_approved && selModeEl) ? selModeEl.value : 'new_version';
+    const targetVer = (DC.existing_approved && verMode === 'new_version') ? (DC.existing_approved.next_version || '') : '';
+    applyDecision(DC.id, DC.ok, { disc: $('dc-disc').checked, msg: $('dc-msg').value.trim(), version_mode: verMode, target_version: targetVer }, false);
   };
   function applyDecision(id, ok, o, asUser) {
     const allList = getAdminSource();
@@ -3917,6 +3948,7 @@ const CONFIG = { DEMO: false, REDUCED_FX: false };
       q.is_deleted_by_author = false;
       q.downloads_enabled = 1;
       q.reject_reason = '';
+      if (o && o.target_version && o.version_mode !== 'replace_existing') q.version = o.target_version;
     } else {
       q.reject_reason = o.msg || 'Linka nebyla schválena administrátorem.';
     }
@@ -3924,8 +3956,8 @@ const CONFIG = { DEMO: false, REDUCED_FX: false };
     const l = S.lines.find((x) => String(x.id) === String(id));
     if (l) { l.status = ok ? 'published' : 'rejected'; if (!ok) l.reject = o.msg || 'Linka byla zamítnuta bez dalšího vysvětlení.'; }
     const qLastStop = (q.stops && q.stops.length) ? (q.stops[q.stops.length - 1].n || '') : '';
-    if (ok) S.comm.unshift({ id: 'c' + Date.now(), num: q.num, dest: qLastStop, author: q.author, dl: 0, size: Math.max(8, (q.stops ? q.stops.length : 1) * 5) + ' kB', type: q.type, voice: q.voice, scope: q.scope, tags: (q.tags || []).slice(), isNew: true, state: l ? 'installed' : 'idle' });
-    emit('line-decision', { id, ok, discord: !!o.disc, message: o.msg });
+    if (ok && (!o || o.version_mode !== 'replace_existing')) S.comm.unshift({ id: 'c' + Date.now(), num: q.num, dest: qLastStop, author: q.author, dl: 0, size: Math.max(8, (q.stops ? q.stops.length : 1) * 5) + ' kB', type: q.type, voice: q.voice, scope: q.scope, version: q.version || 'V1', tags: (q.tags || []).slice(), isNew: true, state: l ? 'installed' : 'idle' });
+    emit('line-decision', { id, ok, discord: !!o.disc, message: o.msg, version_mode: (o && o.version_mode) || 'new_version', target_version: (o && o.target_version) || '' });
     if (asUser) toast(ok ? 'ok' : 'err', 'Linka ' + q.num + (ok ? ' byla schválena' : ' byla zamítnuta'), (ok ? 'Je v Komunitních linkách. ' : 'Důvod uvidíte u linky. ') + 'Oznámení: ' + S.notifyVia + '.', 6500);
     else toast(ok ? 'ok' : 'info', 'Linka ' + q.num + (ok ? ' schválena' : ' zamítnuta'), (ok && o.disc ? 'Oznámení odesláno na Discord. ' : '') + 'Uživatel dostane ' + (o.msg ? 'zprávu přes ' : 'oznámení přes ') + S.notifyVia + '.', 6000);
     renderMine(id); renderComm(); renderAdmin(); syncAdminTab(S.role);

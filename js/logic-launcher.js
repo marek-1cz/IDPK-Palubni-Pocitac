@@ -3722,6 +3722,8 @@ function _mapAdminRouteRow(q) {
         is_deleted_by_author: isAuthorDel,
         reject_reason: isAuthorDel ? '' : (q.reject_reason || ''),
         downloads_enabled: dlEnabled,
+        is_version_update: Boolean(q.is_version_update || q.existing_approved),
+        existing_approved: q.existing_approved || null,
         dl: Number(q.download_count || 0),
         stops: (Array.isArray(stops) ? stops : []).map(s => {
             let audUrl = s.audio_url || (s.snd && s.snd.url) || '';
@@ -4600,12 +4602,20 @@ document.addEventListener('lc:line-publish', async (e) => {
 });
 
 document.addEventListener('lc:line-decision', async (e) => {
-    const { id, ok, discord, message } = e.detail;
+    const { id, ok, discord, message, version_mode, target_version } = e.detail;
     try {
         const res = await authFetch(`${API_BASE}/api/community-routes/decision`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ route_id: id, id: id, ok: ok, discord: discord, message: message })
+            body: JSON.stringify({
+                route_id: id,
+                id: id,
+                ok: ok,
+                discord: discord,
+                message: message,
+                version_mode: version_mode || 'new_version',
+                target_version: target_version || ''
+            })
         }, 12000);
         const data = await res.json().catch(() => ({}));
         if (res.status === 401) {
@@ -4619,12 +4629,18 @@ document.addEventListener('lc:line-decision', async (e) => {
         }
         if (data.success) {
             if (window.LC) {
-                window.LC.toast('ok', ok ? 'Linka schválena' : 'Linka zamítnuta', 'Rozhodnutí bylo uloženo a uživatel byl informován.');
-                const allAdmin = await loadPendingAdminQueue();
+                const statusTitle = ok
+                    ? (data.replaced_existing ? `Verze ${data.version || 'V1'} aktualizována` : `Linka schválena (${data.version || 'V1'})`)
+                    : 'Linka zamítnuta';
+                window.LC.toast('ok', statusTitle, 'Rozhodnutí bylo uloženo a uživatel byl informován.');
+                const [allAdmin, commLines] = await Promise.all([loadPendingAdminQueue(), loadCommunityEditorLines()]);
+                if (typeof syncLocalLinesWithDatabase === 'function') {
+                    await syncLocalLinesWithDatabase();
+                }
                 if (window.LC.setAdminRoutes) window.LC.setAdminRoutes(allAdmin);
                 else window.LC.setQueue(allAdmin);
-                const commLines = await loadCommunityEditorLines();
                 window.LC.setComm(commLines);
+                if (window.LC.renderMine) window.LC.renderMine();
             }
         } else {
             if (window.LC) window.LC.toast('err', 'Chyba', data.error || 'Operace selhala.');
