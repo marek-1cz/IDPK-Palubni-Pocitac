@@ -635,7 +635,8 @@ button.chip.dl:hover{border-color:var(--blue);color:#fff}
 .lg-reactor{position:relative;width:120px;height:120px;display:grid;place-items:center;margin-bottom:20px}
 .lg-ring{position:absolute;inset:0;border-radius:50%;border:2px dashed rgba(56,189,248,0.45);animation:lgSpin 12s linear infinite}
 .lg-ring.r2{inset:12px;border:2px solid rgba(59,130,246,0.5);border-top-color:#38bdf8;border-bottom-color:#38bdf8;animation:lgSpinRev 4s linear infinite}
-.lg-core-icon{width:50px;height:50px;color:#38bdf8;filter:drop-shadow(0 0 16px rgba(56,189,248,0.85));animation:lgCorePulse 2s ease-in-out infinite}
+.lg-core-icon{width:64px;height:64px;border-radius:14px;overflow:hidden;box-shadow:0 0 22px rgba(56,189,248,0.65);animation:lgCorePulse 2s ease-in-out infinite}
+.lg-core-icon img{width:100%;height:100%;object-fit:cover;display:block}
 @keyframes lgSpinRev{to{transform:rotate(-360deg)}}
 @keyframes lgCorePulse{0%,100%{transform:scale(1);opacity:0.9}50%{transform:scale(1.08);opacity:1;filter:drop-shadow(0 0 24px rgba(56,189,248,1))}}
 .lg-t{font-size:13px;letter-spacing:0.18em;text-transform:uppercase;color:#94a3b8;margin-bottom:4px;font-weight:700}
@@ -1044,6 +1045,7 @@ button.chip.dl:hover{border-color:var(--blue);color:#fff}
           <div class="card">
             <div class="card-h"><svg class="ic"><use href="#i-edit"/></svg>Editor a podpora</div>
             <div class="row"><div class="ri"><svg class="ic"><use href="#i-edit"/></svg></div><div class="rt"><b>Editor linek</b><small>Vlastní a komunitní linky</small></div><button class="btn sm" id="btn-open-editor-settings">Otevřít</button></div>
+            <div class="row"><div class="ri"><svg class="ic"><use href="#i-play"/></svg></div><div class="rt"><b>Video návod k přihlášení</b><small>Jak se přihlásit a používat launcher</small></div><button class="btn sm" id="btn-settings-video-guide">Přehrát</button></div>
             <div class="row amber"><div class="ri"><svg class="ic"><use href="#i-coffee"/></svg></div><div class="rt"><b>Podpořte projekt</b><small>Káva pro vývojáře ☕</small></div><button class="btn sm" id="btn-buy-coffee">Podpořit</button></div>
           </div>
           <div class="card">
@@ -1177,6 +1179,9 @@ button.chip.dl:hover{border-color:var(--blue);color:#fff}
         <button class="btn big" id="btn-failure-create-account" style="background:rgba(255,255,255,0.08);border:1px solid var(--line2);color:var(--text);font-weight:700;" hidden>Vytvořit nový účet</button>
       </div>
     </div>
+    <div style="text-align:center;margin-top:8px;">
+      <button class="link" id="btn-login-video-guide" style="display:inline-flex;align-items:center;justify-content:center;gap:6px;color:#38bdf8;font-weight:700;font-size:12.5px;"><svg class="ic" style="width:14px;height:14px;"><use href="#i-play"/></svg>Nevím si rady – přehrát video návod</button>
+    </div>
     <div class="lg-hwid">HWID: <span id="login-hwid-text">XXXX-XXXX-XXXX</span></div>
   </div>
 </div>
@@ -1251,6 +1256,39 @@ button.chip.dl:hover{border-color:var(--blue);color:#fff}
 
     <div class="acts" style="margin-top:16px;">
       <button class="btn" id="sm-close">Zavřít</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== Video návod k přihlášení ===== -->
+<div class="modal" id="video-guide-modal" style="z-index:2500;" hidden>
+  <div class="mbox" style="width:820px;max-width:94vw;text-align:left;padding:20px 22px;">
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px;">
+      <div style="display:flex;align-items:center;gap:10px;">
+        <div class="mico b" style="margin:0;width:36px;height:36px;border-radius:10px;"><svg class="ic"><use href="#i-play"/></svg></div>
+        <div>
+          <h3 style="margin:0;font-size:16px;">Video návod – přihlášení do launcheru</h3>
+          <small style="color:var(--dim);font-size:12px;">Ukázka přihlášení krok za krokem (výchozí hlasitost ztlumena na 20 %)</small>
+        </div>
+      </div>
+      <button class="btn sm ghost" id="vg-close" aria-label="Zavřít návod"><svg class="ic"><use href="#i-x"/></svg>Zavřít</button>
+    </div>
+
+    <div style="background:#020617;border:1px solid rgba(255,255,255,0.14);border-radius:10px;padding:16px;">
+      <video id="vg-video" src="assets/video/navod-launcher-video-v4.mp4" playsinline preload="metadata" controls controlslist="nodownload" style="width:100%;max-height:66vh;display:block;object-fit:contain;border-radius:0;background:#020617;"></video>
+    </div>
+
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:12px;flex-wrap:wrap;">
+      <div style="display:flex;align-items:center;gap:8px;">
+        <button class="btn sm primary" id="vg-play-btn"><svg class="ic"><use href="#i-play"/></svg><span id="vg-play-lbl">Přehrát</span></button>
+        <button class="btn sm" id="vg-mute-btn" title="Ztlumit nebo zapnout zvuk videa">
+          <svg class="ic"><use href="#i-sound"/></svg><span id="vg-mute-lbl">Ztlumit zvuk</span>
+        </button>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px;flex:1;max-width:240px;justify-content:flex-end;">
+        <span style="font-size:11.5px;color:var(--dim);white-space:nowrap;">Hlasitost: <b id="vg-vol-pct">20 %</b></span>
+        <input id="vg-vol" type="range" min="0" max="1" step="0.05" value="0.20" style="width:110px;accent-color:#38bdf8;cursor:pointer;">
+      </div>
     </div>
   </div>
 </div>
@@ -1410,7 +1448,7 @@ button.chip.dl:hover{border-color:var(--blue);color:#fff}
       <div class="lg-ring"></div>
       <div class="lg-ring r2"></div>
       <div class="lg-core-icon">
-        <svg class="ic" style="width:100%;height:100%;stroke-width:2;"><use href="#i-bus"/></svg>
+        <img src="assets/img/datacorebot_icon.png" alt="DataCoreBot">
       </div>
     </div>
     <div class="lg-t">SPOUŠTĚNÍ VERZE <b id="lg-ver">V1.6.3</b></div>
@@ -1627,11 +1665,18 @@ const CONFIG = { DEMO: false, REDUCED_FX: false };
       const d = document.createElement('div');
       d.className = 'opt' + (v.id === S.sel ? ' sel' : '') + (isLatest ? ' opt-latest' : ' opt-older');
 
-      let badgeHtml = (v.tag && v.tag !== 'stable')
-        ? '<span class="vtag ' + v.tag + '">' + ({ rc: 'RC', beta: 'Beta', old: 'Starší', dev: 'Dev' }[v.tag] || v.tag) + '</span>'
-        : '';
-      if (isLatest) {
-        badgeHtml = '<span class="vtag latest" style="background:rgba(56,189,248,0.22);color:#38bdf8;border:1px solid rgba(56,189,248,0.45);font-weight:900;font-size:10px;padding:3px 9px;border-radius:6px;box-shadow:0 0 12px rgba(56,189,248,0.35);letter-spacing:0.06em;">NEJNOVĚJŠÍ</span>' + (badgeHtml ? ' ' + badgeHtml : '');
+      const roleUp = String(v.target_role || 'User').trim().toUpperCase();
+      const isBT = roleUp === 'BT' || roleUp.includes('BETA') || roleUp.includes('SUPPORTER') || roleUp.includes('PODPOR') || roleUp.includes('TESTER');
+      const isDevOrSA = !isBT && (roleUp === 'DEV' || roleUp === 'SA' || roleUp.includes('SUPERADMIN') || roleUp.includes('ADMIN') || v.lock);
+
+      let badgeHtml = '';
+      if (isBT) {
+        badgeHtml = '<span class="vtag beta" style="background:rgba(245,158,11,0.16);color:#fbbf24;border:1px solid rgba(245,158,11,0.38);">Pouze pro beta testery / podporovatele</span>';
+      } else if (isDevOrSA) {
+        badgeHtml = '<span class="vtag dev" style="background:rgba(239,68,68,0.16);color:#fca5a5;border:1px solid rgba(239,68,68,0.35);">🔒 Zamčeno</span>';
+      }
+      if (isLatest && !isBT && !isDevOrSA) {
+        badgeHtml = '<span class="vtag latest" style="background:rgba(56,189,248,0.22);color:#38bdf8;border:1px solid rgba(56,189,248,0.45);font-weight:900;font-size:10px;padding:3px 9px;border-radius:6px;box-shadow:0 0 12px rgba(56,189,248,0.35);letter-spacing:0.06em;">NEJNOVĚJŠÍ</span>';
       }
 
       d.innerHTML = '<div style="display:flex;align-items:center;gap:10px;">' +
@@ -2784,6 +2829,73 @@ const CONFIG = { DEMO: false, REDUCED_FX: false };
   if ($('btn-settings-storage-mgr')) $('btn-settings-storage-mgr').onclick = openStorageManager;
   if ($('sm-close')) $('sm-close').onclick = () => closeModal('storage-mgr-modal');
   if ($('sm-btn-clean-orphans')) $('sm-btn-clean-orphans').onclick = () => emit('storage-clean-orphans');
+
+  const vgModal = $('video-guide-modal');
+  const vgVideo = $('vg-video');
+  const vgVol = $('vg-vol');
+  const vgMuteBtn = $('vg-mute-btn');
+  const vgPlayBtn = $('vg-play-btn');
+  const syncVideoGuideControls = () => {
+    if (!vgVideo) return;
+    const muted = vgVideo.muted || vgVideo.volume === 0;
+    const pct = muted ? 0 : Math.round(vgVideo.volume * 100);
+    if ($('vg-vol-pct')) $('vg-vol-pct').textContent = pct + ' %';
+    if (vgVol) vgVol.value = muted ? '0' : String(vgVideo.volume);
+    if ($('vg-mute-lbl')) $('vg-mute-lbl').textContent = muted ? 'Zvuk ztlumen' : 'Ztlumit zvuk';
+    if (vgMuteBtn) vgMuteBtn.classList.toggle('danger', muted);
+    if ($('vg-play-lbl')) $('vg-play-lbl').textContent = vgVideo.paused ? 'Přehrát' : 'Pozastavit';
+  };
+  const openVideoGuide = () => {
+    openModal('video-guide-modal');
+    if (vgVideo) {
+      vgVideo.muted = false;
+      vgVideo.volume = 0.20;
+      vgVideo.currentTime = 0;
+      vgVideo.play().catch(() => {});
+      syncVideoGuideControls();
+    }
+  };
+  const closeVideoGuide = () => {
+    if (vgVideo) {
+      vgVideo.pause();
+    }
+    closeModal('video-guide-modal');
+  };
+  if ($('btn-login-video-guide')) $('btn-login-video-guide').onclick = openVideoGuide;
+  if ($('btn-settings-video-guide')) $('btn-settings-video-guide').onclick = openVideoGuide;
+  if ($('vg-close')) $('vg-close').onclick = closeVideoGuide;
+  if (vgModal) vgModal.addEventListener('click', (e) => { if (e.target === vgModal) closeVideoGuide(); });
+  if (vgPlayBtn && vgVideo) {
+    vgPlayBtn.onclick = () => {
+      if (vgVideo.paused) vgVideo.play().catch(() => {});
+      else vgVideo.pause();
+      syncVideoGuideControls();
+    };
+  }
+  if (vgMuteBtn && vgVideo) {
+    vgMuteBtn.onclick = () => {
+      if (vgVideo.muted || vgVideo.volume === 0) {
+        vgVideo.muted = false;
+        if (vgVideo.volume === 0) vgVideo.volume = 0.20;
+      } else {
+        vgVideo.muted = true;
+      }
+      syncVideoGuideControls();
+    };
+  }
+  if (vgVol && vgVideo) {
+    vgVol.oninput = () => {
+      const val = Math.max(0, Math.min(1, parseFloat(vgVol.value) || 0));
+      vgVideo.volume = val;
+      vgVideo.muted = (val === 0);
+      syncVideoGuideControls();
+    };
+  }
+  if (vgVideo) {
+    vgVideo.addEventListener('play', syncVideoGuideControls);
+    vgVideo.addEventListener('pause', syncVideoGuideControls);
+    vgVideo.addEventListener('volumechange', syncVideoGuideControls);
+  }
   function commGet(id) {
     const c = S.comm.find((x) => x.id === id);
     if (!c) return;
@@ -4059,19 +4171,36 @@ const CONFIG = { DEMO: false, REDUCED_FX: false };
             '</div>' +
             '<small style="color:var(--dim);display:block;margin-top:2px;">' + (l.stopsCount || 0) + ' zastávek · ' + (l.audioCount || 0) + ' zvuků</small>' +
           '</div>' +
-          '<button class="btn sm danger" data-sm-del="' + l.id + '" style="padding:4px 10px;font-size:11px;margin-left:10px;">' + ic('trash') + 'Smazat data</button>' +
+          '<button class="btn sm danger" data-sm-del="' + esc(l.id) + '" style="padding:4px 10px;font-size:11px;margin-left:10px;">' + ic('trash') + 'Smazat data</button>' +
         '</div>';
       }).join('') || '<div style="color:var(--muted);text-align:center;padding:20px;">Žádné stažené ani vlastní linky.</div>';
 
       $$('#sm-lines-list [data-sm-del]').forEach(btn => {
         btn.onclick = () => {
+          const delId = btn.dataset.smDel;
+          const lObj = S.lines.find(x => String(x.id) === String(delId)) || (data.lines || []).find(x => String(x.id) === String(delId));
+          const commId = (lObj && lObj.commId) || (String(delId).startsWith('comm_') ? String(delId).slice(5) : undefined);
           confirmBox({
             title: 'Smazat data linky?',
-            desc: 'Opravdu chcete smazat data této linky včetně stažených zvukových nahrávek z disku?',
+            desc: 'Opravdu chcete smazat lokální data této linky včetně stažených zvukových nahrávek z disku?',
             yes: 'Smazat z disku'
           }, () => {
-            emit('line-delete', { id: btn.dataset.smDel });
-            setTimeout(() => emit('storage-manager-open'), 400);
+            S.lines = S.lines.filter(x => String(x.id) !== String(delId) && (!commId || String(x.commId) !== String(commId)));
+            if (commId) {
+              const cItem = S.comm.find(x => String(x.id) === String(commId));
+              if (cItem) cItem.state = 'idle';
+            }
+            renderMine();
+            renderComm();
+            emit('line-delete', {
+              id: delId,
+              num: lObj ? lObj.num : undefined,
+              version: lObj ? lObj.version : undefined,
+              commId: commId,
+              isInstalledOnly: true,
+              fromStorageManager: true
+            });
+            toast('ok', 'Data linky smazána', 'Soubory linky byly odstraněny z disku.');
           });
         };
       });

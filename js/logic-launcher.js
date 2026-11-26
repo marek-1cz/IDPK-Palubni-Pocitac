@@ -3076,6 +3076,7 @@ function syncWithLCVersions() {
             id: v.db_version,
             name: v.version_name || v.db_version,
             tag: tag,
+            target_role: v.target_role || 'User',
             size: v.file_size || '1.2 GB',
             installed: isInstalled,
             update: hasUpdate,
@@ -3098,7 +3099,9 @@ function updateLCLaunchState(versionName) {
     const isInstalled = Boolean(exePath);
     const hasUpdate = isInstalled && hasVersionPatchUpdate(v, folder);
     if (!v.has_access || !v.can_launch) {
-        window.LC.setLaunchState('locked', v.target_role ? 'Předplatitelé' : 'Zamčeno');
+        const roleUpper = String(v.target_role || 'User').toUpperCase();
+        const isBtRole = roleUpper === 'BT' || roleUpper.includes('BETA') || roleUpper.includes('SUPPORTER') || roleUpper.includes('PODPOR') || roleUpper.includes('TESTER');
+        window.LC.setLaunchState('locked', isBtRole ? 'Pouze pro beta testery / podporovatele' : 'Zamčeno');
     } else if (isInstalled) {
         if (hasUpdate) {
             window.LC.setLaunchState('update', 'Aktualizovat');
@@ -4426,13 +4429,47 @@ document.addEventListener('lc:line-delete', async (e) => {
                 }
             } catch (_) { }
 
-            // F. Úklid osiřelých zvuků
-            if (lineSounds.size > 0) {
+            // F. Aktualizovat stav v launcheru (S.lines / S.comm) a obnovit UI + správce úložiště
+            if (window.LC && window.LC.S) {
+                const targetCommId = detail.commId ? String(detail.commId) : (String(id || '').startsWith('comm_') ? String(id).slice(5) : null);
+                if (Array.isArray(window.LC.S.lines)) {
+                    window.LC.S.lines = window.LC.S.lines.filter(x => {
+                        if (!x) return false;
+                        if (allIds.has(String(x.id))) return false;
+                        if (targetCommId && (String(x.commId) === targetCommId || String(x.id) === `comm_${targetCommId}`)) return false;
+                        if (detail.deleteAll && safeNum && String(x.num || '').trim().replace(/[^a-zA-Z0-9_-]/g, '_') === safeNum) return false;
+                        return true;
+                    });
+                }
+                if (Array.isArray(window.LC.S.comm)) {
+                    window.LC.S.comm.forEach(c => {
+                        if (!c) return;
+                        if ((targetCommId && String(c.id) === targetCommId) || allIds.has(`comm_${c.id}`) || allIds.has(String(c.id))) {
+                            c.state = 'idle';
+                        }
+                    });
+                }
+                if (window.LC.renderMine) window.LC.renderMine();
+                if (window.LC.renderComm) window.LC.renderComm();
+            }
+
+            const smModal = document.getElementById('storage-mgr-modal');
+            const shouldRefreshStorage = Boolean(detail.fromStorageManager || (smModal && !smModal.hidden));
+            if (shouldRefreshStorage) {
+                document.dispatchEvent(new CustomEvent('lc:storage-manager-open'));
+            }
+
+            // G. Úklid osiřelých zvuků
+            if (lineSounds.size > 0 || shouldRefreshStorage) {
                 setTimeout(() => {
                     try {
-                        document.dispatchEvent(new CustomEvent('lc:storage-clean-orphans'));
+                        if (lineSounds.size > 0) {
+                            document.dispatchEvent(new CustomEvent('lc:storage-clean-orphans'));
+                        } else if (shouldRefreshStorage) {
+                            document.dispatchEvent(new CustomEvent('lc:storage-manager-open'));
+                        }
                     } catch (_) { }
-                }, 300);
+                }, 250);
             }
         }
 

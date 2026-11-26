@@ -4339,6 +4339,22 @@ function resolveAudioFilePath(relPath) {
 
     const exeDir = (() => { try { return path.dirname(process.execPath); } catch (_) { return ''; } })();
     const resDir = (() => { try { return process.resourcesPath || ''; } catch (_) { return ''; } })();
+    const searchRoots = [uData, uPath, getBasePath(), exeDir, resDir].filter(Boolean);
+
+    // Pokud cesta obsahuje podsložku (např. zvuky/hlaseni/ZASTAVIME.wav), hledat nejprve přesnou relativní cestu
+    if (cleanRel.includes('/')) {
+        const relDir = cleanRel.slice(0, cleanRel.lastIndexOf('/'));
+        const relVariants = candidateNames.map(name => path.join(relDir, name));
+        for (const root of searchRoots) {
+            for (const relVar of relVariants) {
+                const directPath = path.join(root, relVar);
+                try {
+                    if (fs.existsSync(directPath)) return directPath;
+                } catch (_) {}
+            }
+        }
+    }
+
     const candidateFolders = [
         path.join(uData, 'zvuky', 'zastavky'),
         path.join(uData, 'zvuky'),
