@@ -716,7 +716,7 @@ button.chip.dl:hover{border-color:var(--blue);color:#fff}
 
 <!-- ===== Titulní lišta ===== -->
 <div class="titlebar">
-  <div class="drag-region"><span class="tdot"></span>LANCHER OIS IDPK <span id="launcher-title-version" class="tver">v1.0.11</span></div>
+  <div class="drag-region"><span class="tdot"></span>LANCHER OIS IDPK <span id="launcher-title-version" class="tver">v1.0.12</span></div>
   <div class="window-controls">
     <button id="btn-minimize" title="Minimalizovat"><svg class="ic"><use href="#i-min"/></svg></button>
     <button id="btn-close" title="Zavřít"><svg class="ic"><use href="#i-x"/></svg></button>
@@ -1104,7 +1104,7 @@ button.chip.dl:hover{border-color:var(--blue);color:#fff}
 
         <div class="card">
           <div class="card-h"><svg class="ic"><use href="#i-info"/></svg>O aplikaci</div>
-          <div class="row"><div class="ri"><svg class="ic"><use href="#i-rocket"/></svg></div><div class="rt"><b>Launcher <span id="settings-launcher-version">Verze Launcheru: v1.0.11</span></b><small>Hra <span id="settings-app-version">V1.6.3</span> · OIS IDPK © 2026 · CC BY 4.0</small></div>
+          <div class="row"><div class="ri"><svg class="ic"><use href="#i-rocket"/></svg></div><div class="rt"><b>Launcher <span id="settings-launcher-version">Verze Launcheru: v1.0.12</span></b><small>Hra <span id="settings-app-version">V1.6.3</span> · OIS IDPK © 2026 · CC BY 4.0</small></div>
             <button class="btn sm" id="btn-check-launcher-update"><svg class="ic" id="btn-check-launcher-icon"><use href="#i-refresh"/></svg><span id="btn-check-launcher-text">Zkontrolovat launcher</span></button></div>
           <div class="row"><div class="ri"><svg class="ic"><use href="#i-users"/></svg></div><div class="rt"><b>Komunita na Discordu</b><small>Novinky, podpora a sdílení linek</small></div><a class="btn sm" id="settings-discord-link" href="https://discord.com/invite/vmTagbC9mF" target="_blank" rel="noopener">Připojit se</a></div>
         </div>
@@ -1116,7 +1116,7 @@ button.chip.dl:hover{border-color:var(--blue);color:#fff}
 <!-- ===== Načítání ===== -->
 <div class="overlay" id="initial-loading-overlay">
   <div class="boot"><div class="rg"></div><div class="rg rg2"></div><div class="mk"><img src="assets/img/datacorebot_icon.png" alt="DataCoreBot"></div></div>
-  <div class="boot-t"><span>Načítání</span> <span style="animation-delay:.2s">launcheru</span><span style="animation-delay:.4s">…</span></div>
+  <div class="boot-t" id="boot-status-text"><span>Kontroluji</span> <span style="animation-delay:.2s">aktualitu</span> <span style="animation-delay:.4s">verze…</span></div>
 </div>
 
 <!-- ===== Přihlášení ===== -->
@@ -1209,7 +1209,7 @@ button.chip.dl:hover{border-color:var(--blue);color:#fff}
   <div class="mbox" style="width:460px;">
     <div class="mico a" style="background:rgba(245,158,11,.15);color:#fbbf24;"><svg class="ic"><use href="#i-alert"/></svg></div>
     <div style="display:inline-block;padding:3px 10px;border-radius:999px;background:rgba(245,158,11,.15);border:1px solid rgba(245,158,11,.35);color:#fcd34d;font-size:11px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;margin:0 auto 10px;">Zastaralá verze</div>
-    <h3 style="margin-bottom:8px;">Vyžadována aktualizace Launcheru</h3>
+    <h3 style="margin-bottom:8px;">Aktualizujte Launcher</h3>
     <p id="launcher-outdated-desc" style="font-size:13.5px;line-height:1.5;color:var(--muted);margin-bottom:14px;">Vaše verze je stará. Aktualizujte prosím na nejnovější verzi.</p>
     <div style="display:flex;align-items:center;justify-content:center;gap:10px;margin-bottom:18px;font-family:monospace;font-size:13px;">
       <span id="outdated-cur-ver" style="padding:5px 12px;border-radius:8px;background:rgba(239,68,68,.14);border:1px solid rgba(239,68,68,.3);color:#fca5a5;font-weight:700;">v1.0.0</span>
@@ -1235,7 +1235,7 @@ button.chip.dl:hover{border-color:var(--blue);color:#fff}
     <div class="progress-bar"><div class="progress-fill" id="launcher-update-progress-bar" style="transition:width .25s ease;"></div></div>
     <div style="display:flex;justify-content:space-between;margin-top:10px;color:var(--muted);font-size:12.5px;font-variant-numeric:tabular-nums"><span id="launcher-update-percent">0 %</span><span id="launcher-update-speed">—</span></div>
     <div style="margin-top:14px;padding:10px 12px;border-radius:10px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.07);font-size:11.5px;color:var(--dim);line-height:1.45;">
-      Po stažení se okno na několik sekund zavře, nainstaluje se nová verze na pozadí a Launcher se sám znovu spustí.
+      Po stažení se okno na několik sekund zavře, instalace proběhne čistě na pozadí (bez černého okna terminálu) a Launcher se automaticky restartuje v nové verzi.
     </div>
   </div>
 </div>

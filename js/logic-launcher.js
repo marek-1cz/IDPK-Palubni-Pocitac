@@ -933,13 +933,13 @@ function downloadAndInstallLauncherUpdate(url, newVersion) {
 
             setTimeout(() => {
                 if (window.LC && window.LC.setLauncherUpdate) {
-                    window.LC.setLauncherUpdate({ stage: 3, pct: 100, text: 'Instaluji aktualizaci na pozadí… Launcher se za chvíli sám znovu spustí.', speed: 'Instalace…' });
+                    window.LC.setLauncherUpdate({ stage: 3, pct: 100, text: 'Aktualizace dokončena! Spouštím instalaci a restartuji Launcher…', speed: 'Restart…' });
                 }
                 setTimeout(() => {
                     ipcRenderer.send('install-launcher-update', tempExePath);
                     activeLauncherUpdateDownload = null;
                     resolve(true);
-                }, 700);
+                }, 900);
             }, 600);
         } catch (err) {
             console.error("[LauncherUpdate] Download error:", err);
@@ -1016,7 +1016,28 @@ async function checkAuthAndInit() {
     config.offline_mode = false;
     saveConfig(config);
 
-    // Okamžité přednačtení z lokální mezipaměti pro nulové zpoždění zobrazení
+    const isCommunityMode = (() => {
+        try { return new URLSearchParams(window.location.search).get('mode') === 'community'; }
+        catch (_) { return false; }
+    })();
+
+    // 1. NEJDŘÍVE zkontrolovat aktualitu verze Launcheru (nikoho dál nepustíme, dokud nesedí)
+    const bootTxtEl = document.getElementById('boot-status-text');
+    if (!isCommunityMode) {
+        if (bootTxtEl) bootTxtEl.innerHTML = '<span>Kontroluji</span> <span style="animation-delay:.2s">aktualizaci</span> <span style="animation-delay:.4s">launcheru…</span>';
+        const updateMeta = await checkLauncherUpdateMeta().catch(e => {
+            console.warn('[LauncherUpdate] Kontrola aktualizace selhala:', e);
+            return null;
+        });
+        if (updateMeta && updateMeta.hasUpdate) {
+            await promptOutdatedLauncherUpdate(LAUNCHER_VERSION, updateMeta.remoteVer, updateMeta.dlUrl);
+            return;
+        }
+    }
+
+    // 2. Verze Launcheru sedí — načteme HWID, mezipaměť a zkontrolujeme přihlášení uživatele
+    if (bootTxtEl) bootTxtEl.innerHTML = '<span>Načítání</span> <span style="animation-delay:.2s">účtu</span> <span style="animation-delay:.4s">a dat…</span>';
+
     try {
         const cachedState = loadLauncherCache();
         if (cachedState && Array.isArray(cachedState.versions) && cachedState.versions.length > 0) {
@@ -1026,25 +1047,8 @@ async function checkAuthAndInit() {
         }
     } catch (_) { }
 
-    const isCommunityMode = (() => {
-        try { return new URLSearchParams(window.location.search).get('mode') === 'community'; }
-        catch (_) { return false; }
-    })();
-
-    // Rychlá paralelní kontrola pouze metadat aktualizace launcheru (stahování spouštíme až po potvrzení)
-    const updateMetaPromise = isCommunityMode ? Promise.resolve(null) : checkLauncherUpdateMeta().catch(e => {
-        console.warn('[LauncherUpdate] Kontrola aktualizace selhala:', e);
-        return null;
-    });
-
     currentHWID = await getHWID();
     if (typeof hwidText !== 'undefined' && hwidText) hwidText.innerText = "HWID: " + currentHWID;
-
-    const updateMeta = await updateMetaPromise;
-    if (updateMeta && updateMeta.hasUpdate) {
-        await promptOutdatedLauncherUpdate(LAUNCHER_VERSION, updateMeta.remoteVer, updateMeta.dlUrl);
-        return;
-    }
 
     if (config.discord_id || config.email) {
         // Uživatel už je přihlášen, pustíme ho dál
