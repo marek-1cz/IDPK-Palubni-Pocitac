@@ -2,7 +2,7 @@
   "appId": "com.marek.idpklauncher",
   "productName": "IDPK Launcher",
   "extraMetadata": {
-    "version": "1.0.10"
+    "version": "1.0.11"
   },
   "files": [
     "main.js",
@@ -27,12 +27,6 @@
     "target": [
       {
         "target": "nsis",
-        "arch": [
-          "x64"
-        ]
-      },
-      {
-        "target": "portable",
         "arch": [
           "x64"
         ]

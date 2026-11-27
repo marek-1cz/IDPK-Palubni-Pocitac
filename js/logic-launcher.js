@@ -552,7 +552,7 @@ async function checkLauncherUpdateMeta() {
     if (activeLauncherUpdateCheck) return activeLauncherUpdateCheck;
     activeLauncherUpdateCheck = (async () => {
         try {
-            const res = await safeFetch(`${API_BASE}/api/launcher/check_update?current_version=${encodeURIComponent(LAUNCHER_VERSION)}`, {}, 3500);
+            const res = await safeFetch(`${API_BASE}/api/launcher/check_update?current_version=${encodeURIComponent(LAUNCHER_VERSION)}`, {}, 8000);
             if (!res.ok) return null;
             const data = await res.json();
             if (data && data.status === 'ok') {
@@ -601,7 +601,14 @@ async function resolveGitHubReleaseAssetUrl(dlUrl) {
         }, 6000);
         if (!resp.ok) return null;
         const data = await resp.json();
-        const asset = (data.assets || []).find(a => a.name === filename || a.name === rawFilename);
+        const assets = data.assets || [];
+        let asset = null;
+        if (filename.toLowerCase().endsWith('.exe') && !filename.toLowerCase().includes('setup')) {
+            asset = assets.find(a => a.name && a.name.toLowerCase().includes('setup') && a.name.toLowerCase().endsWith('.exe'));
+        }
+        if (!asset) {
+            asset = assets.find(a => a.name === filename || a.name === rawFilename);
+        }
         if (asset && asset.url) {
             return asset.url;
         }
@@ -814,9 +821,14 @@ function promptOutdatedLauncherUpdate(currentVer, remoteVer, dlUrl) {
         const overlay = document.getElementById('initial-loading-overlay');
         if (overlay) { overlay.hidden = true; overlay.style.display = 'none'; }
         if (window.LC && window.LC.showBoot) window.LC.showBoot(false);
+        const appEl = document.getElementById('app');
+        if (appEl) appEl.style.pointerEvents = 'none';
 
         if (!outModal || !btnUpd || !btnExit) {
-            downloadAndInstallLauncherUpdate(dlUrl, remoteVer).then(resolve);
+            downloadAndInstallLauncherUpdate(dlUrl, remoteVer).then((ok) => {
+                if (!ok) ipcRenderer.send('quit-app');
+                resolve('updated');
+            });
             return;
         }
 
@@ -843,7 +855,16 @@ function promptOutdatedLauncherUpdate(currentVer, remoteVer, dlUrl) {
             outModal.hidden = true;
             outModal.style.display = 'none';
             const ok = await downloadAndInstallLauncherUpdate(dlUrl, remoteVer);
-            resolve(ok ? 'updated' : 'failed');
+            if (ok) {
+                resolve('updated');
+            } else {
+                // Nikam uživatele nepustíme — vrátíme okno s možností zkusit znovu nebo odejít
+                btnUpd.disabled = false;
+                btnExit.disabled = false;
+                if (descEl) descEl.innerHTML = `Stažení aktualizace <b>v${remoteVer}</b> se nezdařilo. Zkuste to prosím znovu nebo odejděte.`;
+                outModal.hidden = false;
+                outModal.style.display = 'flex';
+            }
         };
     });
 }
@@ -1021,8 +1042,8 @@ async function checkAuthAndInit() {
 
     const updateMeta = await updateMetaPromise;
     if (updateMeta && updateMeta.hasUpdate) {
-        const choice = await promptOutdatedLauncherUpdate(LAUNCHER_VERSION, updateMeta.remoteVer, updateMeta.dlUrl);
-        if (choice === 'updated' || choice === 'exit') return;
+        await promptOutdatedLauncherUpdate(LAUNCHER_VERSION, updateMeta.remoteVer, updateMeta.dlUrl);
+        return;
     }
 
     if (config.discord_id || config.email) {

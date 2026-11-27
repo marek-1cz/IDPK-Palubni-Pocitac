@@ -608,29 +608,41 @@ ipcMain.on('install-launcher-update', (event, installerPath) => {
 
         const escVbs = (s) => String(s).replace(/"/g, '""');
         const vbsScriptPath = path.join(resolvedTmp, `idpk_updater_${Date.now()}.vbs`);
-        const setupTargetExe = path.join(process.env.LOCALAPPDATA || '', 'Programs', 'idpk-launcher', 'IDPK Launcher.exe');
+        const setupTargetExePrimary = path.join(process.env.LOCALAPPDATA || '', 'Programs', 'IDPK Launcher', 'IDPK Launcher.exe');
+        const setupTargetExeLegacy = path.join(process.env.LOCALAPPDATA || '', 'Programs', 'idpk-launcher', 'IDPK Launcher.exe');
+        const currentDirExe = !process.execPath.toLowerCase().includes('\\temp\\') ? process.execPath : setupTargetExePrimary;
         const portableExe = (process.env.PORTABLE_EXECUTABLE_FILE && !process.env.PORTABLE_EXECUTABLE_FILE.toLowerCase().includes('dist-launcher'))
             ? path.resolve(process.env.PORTABLE_EXECUTABLE_FILE)
             : '';
+        // Odstranit případné staré .bat skripty v %TEMP%, aby už nikdy nemohly vyskočit
+        try {
+            for (const f of fs.readdirSync(resolvedTmp)) {
+                if (/^idpk_updater_.*\.bat$/i.test(f)) {
+                    try { fs.unlinkSync(path.join(resolvedTmp, f)); } catch (_) { }
+                }
+            }
+        } catch (_) { }
         const vbsScript = [
             'Option Explicit',
-            'Dim sh, fso, inst, currentExe, setupExe, portableExe, pid, wmi, procs, i, beforeMtime, afterMtime, launchTarget, exeName',
+            'Dim sh, fso, inst, currentExe, setupExe, setupLegacy, portableExe, wmi, procs, i, beforeMtime, afterMtime, launchTarget, exeName',
             'Set sh = CreateObject("WScript.Shell")',
             'Set fso = CreateObject("Scripting.FileSystemObject")',
             `inst = "${escVbs(resolvedInstaller)}"`,
-            `currentExe = "${escVbs(process.execPath)}"`,
-            `setupExe = "${escVbs(setupTargetExe)}"`,
+            `currentExe = "${escVbs(currentDirExe)}"`,
+            `setupExe = "${escVbs(setupTargetExePrimary)}"`,
+            `setupLegacy = "${escVbs(setupTargetExeLegacy)}"`,
             `portableExe = "${escVbs(portableExe)}"`,
-            `pid = ${Number(process.pid) || 0}`,
+            `exeName = "${escVbs(path.basename(process.execPath))}"`,
             'On Error Resume Next',
             'Set wmi = GetObject("winmgmts:\\\\.\\root\\cimv2")',
-            'If pid > 0 And IsObject(wmi) Then',
-            '    For i = 1 To 30',
-            '        Set procs = wmi.ExecQuery("SELECT ProcessId FROM Win32_Process WHERE ProcessId = " & pid)',
+            'If IsObject(wmi) Then',
+            '    For i = 1 To 40',
+            '        Set procs = wmi.ExecQuery("SELECT ProcessId FROM Win32_Process WHERE Name = \'" & exeName & "\'")',
             '        If procs.Count = 0 Then Exit For',
             '        WScript.Sleep 300',
             '    Next',
             'End If',
+            'WScript.Sleep 400',
             'beforeMtime = ""',
             'If setupExe <> "" And fso.FileExists(setupExe) Then beforeMtime = CStr(fso.GetFile(setupExe).DateLastModified)',
             'If fso.FileExists(inst) Then',
@@ -639,6 +651,7 @@ ipcMain.on('install-launcher-update', (event, installerPath) => {
             'WScript.Sleep 800',
             'afterMtime = ""',
             'If setupExe <> "" And fso.FileExists(setupExe) Then afterMtime = CStr(fso.GetFile(setupExe).DateLastModified)',
+            'If Not fso.FileExists(setupExe) And fso.FileExists(setupLegacy) Then setupExe = setupLegacy',
             'launchTarget = currentExe',
             'If setupExe <> "" And fso.FileExists(setupExe) Then',
             '    launchTarget = setupExe',
