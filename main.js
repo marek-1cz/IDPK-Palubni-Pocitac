@@ -726,7 +726,16 @@ ipcMain.handle('get-link-files', async () => {
                     let rLong = cleanStr(row.route_long_name);
 
                     if (rLong) {
-                        rLong = rLong.replace(/(^|[\s-])([a-zěščřžýáíéóúůďťň])/g, (match) => match.toUpperCase());
+                        rLong = rLong.trim().replace(/\s*-\s*/g, ' - ').replace(/,([^\s])/g, ', $1');
+                        if (rLong === rLong.toUpperCase() && /[A-ZĚŠČŘŽÝÁÍÉÓÚŮĎŤŇ]{4,}/.test(rLong)) {
+                            const lowerWords = new Set(['nad', 'pod', 'před', 'za', 'u', 'v', 've', 'na', 'k', 'ke', 's', 'se', 'z', 'ze', 'do', 'od', 'při', 'o', 'pro', 'žel.', 'st.', 'nem.', 'nám.', 'obú']);
+                            rLong = rLong.toLowerCase().replace(/(^|[\s\-\/,.:;()]+)([a-zěščřžýáíéóúůďťň]+)/g, (m, sep, word, offset) => {
+                                if (offset > 0 && lowerWords.has(word)) return sep + word;
+                                return sep + word.charAt(0).toUpperCase() + word.slice(1);
+                            });
+                        } else {
+                            rLong = rLong.charAt(0).toUpperCase() + rLong.slice(1);
+                        }
                     }
 
                     if (rShort) {
@@ -1398,13 +1407,13 @@ function getRouteIdsForShortName(routeId, db) {
         stmt1.free();
 
         if (rIds.size === 0 && /^\d+$/.test(clean)) {
-            let stmt2 = db.prepare("SELECT route_id, route_short_name FROM routes WHERE (route_type = '3' OR route_type = 3) AND (route_short_name LIKE ? OR route_id LIKE ?)");
-            stmt2.bind(['%' + clean, '%' + clean]);
+            let stmt2 = db.prepare("SELECT route_id, route_short_name FROM routes WHERE (route_type = '3' OR route_type = 3) AND (route_short_name LIKE ? OR route_id = ?)");
+            stmt2.bind(['%' + clean, clean]);
             while (stmt2.step()) {
                 let row = stmt2.getAsObject();
                 let sn = String(row.route_short_name || '').trim();
                 let rid = String(row.route_id || '').trim();
-                if (sn === clean || sn.endsWith(clean) || rid === clean || rid.endsWith(clean)) {
+                if (sn === clean || sn.endsWith(clean) || rid === clean) {
                     if (row.route_id) rIds.add(row.route_id);
                     if (sn.length > 0) shortNames.add(sn);
                 }
@@ -1474,36 +1483,36 @@ async function findRouteId(shortName, exactRouteId = null) {
     await ensureCrCache();
     let query = "SELECT route_id, route_short_name FROM routes WHERE (route_type = '3' OR route_type = 3)";
 
-    const checkRow = (rId, rShort) => {
-        const sClean = String(shortName || '').trim();
-        const eClean = String(exactRouteId || '').trim();
-        const rIdClean = String(rId || '').trim();
-        const rShortClean = String(rShort || '').trim();
-
-        if (eClean && (rShortClean === eClean || rIdClean === eClean)) return rId;
-        if (sClean && (rShortClean === sClean || rIdClean === sClean)) return rId;
-
-        if (sClean.length >= 3) {
-            if (rShortClean.endsWith(sClean) || rIdClean.endsWith(sClean)) return rId;
-        }
-        if (eClean.length >= 3) {
-            if (rShortClean.endsWith(eClean) || rIdClean.endsWith(eClean)) return rId;
-        }
-        return null;
-    };
+    const sClean = String(shortName || '').trim();
+    const eClean = String(exactRouteId || '').trim();
 
     const scanDb = (db) => {
         if (!db) return null;
+        let exactShort = null;
+        let suffixShort = null;
+        let exactIdMatch = null;
         try {
             let stmt = db.prepare(query);
             while (stmt.step()) {
                 let row = stmt.getAsObject();
-                let match = checkRow(row.route_id, row.route_short_name);
-                if (match) { stmt.free(); return match; }
+                const rId = row.route_id;
+                const rIdClean = String(rId || '').trim();
+                const rShortClean = String(row.route_short_name || '').trim();
+
+                if (!exactShort && ((eClean && rShortClean === eClean) || (sClean && rShortClean === sClean))) {
+                    exactShort = rId;
+                    break;
+                }
+                if (!suffixShort && ((sClean.length >= 3 && rShortClean.endsWith(sClean)) || (eClean.length >= 3 && rShortClean.endsWith(eClean)))) {
+                    suffixShort = rId;
+                }
+                if (!exactIdMatch && ((eClean && rIdClean === eClean) || (sClean && rIdClean === sClean))) {
+                    exactIdMatch = rId;
+                }
             }
             stmt.free();
         } catch (e) { console.error(e); }
-        return null;
+        return exactShort || suffixShort || exactIdMatch || null;
     };
 
     let found = scanDb(idpkDb);

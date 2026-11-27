@@ -4863,13 +4863,18 @@ window.renderSmartLinkList = function(query, mode = 'LINKOSPOJ') {
         return s.includes('_custom') || s.startsWith('comm_') || s.includes('komunit');
     };
     
-    let items = dataSrc.map(f => f.toLowerCase().replace(/_auto-beta/i,'').replace(/_auto/i,'').replace(/-beta/i,'').trim());
-    let unique = [...new Set(items)];
+    const stripAutoTags = s => (s || '').replace(/_auto-beta/i, '').replace(/_auto/i, '').replace(/-beta/i, '').trim();
+    const origByKey = new Map();
+    for (const f of dataSrc) {
+        const key = normalize(stripAutoTags(f));
+        if (!origByKey.has(key)) origByKey.set(key, f);
+    }
+    let unique = [...origByKey.keys()];
 
     let matches = unique;
     if (query) {
         const queryNorm = normalize(query);
-        matches = unique.filter(f => normalize(f).includes(queryNorm));
+        matches = unique.filter(k => k.includes(queryNorm));
     }
 
     if (matches.length === 0 && query) {
@@ -4877,16 +4882,16 @@ window.renderSmartLinkList = function(query, mode = 'LINKOSPOJ') {
         return;
     }
 
-    const renderItem = (name) => {
-        const orig = dataSrc.find(f => normalize(f.replace(/_auto-beta/i,'').replace(/_auto/i,'').replace(/-beta/i,'').trim()) === name) || dataSrc.find(f => f.toLowerCase().includes(name)) || name;
+    const renderItem = (key) => {
+        const orig = origByKey.get(key) || key;
         const isBeta = orig.toUpperCase().includes('BETA');
-        const isComm = isCustomOrComm(orig) || isCustomOrComm(name);
+        const isComm = isCustomOrComm(orig);
         let routeName = orig.includes('|') ? orig.split('|')[1].trim() : '';
-        let cleanBadge = name.split('|')[0].replace(/_custom/i, '').replace(/^comm_/i, '').trim().toUpperCase();
+        let cleanBadge = stripAutoTags(orig).split('|')[0].replace(/_custom/i, '').replace(/^comm_/i, '').trim().toUpperCase();
         if (!routeName) {
             routeName = isComm ? 'Komunitní linka' : `Linka ${cleanBadge}`;
         }
-        routeName = routeName.replace(/(^|[\s-,\.]+)([a-zěščřžýáíéóúůďťňA-ZĚŠČŘŽÝÁÍÉÓÚŮĎŤŇ])/g, (match, sep, char) => sep + char.toUpperCase());
+        routeName = routeName.charAt(0).toUpperCase() + routeName.slice(1);
         
         let displayRouteName = routeName;
         let displayBadge = cleanBadge;
@@ -4906,11 +4911,8 @@ window.renderSmartLinkList = function(query, mode = 'LINKOSPOJ') {
         </div>`;
     };
 
-    const commMatches = matches.filter(name => {
-        const orig = dataSrc.find(f => normalize(f.replace(/_auto-beta/i,'').replace(/_auto/i,'').replace(/-beta/i,'').trim()) === name) || name;
-        return isCustomOrComm(orig) || isCustomOrComm(name);
-    });
-    const officialMatches = matches.filter(name => !commMatches.includes(name));
+    const commMatches = matches.filter(key => isCustomOrComm(origByKey.get(key) || key));
+    const officialMatches = matches.filter(key => !commMatches.includes(key));
 
     let html = '';
     if (commMatches.length > 0) {
