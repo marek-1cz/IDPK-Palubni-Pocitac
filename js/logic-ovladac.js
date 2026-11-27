@@ -467,6 +467,7 @@ window.showMandatoryPatchScreen = function(localBuild, serverBuild, versionName)
                 devBtn.style.display = 'block';
                 devBtn.onclick = function() {
                     if (overlay) overlay.style.display = 'none';
+                    window.ensureTimeLoopStarted();
                     window.initAppFlow(true);
                 };
             } catch (_) {}
@@ -1308,7 +1309,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         window.initAppFlow(isServerOnline);
     }
 
-    setInterval(window.timeLoop, 1000);
+    window.ensureTimeLoopStarted();
 });
 
 window.toggleSettings = function() { 
@@ -1956,6 +1957,16 @@ const DOM = {};
 window.getEl = function(id) {
     if (!DOM[id]) DOM[id] = document.getElementById(id);
     return DOM[id];
+};
+
+let _timeLoopTimer = null;
+window.ensureTimeLoopStarted = function() {
+    if (typeof window.timeLoop === 'function') {
+        try { window.timeLoop(); } catch (_) {}
+    }
+    if (!_timeLoopTimer) {
+        _timeLoopTimer = setInterval(window.timeLoop, 1000);
+    }
 };
 
 window.timeLoop = function() {
@@ -3586,6 +3597,7 @@ window.switchToDriveScreen = function() {
     
     window.updateStopVisuals(); 
     window.updateDriveUI(); 
+    window.ensureTimeLoopStarted();
 
     routeStartupWait = true;
     setTimeout(() => {
