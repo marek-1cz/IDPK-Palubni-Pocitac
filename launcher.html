@@ -169,7 +169,7 @@ svg.ic{width:1.15em;height:1.15em;fill:none;stroke:currentColor;stroke-width:2;s
 .dl-pct{white-space:nowrap;font-size:34px;font-weight:900;letter-spacing:-.03em;color:#fff;font-variant-numeric:tabular-nums}
 .dl-pct small{font-size:16px;color:var(--muted);font-weight:700}
 .progress-bar{height:12px;border-radius:999px;background:rgba(0,0,0,.4);overflow:hidden;position:relative;border:1px solid rgba(255,255,255,.06)}
-.progress-fill{height:100%;width:0;border-radius:999px;background:#2563eb;transition:width .25s linear;position:relative;overflow:hidden}
+.progress-fill{height:100%;width:0;border-radius:999px;background:#2563eb;transition:width .1s linear;position:relative;overflow:hidden}
 .progress-fill::after{content:"";position:absolute;inset:0;background:transparent;animation:shim 1.4s linear infinite}
 @keyframes shim{from{transform:translateX(-100%)}to{transform:translateX(100%)}}
 .dl-steps{display:flex;gap:6px;margin-top:14px}
@@ -1232,7 +1232,7 @@ button.chip.dl:hover{border-color:var(--blue);color:#fff}
     <h3 style="margin-bottom:6px;">Aktualizuji IDPK Launcher</h3>
     <p id="launcher-update-status" style="min-height:38px;">Připravuje se…</p>
     <div class="up-stages" id="up-stages"><span>Kontrola</span><span>Stahování</span><span>Instalace</span><span>Restart</span></div>
-    <div class="progress-bar"><div class="progress-fill" id="launcher-update-progress-bar" style="transition:width .25s ease;"></div></div>
+    <div class="progress-bar"><div class="progress-fill" id="launcher-update-progress-bar" style="transition:width .1s linear;"></div></div>
     <div style="display:flex;justify-content:space-between;margin-top:10px;color:var(--muted);font-size:12.5px;font-variant-numeric:tabular-nums"><span id="launcher-update-percent">0 %</span><span id="launcher-update-speed">—</span></div>
     <div style="margin-top:14px;padding:10px 12px;border-radius:10px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.07);font-size:11.5px;color:var(--dim);line-height:1.45;">
       Po stažení se okno na několik sekund zavře, instalace proběhne čistě na pozadí (bez černého okna terminálu) a Launcher se automaticky restartuje v nové verzi.

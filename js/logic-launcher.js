@@ -714,28 +714,41 @@ function downloadFileWithProgress({
                 const total = parseInt(res.headers['content-length'], 10) || 0;
                 let downloaded = 0;
                 const startTime = Date.now();
+                let lastProgressEmit = 0;
+                let lastTimeoutReset = startTime;
 
                 // Zajistit cílový adresář
                 const dir = path.dirname(destPath);
                 if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 
-                const fileStream = fs.createWriteStream(destPath);
+                const fileStream = fs.createWriteStream(destPath, { highWaterMark: 1024 * 1024 });
                 activeStream = fileStream;
 
+                const emitProgress = () => {
+                    if (!onProgress) return;
+                    const percent = total > 0 ? Math.min(100, Math.round((downloaded / total) * 100)) : 0;
+                    const elapsedSec = (Date.now() - startTime) / 1000;
+                    const speedMBps = elapsedSec > 0.25 ? ((downloaded / (1024 * 1024)) / elapsedSec).toFixed(1) : "0.0";
+                    onProgress(downloaded, total, percent, speedMBps);
+                };
+
                 res.on('data', (chunk) => {
-                    resetTimeout();
                     downloaded += chunk.length;
-                    if (onProgress) {
-                        const percent = total > 0 ? Math.round((downloaded / total) * 100) : 0;
-                        const elapsedSec = (Date.now() - startTime) / 1000;
-                        const speedMBps = elapsedSec > 0.5 ? ((downloaded / (1024 * 1024)) / elapsedSec).toFixed(1) : "0.0";
-                        onProgress(downloaded, total, percent, speedMBps);
+                    const nowTs = Date.now();
+                    if (nowTs - lastTimeoutReset >= 1000) {
+                        lastTimeoutReset = nowTs;
+                        resetTimeout();
+                    }
+                    if (onProgress && (nowTs - lastProgressEmit >= 80 || (total > 0 && downloaded >= total))) {
+                        lastProgressEmit = nowTs;
+                        emitProgress();
                     }
                 });
 
                 res.pipe(fileStream);
 
                 fileStream.on('finish', () => {
+                    emitProgress();
                     fileStream.close(() => {
                         if (timer) clearTimeout(timer);
                         activeDownloadCleanup = null;
